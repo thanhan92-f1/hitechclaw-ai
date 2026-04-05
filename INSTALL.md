@@ -73,10 +73,43 @@ Migrations run automatically on first startup.
 Open `http://localhost:3000` in your browser. The setup wizard guides you through:
 
 1. **Create your account** — Organization name, admin email, password
-2. **Register your first agent** — Name, framework, generates an API token
-3. **Install the SDK** — Copy-paste integration code for your framework
-4. **Send your first event** — Test button or curl command
+2. **Register one or more agents** — Name, framework, install mode, optional SSH target, generates an API token per agent
+3. **Install and configure agents** — Copy-paste per-agent integration code or let the wizard deploy config over SSH
+4. **Send your first event** — Test button or curl command for the selected agent
 5. **Explore** — Quick links to key features
+
+You can provision OpenClaw and NemoClaw in parallel during the same setup run. The wizard generates isolated tokens, config paths, and install snippets for each agent to avoid conflicts.
+
+### OpenClaw first-time setup
+
+If an agent runs on OpenClaw, choose **OpenClaw** in step 2. In step 3, the wizard gives you a ready-to-paste bootstrap block for that agent, and can optionally push it over SSH.
+
+Use the generated values on the OpenClaw host:
+
+```bash
+cd /path/to/your/openclaw-agent
+
+cat >> .env <<'EOF'
+MC_INGEST_URL=http://localhost:3000/api/ingest
+MC_AGENT_TOKEN=YOUR_GENERATED_AGENT_TOKEN
+EOF
+
+systemctl --user restart openclaw-gateway.service
+```
+
+Then go back to the wizard, select that agent, and click **Start Listening** or **Send Test Event**.
+
+### NemoClaw first-time setup
+
+If an agent runs on NemoClaw, choose **NemoClaw** in step 2. In step 3, copy the generated telemetry block into your runtime config, or let the wizard apply it remotely:
+
+```yaml
+telemetry:
+  endpoint: http://localhost:3000/api/ingest
+  token: YOUR_GENERATED_AGENT_TOKEN
+```
+
+Restart or reload NemoClaw, then return to the wizard, select that agent, and verify the first event arrives.
 
 ## Step 5: Send Your First Event
 

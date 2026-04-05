@@ -20,10 +20,22 @@ Open **http://localhost:3000** in your browser.
 
 The wizard walks you through:
 - Creating your admin account
-- Registering your first agent (generates an API token)
-- Choosing your integration method
+- Registering one or more agents (each gets its own API token)
+- Choosing per-agent install mode: script, remote SSH deploy, or both
+- Copying ready-made OpenClaw or NemoClaw setup instructions when you select those frameworks
 
 Save the API token — you'll need it in the next step.
+
+### OpenClaw / NemoClaw during setup
+
+If you select **OpenClaw** or **NemoClaw** while registering agents, step 3 now gives you a full per-agent integration block:
+
+- **OpenClaw**: paste `MC_INGEST_URL` and `MC_AGENT_TOKEN` into the agent `.env`, then restart the runtime.
+- **NemoClaw**: paste the generated `telemetry.endpoint` and `telemetry.token` YAML block, then reload the runtime.
+
+If you choose **Remote deploy** or **Remote + script**, the wizard can also attempt to write the config over SSH during setup. Each agent keeps separate tokens and config paths, so OpenClaw and NemoClaw can share one host without overwriting each other.
+
+After that, use **Start Listening** or **Send Test Event** in the wizard to confirm telemetry is live.
 
 ## 3. Send a Test Event
 

@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { query } from "@/lib/db";
 
 /**
  * Validate an agent bearer token against the database.
@@ -27,12 +28,26 @@ export function parseAgentTokens(): Map<string, string> {
  * Validate bearer token from request header.
  * Returns agent_id if valid, null otherwise.
  */
-export function validateToken(authHeader: string | null): string | null {
+export async function validateToken(authHeader: string | null): Promise<string | null> {
   if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
-  const tokenMap = parseAgentTokens();
   const hash = hashToken(token);
+
+  try {
+    const result = await query(
+      "SELECT id FROM agents WHERE token_hash = $1 LIMIT 1",
+      [hash]
+    );
+    const dbAgentId = result.rows[0]?.id;
+    if (typeof dbAgentId === "string" && dbAgentId) {
+      return dbAgentId;
+    }
+  } catch {
+    // Fall back to legacy env-based tokens below.
+  }
+
+  const tokenMap = parseAgentTokens();
   return tokenMap.get(hash) || null;
 }

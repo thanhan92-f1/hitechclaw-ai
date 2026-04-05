@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Auth
     const authHeader = request.headers.get("authorization");
-    const agentId = validateToken(authHeader);
+    const agentId = await validateToken(authHeader);
     if (!agentId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

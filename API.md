@@ -673,6 +673,76 @@ Complete the setup wizard.
 
 **Auth:** None (only works when `needs_setup` is true)
 
+**Request body:**
+
+- `{"step":"account","org_name":"Acme AI","admin_email":"admin@example.com"}`
+- `{"step":"agent","agents":[...]}`
+- `{"step":"complete"}`
+
+For the `agent` step, you can register one or more agents in a single request:
+
+```json
+{
+  "step": "agent",
+  "agents": [
+    {
+      "name": "OpenClaw Gateway",
+      "description": "Primary production gateway",
+      "framework": "openclaw",
+      "install_mode": "both",
+      "ssh_host": "10.0.0.21",
+      "ssh_user": "ubuntu",
+      "node_name": "gpu-node-1",
+      "config_path": "~/.openclaw/openclaw-gateway.env",
+      "service_name": "openclaw-gateway.service"
+    },
+    {
+      "name": "NemoClaw Runtime",
+      "framework": "nemoclaw",
+      "install_mode": "script",
+      "config_path": "~/.nemoclaw/runtime.yaml"
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "agent_id": "openclaw-gateway",
+  "token": "ark_...",
+  "agents": [
+    {
+      "name": "OpenClaw Gateway",
+      "agent_id": "openclaw-gateway",
+      "token": "ark_...",
+      "framework": "openclaw",
+      "install_mode": "both",
+      "config_path": "~/.openclaw/openclaw-gateway.env",
+      "service_name": "openclaw-gateway.service",
+      "ssh_host": "10.0.0.21",
+      "ssh_user": "ubuntu",
+      "node_id": "gpu-node-1",
+      "install_snippet": "mkdir -p ...",
+      "deployment": {
+        "ok": true,
+        "mode": "both",
+        "output": "Configuration applied"
+      }
+    }
+  ]
+}
+```
+
+Notes:
+
+- `framework` supports `openclaw`, `nemoclaw`, `crewai`, `autogen`, and `custom`.
+- `install_mode` supports `script`, `remote`, and `both`.
+- Remote deployment requires both `ssh_host` and `ssh_user`.
+- Each agent receives its own token, config path, and generated install snippet so OpenClaw and NemoClaw can run side by side without conflicts.
+
 ---
 
 ## Health

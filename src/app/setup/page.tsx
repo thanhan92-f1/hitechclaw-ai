@@ -31,6 +31,81 @@ const FRAMEWORKS = [
   { value: "custom", label: "Custom / Other" },
 ];
 
+const INSTALL_MODES = [
+  {
+    value: "script",
+    label: "Generate script only",
+    description: "Prepare install/config snippets for manual execution.",
+  },
+  {
+    value: "remote",
+    label: "Remote deploy",
+    description: "Apply configuration directly over SSH.",
+  },
+  {
+    value: "both",
+    label: "Remote + script",
+    description: "Apply over SSH and keep a reusable script.",
+  },
+] as const;
+
+type SetupAgentDraft = {
+  clientId: string;
+  name: string;
+  description: string;
+  framework: string;
+  installMode: "script" | "remote" | "both";
+  sshHost: string;
+  sshUser: string;
+  nodeName: string;
+  configPath: string;
+  serviceName: string;
+};
+
+type RegisteredAgent = {
+  name: string;
+  agent_id: string;
+  token: string;
+  framework: string;
+  install_mode: "script" | "remote" | "both";
+  config_path: string;
+  service_name: string | null;
+  ssh_host: string | null;
+  ssh_user: string | null;
+  node_id: string | null;
+  install_snippet: string;
+  deployment?: {
+    ok: boolean;
+    mode: "script" | "remote" | "both";
+    output?: string;
+    error?: string;
+  };
+};
+
+function createDraftId() {
+  return `agent-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createEmptyAgentDraft(framework = "openclaw"): SetupAgentDraft {
+  return {
+    clientId: createDraftId(),
+    name: "",
+    description: "",
+    framework,
+    installMode: framework === "openclaw" || framework === "nemoclaw" ? "both" : "script",
+    sshHost: "",
+    sshUser: "",
+    nodeName: "",
+    configPath: "",
+    serviceName:
+      framework === "openclaw"
+        ? "openclaw-gateway.service"
+        : framework === "nemoclaw"
+          ? "nemoclaw.service"
+          : "",
+  };
+}
+
 /* ── Main Setup Wizard ─────────────────────────────────────────────────────── */
 
 export default function SetupPage() {
@@ -45,12 +120,13 @@ export default function SetupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  // Step 2 — Agent
-  const [agentName, setAgentName] = useState("");
-  const [agentDescription, setAgentDescription] = useState("");
-  const [framework, setFramework] = useState("openclaw");
-  const [agentToken, setAgentToken] = useState("");
-  const [agentId, setAgentId] = useState("");
+  // Step 2 — Agents
+  const [agents, setAgents] = useState<SetupAgentDraft[]>([
+    createEmptyAgentDraft("openclaw"),
+    createEmptyAgentDraft("nemoclaw"),
+  ]);
+  const [registeredAgents, setRegisteredAgents] = useState<RegisteredAgent[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
 
   // Step 4 — First Event
   const [eventReceived, setEventReceived] = useState(false);
@@ -73,6 +149,60 @@ export default function SetupPage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  const currentAgent =
+    registeredAgents.find((agent) => agent.agent_id === selectedAgentId) ??
+    registeredAgents[0] ??
+    null;
+
+  function updateDraft(clientId: string, patch: Partial<SetupAgentDraft>) {
+    setAgents((current) =>
+      current.map((agent) =>
+        agent.clientId === clientId
+          ? {
+              ...agent,
+              ...patch,
+            }
+          : agent
+      )
+    );
+  }
+
+  function updateFramework(clientId: string, nextFramework: string) {
+    setAgents((current) =>
+      current.map((agent) => {
+        if (agent.clientId !== clientId) return agent;
+        const nextInstallMode =
+          nextFramework === "openclaw" || nextFramework === "nemoclaw"
+            ? agent.installMode === "script"
+              ? "both"
+              : agent.installMode
+            : agent.installMode;
+
+        return {
+          ...agent,
+          framework: nextFramework,
+          installMode: nextInstallMode,
+          serviceName:
+            nextFramework === "openclaw"
+              ? agent.serviceName || "openclaw-gateway.service"
+              : nextFramework === "nemoclaw"
+                ? agent.serviceName || "nemoclaw.service"
+                : agent.serviceName,
+        };
+      })
+    );
+  }
+
+  function addAgentDraft() {
+    setAgents((current) => [...current, createEmptyAgentDraft("custom")]);
+  }
+
+  function removeAgentDraft(clientId: string) {
+    setAgents((current) =>
+      current.length > 1 ? current.filter((agent) => agent.clientId !== clientId) : current
+    );
+  }
 
   async function handleStep1() {
     if (!orgName.trim() || !adminEmail.trim()) {
@@ -109,8 +239,29 @@ export default function SetupPage() {
   }
 
   async function handleStep2() {
-    if (!agentName.trim()) {
-      setError("Agent name is required.");
+    const trimmedAgents = agents.map((agent) => ({
+      ...agent,
+      name: agent.name.trim(),
+      description: agent.description.trim(),
+      sshHost: agent.sshHost.trim(),
+      sshUser: agent.sshUser.trim(),
+      nodeName: agent.nodeName.trim(),
+      configPath: agent.configPath.trim(),
+      serviceName: agent.serviceName.trim(),
+    }));
+
+    if (trimmedAgents.some((agent) => !agent.name)) {
+      setError("Every agent needs a name.");
+      return;
+    }
+    if (
+      trimmedAgents.some(
+        (agent) =>
+          (agent.installMode === "remote" || agent.installMode === "both") &&
+          (!agent.sshHost || !agent.sshUser)
+      )
+    ) {
+      setError("SSH host and SSH user are required for remote deployment.");
       return;
     }
     setLoading(true);
@@ -121,9 +272,17 @@ export default function SetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           step: "agent",
-          agent_name: agentName.trim(),
-          agent_description: agentDescription.trim(),
-          framework,
+          agents: trimmedAgents.map((agent) => ({
+            name: agent.name,
+            description: agent.description,
+            framework: agent.framework,
+            install_mode: agent.installMode,
+            ssh_host: agent.sshHost || undefined,
+            ssh_user: agent.sshUser || undefined,
+            node_name: agent.nodeName || undefined,
+            config_path: agent.configPath || undefined,
+            service_name: agent.serviceName || undefined,
+          })),
         }),
       });
       if (!res.ok) {
@@ -131,9 +290,12 @@ export default function SetupPage() {
         setError(data.error || "Failed to register agent.");
         return;
       }
-      const data = await res.json();
-      setAgentToken(data.token);
-      setAgentId(data.agent_id);
+      const data = (await res.json()) as { agents?: RegisteredAgent[] };
+      const nextAgents = data.agents ?? [];
+      setRegisteredAgents(nextAgents);
+      setSelectedAgentId(nextAgents[0]?.agent_id ?? "");
+      setEventReceived(false);
+      setListening(false);
       setStep(3);
     } catch {
       setError("Connection error. Please try again.");
@@ -143,6 +305,7 @@ export default function SetupPage() {
   }
 
   function startListening() {
+    if (!currentAgent?.agent_id) return;
     setListening(true);
     setEventReceived(false);
 
@@ -152,7 +315,7 @@ export default function SetupPage() {
       try {
         const since = new Date(start).toISOString();
         const res = await fetch(
-          `/api/dashboard/activity?agent_id=${agentId}&since=${since}&limit=1`
+          `/api/dashboard/activity?agent_id=${currentAgent.agent_id}&since=${since}&limit=1`
         );
         if (res.ok) {
           const data = await res.json();
@@ -175,17 +338,17 @@ export default function SetupPage() {
   }
 
   async function sendTestEvent() {
-    if (!agentToken) return;
+    if (!currentAgent?.token) return;
     try {
       const baseUrl = window.location.origin;
       await fetch(`${baseUrl}/api/ingest`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${agentToken}`,
+          Authorization: `Bearer ${currentAgent.token}`,
         },
         body: JSON.stringify({
-          agent_id: agentId,
+          agent_id: currentAgent.agent_id,
           type: "message_sent",
           content: "Hello from HiTechClaw AI setup wizard! This is a test event.",
           metadata: { source: "setup-wizard", test: true },
@@ -237,8 +400,8 @@ export default function SetupPage() {
           </div>
           <h1 className="text-2xl font-bold text-white">
             {step === 1 && "Welcome to HiTechClaw AI"}
-            {step === 2 && "Register Your First Agent"}
-            {step === 3 && "Install the SDK"}
+            {step === 2 && "Register Your Agents"}
+            {step === 3 && "Install and Configure Agents"}
             {step === 4 && "Send Your First Event"}
             {step === 5 && "You're All Set!"}
           </h1>
@@ -351,53 +514,188 @@ export default function SetupPage() {
           {step === 2 && (
             <div className="space-y-4">
               <p className="text-sm leading-6 text-[var(--text-secondary)]">
-                Register your first AI agent to start monitoring.
+                Provision multiple agents now. OpenClaw and NemoClaw can be configured in parallel without token or config conflicts.
               </p>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
-                  Agent Name
-                </label>
-                <input
-                  type="text"
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  placeholder="e.g. Lumina, Atlas, My Assistant"
-                  autoFocus
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
-                  Description <span className="text-[var(--text-tertiary)]">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={agentDescription}
-                  onChange={(e) => setAgentDescription(e.target.value)}
-                  placeholder="What does this agent do?"
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
-                  Framework
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {FRAMEWORKS.map((fw) => (
-                    <button
-                      key={fw.value}
-                      type="button"
-                      onClick={() => setFramework(fw.value)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
-                        framework === fw.value
-                          ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
-                          : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
-                      }`}
+              <div className="space-y-4">
+                {agents.map((agent, index) => {
+                  const needsRemoteFields =
+                    agent.installMode === "remote" || agent.installMode === "both";
+
+                  return (
+                    <div
+                      key={agent.clientId}
+                      className="rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-4"
                     >
-                      {fw.label}
-                    </button>
-                  ))}
-                </div>
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">Agent {index + 1}</p>
+                          <p className="text-xs text-[var(--text-tertiary)]">
+                            Isolated token, config path, and deployment status.
+                          </p>
+                        </div>
+                        {agents.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeAgentDraft(agent.clientId)}
+                            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--text-secondary)] transition hover:bg-white/[0.03]"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                            Agent Name
+                          </label>
+                          <input
+                            type="text"
+                            value={agent.name}
+                            onChange={(e) => updateDraft(agent.clientId, { name: e.target.value })}
+                            placeholder="e.g. Lumina, Atlas, Support Bot"
+                            autoFocus={index === 0}
+                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                            Description <span className="text-[var(--text-tertiary)]">(optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={agent.description}
+                            onChange={(e) => updateDraft(agent.clientId, { description: e.target.value })}
+                            placeholder="What does this agent do?"
+                            className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                            Framework
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {FRAMEWORKS.map((fw) => (
+                              <button
+                                key={fw.value}
+                                type="button"
+                                onClick={() => updateFramework(agent.clientId, fw.value)}
+                                className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                                  agent.framework === fw.value
+                                    ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
+                                    : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                                }`}
+                              >
+                                {fw.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                            Install Mode
+                          </label>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            {INSTALL_MODES.map((mode) => (
+                              <button
+                                key={mode.value}
+                                type="button"
+                                onClick={() => updateDraft(agent.clientId, { installMode: mode.value })}
+                                className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
+                                  agent.installMode === mode.value
+                                    ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
+                                    : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                                }`}
+                              >
+                                <span className="block font-medium">{mode.label}</span>
+                                <span className="mt-1 block text-[11px] leading-4 text-[var(--text-tertiary)]">
+                                  {mode.description}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {needsRemoteFields && (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                SSH Host
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.sshHost}
+                                onChange={(e) => updateDraft(agent.clientId, { sshHost: e.target.value })}
+                                placeholder="192.168.1.20 or server.example.com"
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                SSH User
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.sshUser}
+                                onChange={(e) => updateDraft(agent.clientId, { sshUser: e.target.value })}
+                                placeholder="ubuntu"
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                Node Name <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.nodeName}
+                                onChange={(e) => updateDraft(agent.clientId, { nodeName: e.target.value })}
+                                placeholder="Production GPU Node"
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                Service Name <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.serviceName}
+                                onChange={(e) => updateDraft(agent.clientId, { serviceName: e.target.value })}
+                                placeholder={agent.framework === "openclaw" ? "openclaw-gateway.service" : "nemoclaw.service"}
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                Config Path <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.configPath}
+                                onChange={(e) => updateDraft(agent.clientId, { configPath: e.target.value })}
+                                placeholder={agent.framework === "openclaw" ? "~/.openclaw/my-agent.env" : agent.framework === "nemoclaw" ? "~/.nemoclaw/my-agent.yaml" : "~/.hitechclaw/my-agent.env"}
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={addAgentDraft}
+                className="w-full rounded-xl border border-dashed border-[var(--border-strong)] px-4 py-3 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/[0.03]"
+              >
+                + Add another agent
+              </button>
+
+              <div className="rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/5 p-3 text-xs leading-5 text-[var(--text-secondary)]">
+                Use separate config paths and service names when OpenClaw and NemoClaw share the same host. The wizard will generate unique tokens per agent automatically.
               </div>
               <div className="flex gap-3">
                 <button
@@ -411,14 +709,14 @@ export default function SetupPage() {
                 <button
                   type="button"
                   onClick={handleStep2}
-                  disabled={loading || !agentName.trim()}
+                  disabled={loading || agents.some((agent) => !agent.name.trim())}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-[var(--accent-foreground)] transition hover:bg-[var(--accent-dim)] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>
-                      Register Agent
+                      Register Agents
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -428,11 +726,46 @@ export default function SetupPage() {
           )}
 
           {/* ── Step 3: SDK Install ────────────────────────────────────── */}
-          {step === 3 && <SdkStep agentToken={agentToken} onBack={() => setStep(2)} onNext={() => setStep(4)} />}
+          {step === 3 && (
+            <SdkStep
+              agents={registeredAgents}
+              onBack={() => setStep(2)}
+              onNext={() => setStep(4)}
+            />
+          )}
 
           {/* ── Step 4: First Event ────────────────────────────────────── */}
           {step === 4 && (
             <div className="space-y-4">
+              {registeredAgents.length > 1 && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                    Agent to validate
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {registeredAgents.map((agent) => (
+                      <button
+                        key={agent.agent_id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAgentId(agent.agent_id);
+                          setEventReceived(false);
+                          setListening(false);
+                          if (pollRef.current) clearInterval(pollRef.current);
+                        }}
+                        className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                          currentAgent?.agent_id === agent.agent_id
+                            ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
+                            : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                        }`}
+                      >
+                        {agent.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {eventReceived ? (
                 <div className="flex flex-col items-center py-4">
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)]/10">
@@ -440,7 +773,7 @@ export default function SetupPage() {
                   </div>
                   <h3 className="text-lg font-bold text-white">Event Received!</h3>
                   <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
-                    Your agent is connected and sending events to HiTechClaw AI.
+                    {currentAgent?.name || "Your agent"} is connected and sending events to HiTechClaw AI.
                   </p>
                   <ConfettiEffect />
                 </div>
@@ -453,7 +786,7 @@ export default function SetupPage() {
                     Listening for your first event...
                   </h3>
                   <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
-                    Send an event from your agent, or use the test button below.
+                    Send an event from {currentAgent?.name || "your agent"}, or use the test button below.
                   </p>
                   <div className="mt-4 flex h-1 w-48 overflow-hidden rounded-full bg-[var(--bg-surface-2)]">
                     <div className="animate-[shimmer_2s_ease-in-out_infinite] h-full w-1/3 rounded-full bg-[var(--accent)]/60" />
@@ -463,7 +796,7 @@ export default function SetupPage() {
                 <div className="text-center">
                   <p className="text-sm leading-6 text-[var(--text-secondary)]">
                     Let&apos;s verify the connection. Click &quot;Start Listening&quot; then send
-                    an event from your agent — or use the test button.
+                    an event from {currentAgent?.name || "your agent"} — or use the test button.
                   </p>
                 </div>
               )}
@@ -473,6 +806,7 @@ export default function SetupPage() {
                   <button
                     type="button"
                     onClick={startListening}
+                    disabled={!currentAgent}
                     className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--accent-hover)] active:scale-[0.98]"
                   >
                     <Zap className="h-4 w-4" />
@@ -486,6 +820,7 @@ export default function SetupPage() {
                       if (!listening) startListening();
                       sendTestEvent();
                     }}
+                    disabled={!currentAgent}
                     className="flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/[0.03]"
                   >
                     <Sparkles className="h-4 w-4" />
@@ -561,7 +896,7 @@ export default function SetupPage() {
                   icon={Bot}
                   title="Agent Profile"
                   description="View & configure your agent"
-                  href={agentId ? `/agent/${agentId}` : "/agents"}
+                  href={registeredAgents[0]?.agent_id ? `/agent/${registeredAgents[0].agent_id}` : "/agents"}
                 />
                 <FeatureCard
                   icon={BookOpen}
@@ -611,23 +946,46 @@ export default function SetupPage() {
 /* ── SDK Install Step (Step 3) ─────────────────────────────────────────────── */
 
 function SdkStep({
-  agentToken,
+  agents,
   onBack,
   onNext,
 }: {
-  agentToken: string;
+  agents: RegisteredAgent[];
   onBack: () => void;
   onNext: () => void;
 }) {
-  const [tab, setTab] = useState<"node" | "python" | "curl" | "openclaw" | "nemoclaw">("curl");
+  type InstallTab = "script" | "node" | "python" | "curl" | "openclaw" | "nemoclaw";
+  const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.agent_id ?? "");
+  const selectedAgent = agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
+  const framework = selectedAgent?.framework ?? "custom";
+  const preferredTab: InstallTab =
+    framework === "openclaw" || framework === "nemoclaw" ? framework : "script";
+  const [tab, setTab] = useState<InstallTab>(preferredTab);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://your-hitechclaw-ai-instance.com";
+  const agentLabel = selectedAgent?.name?.trim() || selectedAgent?.agent_id || "your-agent";
 
-  const snippets: Record<string, { label: string; code: string }> = {
+  useEffect(() => {
+    if (!selectedAgentId && agents[0]?.agent_id) {
+      setSelectedAgentId(agents[0].agent_id);
+    }
+  }, [agents, selectedAgentId]);
+
+  useEffect(() => {
+    setTab(preferredTab);
+  }, [preferredTab, selectedAgentId]);
+
+  const snippets: Record<InstallTab, { label: string; code: string; description: string }> = {
+    script: {
+      label: "Provisioning script",
+      description: "Generated setup script for this specific agent, including the unique token and config path.",
+      code: selectedAgent?.install_snippet || "# No install snippet available",
+    },
     curl: {
       label: "Shell / curl",
+      description: "Raw HTTP ingestion for any custom agent or quick smoke testing.",
       code: `curl -X POST ${baseUrl}/api/ingest \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer ${agentToken}" \\
+  -H "Authorization: Bearer ${selectedAgent?.token || "YOUR_TOKEN"}" \
   -d '{
     "agent_id": "your-agent",
     "type": "message_sent",
@@ -636,27 +994,28 @@ function SdkStep({
     },
     node: {
       label: "Node.js",
+      description: "Example application-side integration for a JavaScript or TypeScript agent.",
       code: `// npm install @hitechclaw-ai/sdk
-import { HiTechClaw Ai } from "@hitechclaw-ai/sdk";
-import { GlowingEffect } from "@/components/ui/glowing-effect";
+import { HiTechClawAI } from "@hitechclaw-ai/sdk";
 
 const hitechclaw = new HiTechClawAI({
   baseUrl: "${baseUrl}",
-  token: "${agentToken}",
+  token: "${selectedAgent?.token || "YOUR_TOKEN"}",
 });
 
-await hitechclaw-ai.track("message_sent", {
+await hitechclaw.track("message_sent", {
   content: "Hello from my agent!",
 });`,
     },
     python: {
       label: "Python",
+      description: "Example application-side integration for Python-based agents and workers.",
       code: `# pip install hitechclaw-ai-sdk
 from hitechclaw_ai import HiTechClawAI
 
 hitechclaw_ai = HiTechClawAI(
     base_url="${baseUrl}",
-    token="${agentToken}",
+  token="${selectedAgent?.token || "YOUR_TOKEN"}",
 )
 
 hitechclaw_ai.track("message_sent",
@@ -665,41 +1024,160 @@ hitechclaw_ai.track("message_sent",
     },
     openclaw: {
       label: "OpenClaw",
-      code: `# In your OpenClaw .env file, add:
-MC_INGEST_URL=${baseUrl}/api/ingest
-MC_AGENT_TOKEN=${agentToken}
+      description: "Bootstrap an OpenClaw agent from first setup with the generated HiTechClaw AI token.",
+      code: `# 1) On the machine that runs your OpenClaw agent
+cd /path/to/your/openclaw-agent
 
-# OpenClaw will automatically send events to HiTechClaw AI.`,
+# 2) Create or update the agent .env used by OpenClaw
+#    Paste the generated token from this setup wizard.
+cat >> .env <<'EOF'
+MC_INGEST_URL=${baseUrl}/api/ingest
+MC_AGENT_TOKEN=${selectedAgent?.token || "YOUR_TOKEN"}
+EOF
+
+# 3) Restart OpenClaw so it reloads telemetry settings
+systemctl --user restart openclaw-gateway.service
+
+# 4) Return to the setup wizard and click "Send Test Event"
+#    Registered agent: ${agentLabel}
+
+# OpenClaw will now forward telemetry to HiTechClaw AI.`,
     },
     nemoclaw: {
       label: "NemoClaw",
-      code: `# In your NemoClaw config, add:
+      description: "Configure NemoClaw telemetry during first-time onboarding with a ready-to-paste block.",
+      code: `# 1) Open your NemoClaw runtime config (for example nemoclaw.yaml)
+
+# 2) Add or merge the telemetry block below
 telemetry:
   endpoint: ${baseUrl}/api/ingest
-  token: ${agentToken}
+  token: ${selectedAgent?.token || "YOUR_TOKEN"}
+
+# 3) Restart or reload your NemoClaw runtime
+
+# 4) Return to the setup wizard and click "Send Test Event"
+#    Registered agent: ${agentLabel}
 
 # NemoClaw will automatically report to HiTechClaw AI.`,
     },
   };
 
+  const frameworkGuide =
+    framework === "openclaw"
+      ? {
+          title: "Recommended path for OpenClaw",
+          summary: "Use the generated token to wire OpenClaw telemetry before leaving the setup wizard.",
+          steps: [
+            "Copy the OpenClaw block below into the agent host .env file.",
+            "Restart the OpenClaw gateway or agent process so the new telemetry variables are loaded.",
+            "Return to step 4 in the wizard and use Start Listening or Send Test Event.",
+          ],
+        }
+      : framework === "nemoclaw"
+        ? {
+            title: "Recommended path for NemoClaw",
+            summary: "Paste the telemetry block into your NemoClaw config and validate event flow immediately.",
+            steps: [
+              "Merge the telemetry snippet into your NemoClaw YAML or runtime configuration.",
+              "Restart or reload NemoClaw so it begins sending telemetry to HiTechClaw AI.",
+              "Return to step 4 in the wizard and confirm the first event arrives.",
+            ],
+          }
+        : null;
+
   return (
     <div className="space-y-4">
+      {agents.length > 1 && (
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+            Agent package
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {agents.map((agent) => (
+              <button
+                key={agent.agent_id}
+                type="button"
+                onClick={() => setSelectedAgentId(agent.agent_id)}
+                className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                  selectedAgent?.agent_id === agent.agent_id
+                    ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]"
+                }`}
+              >
+                {agent.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <p className="text-sm leading-6 text-[var(--text-secondary)]">
-        Connect your agent to HiTechClaw AI. Choose your integration method:
+        Connect {selectedAgent?.name || "your agent"} to HiTechClaw AI. Choose your integration method:
       </p>
+
+      {frameworkGuide && (
+        <div className="relative card-hover rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/5 p-4">
+          <GlowingEffect spread={40} glow disabled={false} proximity={64} inactiveZone={0.01} borderWidth={2} />
+          <div className="mb-2 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-[var(--accent)]" />
+            <p className="text-sm font-semibold text-[var(--accent)]">{frameworkGuide.title}</p>
+          </div>
+          <p className="text-xs leading-5 text-[var(--text-secondary)]">{frameworkGuide.summary}</p>
+          <ol className="mt-3 space-y-1.5 pl-4 text-xs leading-5 text-[var(--text-secondary)] list-decimal">
+            {frameworkGuide.steps.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {/* Token display */}
       <div className="relative card-hover rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/5 p-3">
         <GlowingEffect spread={40} glow disabled={false} proximity={64} inactiveZone={0.01} borderWidth={2} />
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs font-medium text-[var(--accent)]">Your API Token</span>
-          <CopyButton text={agentToken} />
+          <CopyButton text={selectedAgent?.token || ""} />
         </div>
-        <code className="block break-all text-xs text-[var(--text-secondary)]">{agentToken}</code>
+        <code className="block break-all text-xs text-[var(--text-secondary)]">{selectedAgent?.token}</code>
         <p className="mt-1.5 text-[10px] text-[var(--text-tertiary)]">
           Save this token — you won&apos;t see it again after leaving this page.
         </p>
       </div>
+
+      {selectedAgent && (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-3 text-xs text-[var(--text-secondary)]">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <span className="text-[var(--text-tertiary)]">Agent ID</span>
+              <p className="mt-1 break-all font-medium text-white">{selectedAgent.agent_id}</p>
+            </div>
+            <div>
+              <span className="text-[var(--text-tertiary)]">Install mode</span>
+              <p className="mt-1 font-medium capitalize text-white">{selectedAgent.install_mode}</p>
+            </div>
+            <div>
+              <span className="text-[var(--text-tertiary)]">Config path</span>
+              <p className="mt-1 break-all font-medium text-white">{selectedAgent.config_path}</p>
+            </div>
+            <div>
+              <span className="text-[var(--text-tertiary)]">Deployment</span>
+              <p className={`mt-1 font-medium ${selectedAgent.deployment?.ok ? "text-[var(--accent)]" : "text-amber-300"}`}>
+                {selectedAgent.deployment?.ok ? "Applied or ready" : selectedAgent.deployment?.error ? "Needs attention" : "Script ready"}
+              </p>
+            </div>
+          </div>
+          {selectedAgent.deployment?.error && (
+            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-200">
+              {selectedAgent.deployment.error}
+            </p>
+          )}
+          {!selectedAgent.deployment?.error && selectedAgent.deployment?.output && (
+            <p className="mt-3 rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/5 px-3 py-2 text-[var(--text-secondary)]">
+              {selectedAgent.deployment.output}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Tab selector */}
       <div className="flex flex-wrap gap-1.5">
@@ -718,6 +1196,11 @@ telemetry:
           </button>
         ))}
       </div>
+
+      <p className="text-xs text-[var(--text-tertiary)]">
+        {snippets[tab].description}
+        {(tab === "openclaw" || tab === "nemoclaw") && framework === tab && " This matches the framework you selected in step 2."}
+      </p>
 
       {/* Code block */}
       <div className="relative card-hover rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]">

@@ -120,6 +120,8 @@ docker compose up -d
 
 Open `http://localhost:3000` — the setup wizard walks you through creating your account, registering your first agent, and sending your first event.
 
+If your first agent uses **OpenClaw** or **NemoClaw**, the setup wizard now includes framework-specific bootstrap instructions from the initial install flow, including the generated telemetry token and the exact config block to paste into your runtime.
+
 **Send a test event:**
 
 ```bash
