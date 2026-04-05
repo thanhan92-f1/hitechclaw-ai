@@ -164,6 +164,7 @@ function getEmailVerificationBadgeHelp(
   status: string,
   verifiedAt: string | null,
   message: string,
+  errorCode: string,
   needsRecheck: boolean,
 ): string {
   if (status === "success") {
@@ -174,8 +175,8 @@ function getEmailVerificationBadgeHelp(
 
   if (status === "failed") {
     return verifiedAt
-      ? `SMTP verification failed at ${verifiedAt}.${message ? ` ${message}` : ""}`
-      : `SMTP verification failed.${message ? ` ${message}` : ""}`;
+      ? `SMTP verification failed at ${verifiedAt}.${errorCode ? ` Error code: ${errorCode}.` : ""}${message ? ` ${message}` : ""}`
+      : `SMTP verification failed.${errorCode ? ` Error code: ${errorCode}.` : ""}${message ? ` ${message}` : ""}`;
   }
 
   if (needsRecheck) {
@@ -183,6 +184,40 @@ function getEmailVerificationBadgeHelp(
   }
 
   return "";
+}
+
+function EmailStatusBadge({
+  tone,
+  label,
+  help,
+}: {
+  tone: "success" | "danger" | "warning";
+  label: string;
+  help: string;
+}) {
+  const toneClasses = {
+    success: "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20",
+    danger: "bg-[var(--danger)]/10 text-[var(--danger)] border-[var(--danger)]/20",
+    warning: "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20",
+  };
+
+  return (
+    <span className="group relative inline-flex">
+      <span
+        title={help}
+        aria-label={help}
+        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClasses[tone]}`}
+      >
+        {label}
+      </span>
+      {help ? (
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-left text-[11px] leading-relaxed text-[#cbd5e1] shadow-[0_8px_30px_rgba(0,0,0,0.45)] group-hover:block group-focus-within:block">
+          {help}
+          <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[var(--bg-surface)]" />
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /* ── Component ── */
@@ -520,9 +555,16 @@ export default function NotificationPreferencesPage() {
         const emailVerifiedAt = ch.key === "email" ? formatVerificationTime(state.config.smtp_last_verified_at) : null;
         const emailVerifyStatus = ch.key === "email" ? String(state.config.smtp_last_verify_status ?? "").trim() : "";
         const emailVerifyMessage = ch.key === "email" ? String(state.config.smtp_last_verify_message ?? "").trim() : "";
+        const emailVerifyErrorCode = ch.key === "email" ? String(state.config.smtp_last_verify_error_code ?? "").trim() : "";
         const emailNeedsRecheck = ch.key === "email" && state.enabled && !emailVerifyStatus;
         const emailVerifyBadgeHelp = ch.key === "email"
-          ? getEmailVerificationBadgeHelp(emailVerifyStatus, emailVerifiedAt, emailVerifyMessage, emailNeedsRecheck)
+          ? getEmailVerificationBadgeHelp(
+            emailVerifyStatus,
+            emailVerifiedAt,
+            emailVerifyMessage,
+            emailVerifyErrorCode,
+            emailNeedsRecheck,
+          )
           : "";
 
         return (
@@ -552,31 +594,13 @@ export default function NotificationPreferencesPage() {
               </div>
               <div className="flex items-center gap-2">
                 {ch.key === "email" && state.enabled && emailVerifyStatus === "success" ? (
-                  <span
-                    title={emailVerifyBadgeHelp}
-                    aria-label={emailVerifyBadgeHelp}
-                    className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
-                  >
-                    Verified
-                  </span>
+                  <EmailStatusBadge tone="success" label="Verified" help={emailVerifyBadgeHelp} />
                 ) : null}
                 {ch.key === "email" && state.enabled && emailVerifyStatus === "failed" ? (
-                  <span
-                    title={emailVerifyBadgeHelp}
-                    aria-label={emailVerifyBadgeHelp}
-                    className="rounded-full bg-[var(--danger)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
-                  >
-                    Verify failed
-                  </span>
+                  <EmailStatusBadge tone="danger" label="Verify failed" help={emailVerifyBadgeHelp} />
                 ) : null}
                 {emailNeedsRecheck ? (
-                  <span
-                    title={emailVerifyBadgeHelp}
-                    aria-label={emailVerifyBadgeHelp}
-                    className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
-                  >
-                    Needs re-check
-                  </span>
+                  <EmailStatusBadge tone="warning" label="Needs re-check" help={emailVerifyBadgeHelp} />
                 ) : null}
                 {state.enabled ? (
                   <span className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
