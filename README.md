@@ -141,6 +141,8 @@ See it appear on your dashboard in real time.
 
 For the full installation guide with environment configuration, troubleshooting, and upgrade instructions, see [INSTALL.md](INSTALL.md).
 
+For host-based local development with only the database in Docker, see [docs/development.md](docs/development.md).
+
 ---
 
 ## Best With OpenClaw & NemoClaw. Works With Anything.

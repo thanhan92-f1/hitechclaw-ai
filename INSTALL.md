@@ -17,6 +17,8 @@ Repository usage is governed by [LICENSE](LICENSE) and [COMMERCIAL-LICENSE.md](C
 
 No Node.js, PostgreSQL, or other dependencies needed — Docker handles everything.
 
+For local host-based development where only the database runs in Docker, see [docs/development.md](docs/development.md).
+
 ---
 
 ## Step 1: Clone the Repository

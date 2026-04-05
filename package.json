@@ -14,12 +14,18 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:db:up": "docker compose -f docker-compose.dev.yml --env-file .env.local up -d",
+    "dev:db:down": "docker compose -f docker-compose.dev.yml --env-file .env.local down",
+    "dev:db:logs": "docker compose -f docker-compose.dev.yml --env-file .env.local logs -f db",
+    "dev:db:reset": "docker compose -f docker-compose.dev.yml --env-file .env.local down -v && docker compose -f docker-compose.dev.yml --env-file .env.local up -d",
+    "dev:setup": "npm run dev:db:up && npm run db:migrate:dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:migrate:dev": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts"
   },
   "dependencies": {
     "@types/pg": "^8.20.0",
