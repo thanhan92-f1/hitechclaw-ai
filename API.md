@@ -468,6 +468,14 @@ Behavior:
 - supports `/ping`, `/help`, and `/status` auto-replies
 - ignores non-message callback event types
 
+Supported inbound payload shapes currently include:
+- nested message payloads such as `message.text`, `message.chat.id`, `sender.display_name`
+- flat payloads such as `text`, `conversation_id`, `from.name`
+- wrapped payloads under `data.message.text` / `data.conversation_id`
+
+Validation utility:
+- run `npm run test:zalo` to verify the pure Zalo webhook parsing helpers against supported payload variants
+
 ---
 
 ## Infrastructure
