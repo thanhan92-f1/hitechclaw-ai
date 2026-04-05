@@ -10,6 +10,7 @@
 
 import { query } from "@/lib/db";
 import { sendNotificationEmail } from "@/lib/notification-email";
+import { decryptStoredSecret } from "@/lib/notification-secrets";
 
 export type NotificationType =
   | "threat"
@@ -165,7 +166,7 @@ async function sendEmail(
 }
 
 async function sendTelegram(config: Record<string, unknown>, text: string): Promise<void> {
-  const botToken = config.bot_token as string;
+  const botToken = decryptStoredSecret(config.bot_token);
   const chatId = config.chat_id as string;
   if (!botToken || !chatId) return;
 
@@ -181,7 +182,7 @@ async function sendTelegram(config: Record<string, unknown>, text: string): Prom
 }
 
 async function sendSlack(config: Record<string, unknown>, text: string): Promise<void> {
-  const webhookUrl = config.webhook_url as string;
+  const webhookUrl = decryptStoredSecret(config.webhook_url);
   if (!webhookUrl) return;
 
   const res = await fetch(webhookUrl, {
@@ -196,7 +197,7 @@ async function sendSlack(config: Record<string, unknown>, text: string): Promise
 }
 
 async function sendDiscord(config: Record<string, unknown>, text: string): Promise<void> {
-  const webhookUrl = config.webhook_url as string;
+  const webhookUrl = decryptStoredSecret(config.webhook_url);
   if (!webhookUrl) return;
 
   const res = await fetch(webhookUrl, {
@@ -220,7 +221,7 @@ async function sendWebhook(
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.secret_header && config.secret_value) {
-    headers[config.secret_header as string] = config.secret_value as string;
+    headers[config.secret_header as string] = decryptStoredSecret(config.secret_value);
   }
 
   const res = await fetch(url, {

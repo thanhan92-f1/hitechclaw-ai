@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Mail,
@@ -11,6 +11,8 @@ import {
   CheckCircle,
   AlertTriangle,
   Loader2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SectionDescription } from "@/components/mission-control/dashboard-clarity";
@@ -35,6 +37,8 @@ interface ChannelConfig {
   config: Record<string, unknown>;
 }
 
+type ValidationErrors = Record<string, string>;
+
 interface ChannelDef {
   key: string;
   label: string;
@@ -43,11 +47,13 @@ interface ChannelDef {
   fields: Array<{
     key: string;
     label: string;
-    type: "text" | "password";
+    type: "text" | "password" | "toggle";
     placeholder: string;
     help?: string;
   }>;
 }
+
+const SECRET_FIELDS = new Set(["smtp_pass", "bot_token", "webhook_url", "secret_value"]);
 
 const CHANNELS: ChannelDef[] = [
   {
@@ -86,7 +92,7 @@ const CHANNELS: ChannelDef[] = [
     fields: [
       { key: "smtp_host", label: "SMTP Host", type: "text", placeholder: "smtp.example.com", help: "Mail server hostname." },
       { key: "smtp_port", label: "SMTP Port", type: "text", placeholder: "587", help: "Usually 587 for STARTTLS or 465 for SMTPS." },
-      { key: "smtp_secure", label: "SMTP Secure", type: "text", placeholder: "false", help: "Use true for implicit TLS, false for STARTTLS/plain." },
+      { key: "smtp_secure", label: "SMTP Secure", type: "toggle", placeholder: "false", help: "Enable for implicit TLS, usually with port 465." },
       { key: "smtp_user", label: "SMTP Username", type: "text", placeholder: "alerts@example.com" },
       { key: "smtp_pass", label: "SMTP Password", type: "password", placeholder: "app-password-or-secret" },
       { key: "smtp_from", label: "From Address", type: "text", placeholder: "HiTechClaw AI <alerts@example.com>" },
@@ -127,6 +133,8 @@ export default function NotificationPreferencesPage() {
   const [testing, setTesting] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ channel: string; ok: boolean; message: string } | null>(null);
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, ValidationErrors>>({});
+  const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
 
   const fetchPrefs = useCallback(async () => {
     try {
@@ -162,6 +170,23 @@ export default function NotificationPreferencesPage() {
         },
       };
     });
+    setValidationErrors((prev) => {
+      if (!prev[channelKey]?.[field]) return prev;
+      const nextFields = { ...prev[channelKey] };
+      delete nextFields[field];
+      return { ...prev, [channelKey]: nextFields };
+    });
+  }
+
+  function getBooleanValue(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    const normalized = String(value ?? "false").trim().toLowerCase();
+    return normalized === "true" || normalized === "1";
+  }
+
+  function toggleSecretVisibility(channelKey: string, field: string) {
+    const secretKey = `${channelKey}:${field}`;
+    setVisibleSecrets((prev) => ({ ...prev, [secretKey]: !prev[secretKey] }));
   }
 
   function toggleChannelEnabled(channelKey: string) {
@@ -201,9 +226,65 @@ export default function NotificationPreferencesPage() {
     return !!types[typeKey];
   }
 
+  const channelErrors = useMemo(() => validationErrors, [validationErrors]);
+
+  function validateChannel(channelKey: string, state: ChannelConfig): ValidationErrors {
+    const errors: ValidationErrors = {};
+
+    if (!state.enabled) return errors;
+
+    if (channelKey === "email") {
+      const smtpHost = String(state.config.smtp_host ?? "").trim();
+      const smtpPort = String(state.config.smtp_port ?? "").trim();
+      const smtpFrom = String(state.config.smtp_from ?? "").trim();
+      const recipient = String(state.config.email ?? "").trim();
+
+      if (!smtpHost) errors.smtp_host = "SMTP host is required.";
+      if (!smtpPort) {
+        errors.smtp_port = "SMTP port is required.";
+      } else if (!/^\d+$/.test(smtpPort)) {
+        errors.smtp_port = "SMTP port must be numeric.";
+      }
+      if (!smtpFrom) errors.smtp_from = "From address is required.";
+      else if (!/^.+@.+\..+$/.test(smtpFrom) && !/^.+<.+@.+\..+>$/.test(smtpFrom)) errors.smtp_from = "From address format is invalid.";
+
+      if (recipient && !/^.+@.+\..+$/.test(recipient)) {
+        errors.email = "Recipient email format is invalid.";
+      }
+    }
+
+    if (channelKey === "telegram") {
+      const botToken = String(state.config.bot_token ?? "").trim();
+      const chatId = String(state.config.chat_id ?? "").trim();
+      const configured = Boolean(state.config.bot_token_configured);
+      if (!botToken && !configured) errors.bot_token = "Bot token is required.";
+      if (!chatId) errors.chat_id = "Chat ID is required.";
+    }
+
+    if (channelKey === "slack" || channelKey === "discord") {
+      const webhookUrl = String(state.config.webhook_url ?? "").trim();
+      const configured = Boolean(state.config.webhook_url_configured);
+      if (!webhookUrl && !configured) errors.webhook_url = "Webhook URL is required.";
+    }
+
+    if (channelKey === "webhook") {
+      const url = String(state.config.url ?? "").trim();
+      if (!url) errors.url = "Webhook URL is required.";
+    }
+
+    return errors;
+  }
+
   async function saveChannel(channelKey: string) {
     setSaving(channelKey);
     const state = getChannelState(channelKey);
+    const errors = validateChannel(channelKey, state);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors((prev) => ({ ...prev, [channelKey]: errors }));
+      setSaving(null);
+      setTestResult({ channel: channelKey, ok: false, message: "Please fix the highlighted fields." });
+      return;
+    }
     try {
       const res = await fetch("/api/notifications/preferences", {
         method: "PUT",
@@ -363,21 +444,74 @@ export default function NotificationPreferencesPage() {
                   </button>
                 </div>
 
+                {ch.key === "email" ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
+                    Saved mail settings are persisted in the database per channel. SMTP password is stored encrypted and is never sent back to the UI after save.
+                  </div>
+                ) : ["telegram", "slack", "discord", "webhook"].includes(ch.key) ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
+                    Sensitive channel secrets are stored encrypted in the database. Leave a secret field blank to keep the existing saved value.
+                  </div>
+                ) : null}
+
                 {/* Config fields */}
                 {ch.fields.map((field) => (
                   <div key={field.key}>
                     <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">
                       {field.label}
                     </label>
-                    <input
-                      type={field.type}
-                      placeholder={field.placeholder}
-                      value={(state.config[field.key] as string) ?? ""}
-                      onChange={(e) => updateChannelConfig(ch.key, field.key, e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#555566] transition focus:border-[var(--accent)]/50 focus:outline-none"
-                    />
+                    {field.type === "toggle" ? (
+                      <button
+                        type="button"
+                        onClick={() => updateChannelConfig(ch.key, field.key, !getBooleanValue(state.config[field.key]))}
+                        className={`relative h-6 w-11 rounded-full transition ${
+                          getBooleanValue(state.config[field.key]) ? "bg-[var(--accent)]" : "bg-[var(--bg-surface-2)]"
+                        }`}
+                        aria-pressed={getBooleanValue(state.config[field.key])}
+                      >
+                        <span
+                          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                            getBooleanValue(state.config[field.key]) ? "translate-x-5" : ""
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type={field.type === "password" && visibleSecrets[`${ch.key}:${field.key}`] ? "text" : field.type}
+                          placeholder={field.placeholder}
+                          value={SECRET_FIELDS.has(field.key) && state.config[`${field.key}_configured`] && !(state.config[field.key] as string)
+                            ? ""
+                            : ((state.config[field.key] as string) ?? "")}
+                          onChange={(e) => updateChannelConfig(ch.key, field.key, e.target.value)}
+                          className={`w-full rounded-xl border bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[#555566] transition focus:outline-none ${
+                            field.type === "password" ? "pr-11 " : ""
+                          }${
+                            channelErrors[ch.key]?.[field.key]
+                              ? "border-[var(--danger)] focus:border-[var(--danger)]/70"
+                              : "border-[var(--border)] focus:border-[var(--accent)]/50"
+                          }`}
+                        />
+                        {field.type === "password" ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleSecretVisibility(ch.key, field.key)}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-tertiary)] transition hover:text-[var(--text-primary)]"
+                            aria-label={visibleSecrets[`${ch.key}:${field.key}`] ? "Hide secret" : "Show secret"}
+                          >
+                            {visibleSecrets[`${ch.key}:${field.key}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
                     {field.help ? (
                       <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">{field.help}</p>
+                    ) : null}
+                    {SECRET_FIELDS.has(field.key) && state.config[`${field.key}_configured`] ? (
+                      <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">A secret is already saved. Leave blank to keep it unchanged.</p>
+                    ) : null}
+                    {channelErrors[ch.key]?.[field.key] ? (
+                      <p className="mt-1 text-[11px] text-[var(--danger)]">{channelErrors[ch.key][field.key]}</p>
                     ) : null}
                   </div>
                 ))}

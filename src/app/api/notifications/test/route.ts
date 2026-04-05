@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { sendNotificationEmail } from "@/lib/notification-email";
+import { decryptStoredSecret } from "@/lib/notification-secrets";
 
 /**
  * POST /api/notifications/test — send a test notification to a specific channel
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   try {
     switch (body.channel) {
       case "telegram": {
-        const botToken = config.bot_token;
+        const botToken = decryptStoredSecret(config.bot_token);
         const chatId = config.chat_id;
         if (!botToken || !chatId) {
           return NextResponse.json({ error: "Bot token and chat ID are required" }, { status: 400 });
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "slack": {
-        const webhookUrl = config.webhook_url;
+        const webhookUrl = decryptStoredSecret(config.webhook_url);
         if (!webhookUrl) {
           return NextResponse.json({ error: "Slack webhook URL is required" }, { status: 400 });
         }
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       }
 
       case "discord": {
-        const webhookUrl = config.webhook_url;
+        const webhookUrl = decryptStoredSecret(config.webhook_url);
         if (!webhookUrl) {
           return NextResponse.json({ error: "Discord webhook URL is required" }, { status: 400 });
         }
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
         }
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (config.secret_header && config.secret_value) {
-          headers[config.secret_header as string] = config.secret_value as string;
+          headers[config.secret_header as string] = decryptStoredSecret(config.secret_value);
         }
         const res = await fetch(webhookUrl, {
           method: "POST",

@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { query } from "@/lib/db";
+import { decryptSecret } from "@/lib/notification-secrets";
 
 interface EmailDispatchParams {
   tenantId: string;
@@ -17,6 +18,11 @@ function getString(config: Record<string, unknown>, key: string, fallbackEnv?: s
   const configured = config[key];
   if (typeof configured === "string" && configured.trim()) return configured.trim();
   return fallbackEnv ? (process.env[fallbackEnv]?.trim() ?? "") : "";
+}
+
+function getSecretString(config: Record<string, unknown>, key: string, fallbackEnv?: string): string {
+  const configured = getString(config, key, fallbackEnv);
+  return configured ? decryptSecret(configured) : "";
 }
 
 function getPort(config: Record<string, unknown>): number {
@@ -49,7 +55,7 @@ function getTransporter(config: Record<string, unknown>): Transporter {
   const secure = getSecure(config, port);
   const host = getString(config, "smtp_host", "SMTP_HOST");
   const user = getString(config, "smtp_user", "SMTP_USER");
-  const pass = getString(config, "smtp_pass", "SMTP_PASS");
+  const pass = getSecretString(config, "smtp_pass", "SMTP_PASS");
 
   return nodemailer.createTransport({
     host,

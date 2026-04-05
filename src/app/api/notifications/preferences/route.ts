@@ -1,8 +1,70 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { decryptSecret, encryptSecret, isEncryptedSecret } from "@/lib/notification-secrets";
+
+const SECRET_FIELDS: Record<string, string[]> = {
+  email: ["smtp_pass"],
+  telegram: ["bot_token"],
+  slack: ["webhook_url"],
+  discord: ["webhook_url"],
+  webhook: ["secret_value"],
+};
 
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function asBooleanString(value: unknown, fallback = "false"): string {
+  if (typeof value === "boolean") return value ? "true" : "false";
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (["true", "false", "1", "0"].includes(normalized)) return normalized;
+  return fallback;
+}
+
+function preserveExistingSecrets(
+  channel: string,
+  submittedConfig: Record<string, unknown>,
+  existingConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  const nextConfig = { ...submittedConfig };
+
+  for (const field of SECRET_FIELDS[channel] ?? []) {
+    const submittedValue = asTrimmedString(nextConfig[field]);
+    const existingValue = typeof existingConfig[field] === "string" ? existingConfig[field] : "";
+
+    if (!submittedValue && existingValue) {
+      nextConfig[field] = decryptSecret(existingValue);
+    }
+  }
+
+  return nextConfig;
+}
+
+function maskSecretsForResponse(channel: string, config: Record<string, unknown>): Record<string, unknown> {
+  const nextConfig = { ...config };
+
+  for (const field of SECRET_FIELDS[channel] ?? []) {
+    const storedValue = typeof nextConfig[field] === "string" ? nextConfig[field] : "";
+    if (!storedValue) continue;
+
+    nextConfig[field] = "";
+    nextConfig[`${field}_configured`] = isEncryptedSecret(storedValue) || Boolean(storedValue);
+  }
+
+  return nextConfig;
+}
+
+function encryptSecretFields(channel: string, config: Record<string, unknown>): Record<string, unknown> {
+  const nextConfig = { ...config };
+
+  for (const field of SECRET_FIELDS[channel] ?? []) {
+    const value = asTrimmedString(nextConfig[field]);
+    if (value) {
+      nextConfig[field] = encryptSecret(value);
+    }
+  }
+
+  return nextConfig;
 }
 
 function normalizeNotificationConfig(channel: string, config: Record<string, unknown>, enabled: boolean): Record<string, unknown> {
@@ -10,14 +72,10 @@ function normalizeNotificationConfig(channel: string, config: Record<string, unk
 
   if (channel === "email") {
     const smtpPort = asTrimmedString(nextConfig.smtp_port);
-    const smtpSecure = asTrimmedString(nextConfig.smtp_secure).toLowerCase();
+    const smtpSecure = asBooleanString(nextConfig.smtp_secure);
 
     if (smtpPort && !/^\d+$/.test(smtpPort)) {
       throw new Error("SMTP port must be a valid number.");
-    }
-
-    if (smtpSecure && !["true", "false", "1", "0"].includes(smtpSecure)) {
-      throw new Error("SMTP secure must be true or false.");
     }
 
     nextConfig.smtp_host = asTrimmedString(nextConfig.smtp_host);
@@ -34,9 +92,36 @@ function normalizeNotificationConfig(channel: string, config: Record<string, unk
         throw new Error("Email channel requires SMTP host, port, and from address.");
       }
     }
+  } else if (channel === "telegram") {
+    nextConfig.bot_token = asTrimmedString(nextConfig.bot_token);
+    nextConfig.chat_id = asTrimmedString(nextConfig.chat_id);
+
+    if (enabled && (!nextConfig.bot_token || !nextConfig.chat_id)) {
+      throw new Error("Telegram channel requires bot token and chat ID.");
+    }
+  } else if (channel === "slack") {
+    nextConfig.webhook_url = asTrimmedString(nextConfig.webhook_url);
+
+    if (enabled && !nextConfig.webhook_url) {
+      throw new Error("Slack channel requires a webhook URL.");
+    }
+  } else if (channel === "discord") {
+    nextConfig.webhook_url = asTrimmedString(nextConfig.webhook_url);
+
+    if (enabled && !nextConfig.webhook_url) {
+      throw new Error("Discord channel requires a webhook URL.");
+    }
+  } else if (channel === "webhook") {
+    nextConfig.url = asTrimmedString(nextConfig.url);
+    nextConfig.secret_header = asTrimmedString(nextConfig.secret_header);
+    nextConfig.secret_value = asTrimmedString(nextConfig.secret_value);
+
+    if (enabled && !nextConfig.url) {
+      throw new Error("Webhook channel requires a destination URL.");
+    }
   }
 
-  return nextConfig;
+  return encryptSecretFields(channel, nextConfig);
 }
 
 /**
@@ -53,7 +138,11 @@ export async function GET() {
   // Return a map of channel → { enabled, config }
   const channels: Record<string, { enabled: boolean; config: Record<string, unknown> }> = {};
   for (const row of result.rows) {
-    channels[row.channel] = { enabled: row.enabled, config: row.config ?? {} };
+    const config = maskSecretsForResponse(
+      row.channel,
+      { ...(row.config ?? {}) } as Record<string, unknown>,
+    );
+    channels[row.channel] = { enabled: row.enabled, config };
   }
 
   return NextResponse.json({ channels });
@@ -82,7 +171,14 @@ export async function PUT(req: NextRequest) {
 
   let normalizedConfig: Record<string, unknown>;
   try {
-    normalizedConfig = normalizeNotificationConfig(body.channel, body.config ?? {}, body.enabled);
+    const existing = await query(
+      `SELECT config FROM notification_preferences WHERE tenant_id = $1 AND channel = $2 LIMIT 1`,
+      [tenantId, body.channel],
+    );
+    const existingConfig = (existing.rows[0]?.config ?? {}) as Record<string, unknown>;
+    const mergedConfig = preserveExistingSecrets(body.channel, body.config ?? {}, existingConfig);
+
+    normalizedConfig = normalizeNotificationConfig(body.channel, mergedConfig, body.enabled);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Invalid configuration" },
