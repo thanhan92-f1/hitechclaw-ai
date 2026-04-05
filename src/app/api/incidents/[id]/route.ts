@@ -20,8 +20,12 @@ export async function GET(
 
   try {
     const { id } = await params;
+    const tenantId = req.nextUrl.searchParams.get("tenant_id") ?? "default";
 
-    const result = await query(`SELECT * FROM incidents WHERE id = $1`, [id]);
+    const result = await query(
+      `SELECT * FROM incidents WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Incident not found" }, { status: 404 });
     }
@@ -65,11 +69,16 @@ export async function PATCH(
       assigned_to?: string;
       description?: string;
       title?: string;
+      tenant_id?: string;
       metadata?: Record<string, unknown>;
     };
+    const tenantId = body.tenant_id ?? req.nextUrl.searchParams.get("tenant_id") ?? "default";
 
     // Get current incident
-    const current = await query(`SELECT * FROM incidents WHERE id = $1`, [id]);
+    const current = await query(
+      `SELECT * FROM incidents WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
     if (current.rowCount === 0) {
       return NextResponse.json({ error: "Incident not found" }, { status: 404 });
     }
@@ -147,8 +156,8 @@ export async function PATCH(
     }
 
     sets.push(`updated_at = NOW()`);
-    vals.push(id);
-    const sql = `UPDATE incidents SET ${sets.join(", ")} WHERE id = $${paramIdx} RETURNING *`;
+    vals.push(id, tenantId);
+    const sql = `UPDATE incidents SET ${sets.join(", ")} WHERE id = $${paramIdx} AND tenant_id = $${paramIdx + 1} RETURNING *`;
 
     const result = await query(sql, vals);
 

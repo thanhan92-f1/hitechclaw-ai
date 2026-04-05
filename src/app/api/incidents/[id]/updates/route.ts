@@ -13,15 +13,20 @@ export async function POST(
     const body = (await req.json()) as {
       content?: string;
       update_type?: string;
+      tenant_id?: string;
       metadata?: Record<string, unknown>;
     };
+    const tenantId = body.tenant_id ?? req.nextUrl.searchParams.get("tenant_id") ?? "default";
 
     if (!body.content) {
       return NextResponse.json({ error: "content is required" }, { status: 400 });
     }
 
     // Verify incident exists
-    const inc = await query(`SELECT id FROM incidents WHERE id = $1`, [id]);
+    const inc = await query(
+      `SELECT id FROM incidents WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
     if (inc.rowCount === 0) {
       return NextResponse.json({ error: "Incident not found" }, { status: 404 });
     }
@@ -36,7 +41,10 @@ export async function POST(
     );
 
     // Touch updated_at
-    await query(`UPDATE incidents SET updated_at = NOW() WHERE id = $1`, [id]);
+    await query(
+      `UPDATE incidents SET updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
 
     return NextResponse.json({ update: result.rows[0], ok: true }, { status: 201 });
   } catch (err) {
