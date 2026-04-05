@@ -30,15 +30,19 @@ $port = if ($envMap.ContainsKey('PORT')) { $envMap['PORT'] } else { '3001' }
 $baseUrl = if ($envMap.ContainsKey('HITECHCLAW_AI_BASE_URL')) { $envMap['HITECHCLAW_AI_BASE_URL'] } else { "http://localhost:$port" }
 
 Write-Host "[test-e2e-local] Starting app on $baseUrl ..."
+$env:PLAYWRIGHT_SKIP_WEBSERVER = '1'
 $job = Start-Job -ScriptBlock {
-  param($workingDir)
+  param($workingDir, $environment)
   Set-Location $workingDir
-  node --env-file=.env.test.local ./node_modules/next/dist/bin/next dev -p 3001
-} -ArgumentList (Get-Location).Path
+  foreach ($entry in $environment.GetEnumerator()) {
+    [System.Environment]::SetEnvironmentVariable($entry.Key, $entry.Value)
+  }
+  node ./node_modules/next/dist/bin/next dev -p 3001
+} -ArgumentList (Get-Location).Path, $envMap
 
 try {
   Write-Host '[test-e2e-local] Waiting for app readiness...'
-  node --env-file=.env.test.local ./node_modules/wait-on/bin/wait-on $baseUrl
+  node ./node_modules/wait-on/bin/wait-on $baseUrl
 
   Write-Host '[test-e2e-local] Running Playwright...'
   if ($PlaywrightArgs -and $PlaywrightArgs.Length -gt 0) {

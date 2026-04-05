@@ -76,6 +76,7 @@
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.2",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "wait-on": "^9.0.4"
   },

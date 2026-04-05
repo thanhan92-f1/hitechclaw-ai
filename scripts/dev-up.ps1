@@ -17,8 +17,14 @@ if ($Reset) {
 
 Write-Host '[dev-up] Starting local development database...'
 docker compose -f $composeFile --env-file $envFile up -d
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 
 Write-Host '[dev-up] Running local migrations...'
 node --env-file=$envFile ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 
 Write-Host '[dev-up] Ready. Start the app with: npm run dev'

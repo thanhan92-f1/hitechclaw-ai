@@ -17,8 +17,14 @@ if ($Reset) {
 
 Write-Host '[test-db-up] Starting local test database...'
 docker compose -f $composeFile --env-file $envFile up -d
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 
 Write-Host '[test-db-up] Running test migrations...'
 node --env-file=$envFile ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 
 Write-Host '[test-db-up] Ready for Playwright or local integration tests.'

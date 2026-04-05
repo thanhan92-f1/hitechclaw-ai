@@ -33,7 +33,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER === "1"
     ? undefined
     : {
-        command: "node --env-file=.env.test.local ./node_modules/next/dist/bin/next dev -p 3001",
+        command: "node ./node_modules/next/dist/bin/next dev -p 3001",
         url: process.env.HITECHCLAW_AI_BASE_URL ?? "http://localhost:3001",
         reuseExistingServer: true,
         timeout: 120000,
