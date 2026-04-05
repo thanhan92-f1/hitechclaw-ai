@@ -7,11 +7,6 @@ import { EmptyCard } from "./ui-cards";
 import { SectionDescription } from "./dashboard-clarity";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 
-const C = {
-  green: "#00D47E", purple: "#00D47E", amber: "#f59e0b",
-  red: "#ef4444", slate: "#8888A0",
-};
-
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1] || "";
   const res = await fetch(url, {

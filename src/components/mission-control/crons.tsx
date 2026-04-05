@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { ShellHeader, Card, SectionTitle } from "./dashboard";
+import { ShellHeader, Card } from "./dashboard";
 import { SkeletonCard } from "./charts";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 

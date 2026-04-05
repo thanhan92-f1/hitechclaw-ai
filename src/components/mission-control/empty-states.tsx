@@ -193,7 +193,6 @@ function Step({
   number,
   title,
   description,
-  icon: Icon,
 }: {
   number: number;
   title: string;

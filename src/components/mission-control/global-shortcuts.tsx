@@ -7,10 +7,9 @@ import { KeyboardShortcutModal } from "@/components/ui/keyboard-shortcut-modal";
 
 interface GlobalShortcutsProps {
   onOpenPalette: () => void;
-  onOpenKill: () => void;
 }
 
-export function GlobalShortcuts({ onOpenPalette, onOpenKill }: GlobalShortcutsProps) {
+export function GlobalShortcuts({ onOpenPalette }: GlobalShortcutsProps) {
   const router = useRouter();
   const [showShortcuts, setShowShortcuts] = useState(false);
 
