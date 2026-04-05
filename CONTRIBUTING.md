@@ -2,6 +2,8 @@
 
 Thanks for considering a contribution. HiTechClaw AI is the AI governance platform — built for small teams and agency owners who run real agents in production.
 
+Before contributing, review [LICENSE](LICENSE), [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md), [SUPPORT.md](SUPPORT.md), and [SECURITY.md](SECURITY.md). This repository is source-available under a non-commercial license model, so contribution proposals and downstream usage should remain consistent with those terms.
+
 ## How to contribute
 
 ### Reporting bugs
@@ -15,6 +17,10 @@ Open an issue with:
 ### Suggesting features
 
 Open an issue with the `feature-request` label. Explain the problem you're solving, not just the feature you want. "I need a way to stop an agent mid-run from my phone" is better than "add a mobile kill switch."
+
+### Asking questions or requesting help
+
+Use [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai/discussions) for usage questions, architecture discussion, setup help, and idea validation. Use [SUPPORT.md](SUPPORT.md) when you need the full routing guide.
 
 ### Submitting code
 
@@ -55,4 +61,10 @@ Check the [issues](../../issues) for things tagged `good-first-issue` or `help-w
 ## Code of conduct
 
 Be direct, be helpful, be respectful. We're building tools for people who run AI agents in production — the stakes are real. Treat every contributor's time as valuable.
+
+## Security and licensing reminders
+
+- Do not open public issues for exploitable vulnerabilities. Follow [SECURITY.md](SECURITY.md).
+- Keep licensing or commercial-rights questions out of bug reports when possible. Route them through [SUPPORT.md](SUPPORT.md) and the licensing documents.
+- Ensure proposed changes remain consistent with the repository's non-commercial license model.
 

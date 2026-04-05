@@ -83,3 +83,5 @@ curl -X POST http://localhost:3000/api/ingest \
 - Press **?** on any page in HiTechClaw AI for contextual help
 - See [INSTALL.md](INSTALL.md) for the full installation guide
 - See [API.md](API.md) for the complete API reference
+- See [SUPPORT.md](SUPPORT.md) for issue, Discussion, security, and licensing routes
+- See [LICENSE](LICENSE) and [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md) for usage terms

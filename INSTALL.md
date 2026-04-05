@@ -2,6 +2,8 @@
 
 Complete guide to installing and running HiTechClaw AI.
 
+Repository usage is governed by [LICENSE](LICENSE) and [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md). For support and reporting routes, see [SUPPORT.md](SUPPORT.md) and [SECURITY.md](SECURITY.md).
+
 ---
 
 ## Prerequisites

@@ -231,7 +231,7 @@ For teams that want managed hosting, more capacity, and zero ops overhead.
 
 ## Contributing
 
-HiTechClaw AI is open source and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+HiTechClaw AI is source-available for strictly non-commercial use, and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Repository operations and automation are documented in [docs/github-governance.md](docs/github-governance.md).
 
