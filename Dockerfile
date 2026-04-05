@@ -53,7 +53,7 @@ RUN npm install --no-save tsx pg web-push
 
 # Copy entrypoint
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
 RUN chown -R hitechclaw-ai:hitechclaw-ai /app
 USER hitechclaw-ai
