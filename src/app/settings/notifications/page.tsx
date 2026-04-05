@@ -37,6 +37,16 @@ interface ChannelConfig {
   config: Record<string, unknown>;
 }
 
+interface EmailDiagnostics {
+  host: string;
+  port: number;
+  secure: boolean;
+  smtpUserConfigured: boolean;
+  smtpPassConfigured: boolean;
+  from: string;
+  replyTo: string;
+}
+
 type ValidationErrors = Record<string, string>;
 
 interface ChannelDef {
@@ -136,6 +146,8 @@ export default function NotificationPreferencesPage() {
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, ValidationErrors>>({});
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
+  const [emailDiagnostics, setEmailDiagnostics] = useState<EmailDiagnostics | null>(null);
+  const [emailErrorCode, setEmailErrorCode] = useState<string | null>(null);
 
   const fetchPrefs = useCallback(async () => {
     try {
@@ -351,6 +363,8 @@ export default function NotificationPreferencesPage() {
 
     setVerifyingEmail(true);
     setTestResult(null);
+    setEmailDiagnostics(null);
+    setEmailErrorCode(null);
     try {
       const saveRes = await fetch("/api/notifications/preferences", {
         method: "PUT",
@@ -377,7 +391,9 @@ export default function NotificationPreferencesPage() {
         method: "POST",
         headers: getAuthHeaders(),
       });
-      const data = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      const data = (await res.json()) as { ok?: boolean; message?: string; error?: string; errorCode?: string; diagnostics?: EmailDiagnostics };
+      setEmailDiagnostics(data.diagnostics ?? null);
+      setEmailErrorCode(data.errorCode ?? null);
       if (res.ok) {
         setTestResult({ channel: "email", ok: true, message: data.message ?? "SMTP verified" });
       } else {
@@ -504,6 +520,28 @@ export default function NotificationPreferencesPage() {
                 ) : ["telegram", "slack", "discord", "webhook"].includes(ch.key) ? (
                   <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
                     Sensitive channel secrets are stored encrypted in the database. Leave a secret field blank to keep the existing saved value.
+                  </div>
+                ) : null}
+
+                {ch.key === "email" && emailDiagnostics ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="font-medium text-[var(--text-primary)]">SMTP diagnostics</span>
+                      {emailErrorCode ? (
+                        <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-tertiary)]">
+                          {emailErrorCode}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>Host: <span className="text-[var(--text-primary)]">{emailDiagnostics.host || "-"}</span></div>
+                      <div>Port: <span className="text-[var(--text-primary)]">{emailDiagnostics.port}</span></div>
+                      <div>Secure TLS: <span className="text-[var(--text-primary)]">{emailDiagnostics.secure ? "Enabled" : "Disabled"}</span></div>
+                      <div>SMTP user: <span className="text-[var(--text-primary)]">{emailDiagnostics.smtpUserConfigured ? "Configured" : "Not set"}</span></div>
+                      <div>SMTP password: <span className="text-[var(--text-primary)]">{emailDiagnostics.smtpPassConfigured ? "Configured" : "Not set"}</span></div>
+                      <div>From: <span className="text-[var(--text-primary)]">{emailDiagnostics.from || "-"}</span></div>
+                      <div className="sm:col-span-2">Reply-To: <span className="text-[var(--text-primary)]">{emailDiagnostics.replyTo || "-"}</span></div>
+                    </div>
                   </div>
                 ) : null}
 

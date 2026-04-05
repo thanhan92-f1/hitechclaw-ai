@@ -23,8 +23,20 @@ export async function POST(_req: NextRequest) {
   }
 
   try {
-    await verifyNotificationEmailConfig(row.config ?? {});
-    return NextResponse.json({ ok: true, message: "SMTP connection verified successfully" });
+    const result = await verifyNotificationEmailConfig(row.config ?? {});
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: result.message,
+          errorCode: result.errorCode,
+          diagnostics: result.diagnostics,
+        },
+        { status: 502 },
+      );
+    }
+
+    return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "SMTP verification failed";
     return NextResponse.json({ error: message }, { status: 502 });

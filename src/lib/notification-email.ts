@@ -10,6 +10,23 @@ interface EmailDispatchParams {
   html?: string;
 }
 
+export interface NotificationEmailDiagnostics {
+  host: string;
+  port: number;
+  secure: boolean;
+  smtpUserConfigured: boolean;
+  smtpPassConfigured: boolean;
+  from: string;
+  replyTo: string;
+}
+
+export interface NotificationEmailVerificationResult {
+  ok: boolean;
+  message: string;
+  diagnostics: NotificationEmailDiagnostics;
+  errorCode?: string;
+}
+
 function parseBoolean(value: string | undefined): boolean {
   return value === "1" || value?.toLowerCase() === "true";
 }
@@ -70,13 +87,82 @@ export function getNotificationEmailTransporter(config: Record<string, unknown>)
   });
 }
 
-export async function verifyNotificationEmailConfig(config: Record<string, unknown>): Promise<void> {
+export function getNotificationEmailDiagnostics(
+  config: Record<string, unknown>,
+): NotificationEmailDiagnostics {
+  return {
+    host: getString(config, "smtp_host", "SMTP_HOST"),
+    port: getPort(config),
+    secure: getSecure(config, getPort(config)),
+    smtpUserConfigured: Boolean(getString(config, "smtp_user", "SMTP_USER")),
+    smtpPassConfigured: Boolean(getSecretString(config, "smtp_pass", "SMTP_PASS")),
+    from: getString(config, "smtp_from", "SMTP_FROM"),
+    replyTo: getString(config, "smtp_reply_to", "SMTP_REPLY_TO"),
+  };
+}
+
+function mapSmtpVerificationError(error: unknown): { message: string; errorCode?: string } {
+  if (!(error instanceof Error)) {
+    return { message: "SMTP verification failed due to an unknown error." };
+  }
+
+  const code = typeof (error as Error & { code?: unknown }).code === "string"
+    ? String((error as Error & { code?: string }).code)
+    : undefined;
+  const source = `${code ?? ""} ${error.message}`.toUpperCase();
+
+  if (source.includes("EAUTH") || source.includes("AUTH")) {
+    return {
+      errorCode: code,
+      message: "SMTP authentication failed. Check username, password, and provider app-password requirements.",
+    };
+  }
+
+  if (source.includes("ECONNECTION") || source.includes("ETIMEDOUT") || source.includes("ENOTFOUND") || source.includes("ECONNREFUSED")) {
+    return {
+      errorCode: code,
+      message: "SMTP server connection failed. Verify host, port, firewall, and network reachability.",
+    };
+  }
+
+  if (source.includes("ESOCKET") || source.includes("TLS") || source.includes("SSL")) {
+    return {
+      errorCode: code,
+      message: "SMTP TLS handshake failed. Check secure mode and port pairing, such as 465 with TLS or 587 with STARTTLS.",
+    };
+  }
+
+  return {
+    errorCode: code,
+    message: error.message || "SMTP verification failed.",
+  };
+}
+
+export async function verifyNotificationEmailConfig(
+  config: Record<string, unknown>,
+): Promise<NotificationEmailVerificationResult> {
   if (!isSmtpConfigured(config)) {
     throw new Error("SMTP is not configured. Provide SMTP host, port, and from address in the Email channel settings.");
   }
 
+  const diagnostics = getNotificationEmailDiagnostics(config);
   const mailer = getNotificationEmailTransporter(config);
-  await mailer.verify();
+  try {
+    await mailer.verify();
+    return {
+      ok: true,
+      message: "SMTP connection verified successfully.",
+      diagnostics,
+    };
+  } catch (error) {
+    const mapped = mapSmtpVerificationError(error);
+    return {
+      ok: false,
+      message: mapped.message,
+      diagnostics,
+      errorCode: mapped.errorCode,
+    };
+  }
 }
 
 export async function resolveNotificationEmail(
