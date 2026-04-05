@@ -36,13 +36,6 @@ jobs:
 
       - name: Remove server-only routes
         run: rm -rf docs/app/llms.mdx
-
-      - name: Build docs site (static export)
-        run: npm run build:docs
-        env:
-          NEXT_OUTPUT: export
-          NEXT_PUBLIC_DOCS_URL: https://hitechclaw.com
-
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d
 

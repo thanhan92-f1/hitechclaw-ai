@@ -32,8 +32,3 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Build docs site
-        run: npm run build:docs
-        env:
-          NEXT_PUBLIC_DOCS_URL: https://hitechclaw.com
