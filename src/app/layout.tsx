@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Inter, Urbanist } from "next/font/google";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { Toaster } from "sonner";
@@ -6,6 +7,20 @@ import { NotionShell } from "@/components/mission-control/app-shell";
 import { ServiceWorkerRegistration } from "@/components/mission-control/service-worker-registration";
 import { ThemeProvider } from "@/components/mission-control/theme-provider";
 import "./globals.css";
+
+const urbanist = Urbanist({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-urbanist",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "HiTechClaw AI — AI Control Plane",
@@ -35,22 +50,10 @@ export default function RootLayout({
   children: ReactNode;
 }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${urbanist.variable} ${inter.variable}`}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#0A0A0C" />
-        {/* Urbanist — headings */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
-        {/* Inter — body (proven, widely available) */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body className="bg-bg-deep text-text antialiased">
         <ThemeProvider>
