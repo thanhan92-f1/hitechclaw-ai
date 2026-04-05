@@ -20,7 +20,7 @@ Or via cookie (`mc_auth`) for browser sessions. CSRF protection requires `x-csrf
 
 ### Agent Token
 
-Used for event ingestion. Set via `MC_AGENT_TOKENS` in `.env.local` as comma-separated `tenant:token` pairs.
+Used for event ingestion. Set via `MC_AGENT_TOKENS` in `.env.local` as comma-separated `agent-id:token` pairs for legacy env-based fallback authentication.
 
 ```
 Authorization: Bearer YOUR_AGENT_TOKEN
@@ -91,8 +91,8 @@ Send events from your agents to HiTechClaw AI. This is the primary integration p
 **Example:**
 
 ```bash
-curl -X POST https://your-HiTechClaw-AI-url/api/ingest \
-  -H "Authorization: Bearer default:your-token" \
+curl -X POST https://your-hitechclaw-ai-url/api/ingest \
+  -H "Authorization: Bearer YOUR_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "event_type": "message_sent",
@@ -106,6 +106,12 @@ curl -X POST https://your-HiTechClaw-AI-url/api/ingest \
     }
   }'
 ```
+
+Notes:
+
+- The request header must carry the raw token as `Authorization: Bearer <token>`.
+- `MC_AGENT_TOKENS` is only the server-side mapping format, for example `openclaw:token1,agent2:token2`.
+- For split-host deployments, do not use `localhost` in agent configs unless the runtime and HiTechClaw AI run on the same machine.
 
 ---
 
@@ -843,7 +849,9 @@ Add to your `openclaw.json`:
 {
   "hooks": {
     "ingest_url": "https://your-hitechclaw-ai-url/api/ingest",
-    "ingest_token": "default:your-agent-token"
+    "ingest_token": "YOUR_AGENT_TOKEN"
   }
 }
 ```
+
+If OpenClaw runs on a different host from HiTechClaw AI, `ingest_url` must point to the public HiTechClaw AI domain, for example `https://ai.example.com/api/ingest`.

@@ -43,8 +43,9 @@ POSTGRES_PASSWORD=your-secure-password
 # Admin login passphrase (min 12 characters)
 MC_ADMIN_TOKEN=your-admin-passphrase-here
 
-# Agent authentication tokens (tenant:token pairs)
-MC_AGENT_TOKENS=default:your-agent-token-here
+# Agent authentication tokens (agent-id:token pairs)
+# Example: openclaw:your-agent-token-here,agent2:another-token
+MC_AGENT_TOKENS=openclaw:your-agent-token-here
 
 # Base URL (where HiTechClaw AI is accessible)
 HITECHCLAW_AI_BASE_URL=http://localhost:3000
@@ -90,12 +91,14 @@ Use the generated values on the OpenClaw host:
 cd /path/to/your/openclaw-agent
 
 cat >> .env <<'EOF'
-MC_INGEST_URL=http://localhost:3000/api/ingest
+MC_INGEST_URL=https://ai.example.com/api/ingest
 MC_AGENT_TOKEN=YOUR_GENERATED_AGENT_TOKEN
 EOF
 
 systemctl --user restart openclaw-gateway.service
 ```
+
+> Use `localhost` only when OpenClaw and HiTechClaw AI run on the same machine. If OpenClaw runs on `claw-ai.example.com` and HiTechClaw AI runs on `ai.example.com`, `MC_INGEST_URL` must point to the HiTechClaw AI host, for example `https://ai.example.com/api/ingest`.
 
 Then go back to the wizard, select that agent, and click **Start Listening** or **Send Test Event**.
 
@@ -105,9 +108,11 @@ If an agent runs on NemoClaw, choose **NemoClaw** in step 2. In step 3, copy the
 
 ```yaml
 telemetry:
-  endpoint: http://localhost:3000/api/ingest
+  endpoint: https://ai.example.com/api/ingest
   token: YOUR_GENERATED_AGENT_TOKEN
 ```
+
+Use `localhost` here only for single-host development. For split deployments, set `telemetry.endpoint` to the public HiTechClaw AI URL.
 
 Restart or reload NemoClaw, then return to the wizard, select that agent, and verify the first event arrives.
 
@@ -116,12 +121,11 @@ Restart or reload NemoClaw, then return to the wizard, select that agent, and ve
 Using the token generated during setup:
 
 ```bash
-curl -X POST http://localhost:3000/api/ingest \
+curl -X POST https://ai.example.com/api/ingest \
   -H "Authorization: Bearer YOUR_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "type": "message_sent",
-    "agent": "my-agent",
+    "event_type": "message_sent",
     "content": "Hello from my agent!",
     "metadata": { "model": "claude-sonnet-4-6", "tokens": 150 }
   }'
@@ -191,9 +195,80 @@ docker compose logs hitechclaw-ai | grep -i migration
 
 ### Events not appearing on dashboard
 
-1. Check the agent token matches one in `MC_AGENT_TOKENS`
-2. Check the ingest endpoint is reachable: `curl http://localhost:3000/api/health`
-3. Check application logs: `docker compose logs hitechclaw-ai -f`
+1. Check `MC_INGEST_URL` or `telemetry.endpoint` points to the HiTechClaw AI host, not the local OpenClaw or NemoClaw host
+2. Check the agent token matches the raw bearer token you send from the runtime
+3. If you use env-based fallback tokens, format `MC_AGENT_TOKENS` as comma-separated `agent-id:token` pairs such as `openclaw:token1,agent2:token2`
+4. Test the ingest endpoint directly: `curl https://ai.example.com/api/health`
+5. Check application logs: `docker compose logs hitechclaw-ai -f`
+
+### Recommended split-host production mapping
+
+When HiTechClaw AI and OpenClaw run on different hosts, keep the roles separated clearly:
+
+- OpenClaw sends telemetry to HiTechClaw AI with:
+  - `MC_INGEST_URL=https://ai.example.com/api/ingest`
+  - `MC_AGENT_TOKEN=<agent token>`
+- HiTechClaw AI accepts that token with:
+  - `MC_AGENT_TOKENS=openclaw:<agent token>`
+- HiTechClaw AI controls the OpenClaw gateway with:
+  - `NEXT_PUBLIC_GATEWAY_URL=https://claw-ai.example.com`
+  - `GATEWAY_AUTH_TOKEN=<gateway token>`
+- OpenClaw or its gateway can call back into HiTechClaw AI with:
+  - `GATEWAY_HOOKS_URL=https://ai.example.com/api/ingest`
+  - `GATEWAY_HOOK_TOKEN=<hook token>`
+
+Example sanitized configuration:
+
+**OpenClaw `.env`**
+
+```bash
+OPENCLAW_VERSION=latest
+OPENCLAW_GATEWAY_PORT=18789
+OPENCLAW_GATEWAY_TOKEN=CHANGE_THIS_GATEWAY_TOKEN
+OPENCLAW_MGMT_API_KEY=CHANGE_THIS_MGMT_API_KEY
+
+DOMAIN=claw-ai.example.com
+
+MC_INGEST_URL=https://ai.example.com/api/ingest
+MC_AGENT_TOKEN=CHANGE_THIS_AGENT_TOKEN
+
+ACME_EMAIL=you@example.com
+NODE_OPTIONS=--max-old-space-size=7956
+```
+
+**HiTechClaw AI `.env.local`**
+
+```bash
+DATABASE_URL=postgresql://hitechclaw-ai:hitechclaw-ai@localhost:5432/hitechclaw-ai
+POSTGRES_USER=hitechclaw-ai
+POSTGRES_PASSWORD=CHANGE_THIS
+POSTGRES_DB=hitechclaw-ai
+
+MC_ADMIN_TOKEN=CHANGE_THIS_ADMIN_TOKEN
+MC_AGENT_TOKENS=openclaw:CHANGE_THIS_AGENT_TOKEN
+
+HITECHCLAW_AI_BASE_URL=https://ai.example.com
+
+NEXTAUTH_SECRET=CHANGE_THIS_NEXTAUTH_SECRET
+NEXTAUTH_URL=https://ai.example.com
+
+NEXT_PUBLIC_GATEWAY_URL=https://claw-ai.example.com
+GATEWAY_HOOK_TOKEN=CHANGE_THIS_MGMT_API_KEY
+GATEWAY_AUTH_TOKEN=CHANGE_THIS_GATEWAY_TOKEN
+GATEWAY_HOOKS_URL=https://ai.example.com/api/ingest
+
+NODE_ENV=production
+PORT=3000
+```
+
+Recommended rollout order:
+
+1. Rotate all secrets and tokens
+2. Fix `MC_AGENT_TOKENS` to `agent-id:token` format
+3. Point `MC_INGEST_URL` and `telemetry.endpoint` to the public HiTechClaw AI URL
+4. Restart HiTechClaw AI
+5. Restart OpenClaw or NemoClaw
+6. Send a manual ingest test with `event_type`
 
 ### Reset everything
 

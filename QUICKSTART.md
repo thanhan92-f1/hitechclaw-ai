@@ -33,6 +33,8 @@ If you select **OpenClaw** or **NemoClaw** while registering agents, step 3 now 
 - **OpenClaw**: paste `MC_INGEST_URL` and `MC_AGENT_TOKEN` into the agent `.env`, then restart the runtime.
 - **NemoClaw**: paste the generated `telemetry.endpoint` and `telemetry.token` YAML block, then reload the runtime.
 
+Use `localhost` only when the runtime and HiTechClaw AI share the same machine. For split-host deployments, point telemetry to the public HiTechClaw AI URL such as `https://ai.example.com/api/ingest`.
+
 If you choose **Remote deploy** or **Remote + script**, the wizard can also attempt to write the config over SSH during setup. Each agent keeps separate tokens and config paths, so OpenClaw and NemoClaw can share one host without overwriting each other.
 
 After that, use **Start Listening** or **Send Test Event** in the wizard to confirm telemetry is live.
@@ -40,10 +42,10 @@ After that, use **Start Listening** or **Send Test Event** in the wizard to conf
 ## 3. Send a Test Event
 
 ```bash
-curl -X POST http://localhost:3000/api/ingest \
+curl -X POST https://ai.example.com/api/ingest \
   -H "Authorization: Bearer YOUR_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"type": "message_sent", "agent": "my-agent", "content": "Hello world!"}'
+  -d '{"event_type": "message_sent", "content": "Hello world!"}'
 ```
 
 Go back to the dashboard — your event appears in the activity feed.
@@ -74,12 +76,11 @@ After the test event:
 To get cost tracking working, include `tokens` and `model` in your event metadata:
 
 ```bash
-curl -X POST http://localhost:3000/api/ingest \
+curl -X POST https://ai.example.com/api/ingest \
   -H "Authorization: Bearer YOUR_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "type": "message_sent",
-    "agent": "my-agent",
+    "event_type": "message_sent",
     "content": "Processed customer request",
     "metadata": {
       "model": "claude-sonnet-4-6",
@@ -89,6 +90,12 @@ curl -X POST http://localhost:3000/api/ingest \
     }
   }'
 ```
+
+If you still see agents as offline after a successful deploy, verify:
+
+- `MC_INGEST_URL` or `telemetry.endpoint` points to HiTechClaw AI, not the local runtime host
+- the runtime sends the raw bearer token with `Authorization: Bearer <token>`
+- your test payload uses `event_type`, not `type`
 
 ## Need Help?
 
