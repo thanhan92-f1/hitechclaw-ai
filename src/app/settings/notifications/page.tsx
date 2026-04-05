@@ -68,6 +68,16 @@ interface ChannelDef {
 }
 
 const SECRET_FIELDS = new Set(["smtp_pass", "bot_token", "webhook_url", "secret_value"]);
+const EMAIL_VERIFY_DEPENDENCY_FIELDS = new Set([
+  "smtp_host",
+  "smtp_port",
+  "smtp_secure",
+  "smtp_user",
+  "smtp_pass",
+  "smtp_from",
+  "smtp_reply_to",
+  "email",
+]);
 
 const CHANNELS: ChannelDef[] = [
   {
@@ -191,11 +201,20 @@ export default function NotificationPreferencesPage() {
   function updateChannelConfig(channelKey: string, field: string, value: unknown) {
     setChannels((prev) => {
       const current = prev[channelKey] ?? { enabled: false, config: {} };
+      const nextConfig = { ...current.config, [field]: value };
+
+      if (channelKey === "email" && EMAIL_VERIFY_DEPENDENCY_FIELDS.has(field)) {
+        delete nextConfig.smtp_last_verified_at;
+        delete nextConfig.smtp_last_verify_status;
+        delete nextConfig.smtp_last_verify_message;
+        delete nextConfig.smtp_last_verify_error_code;
+      }
+
       return {
         ...prev,
         [channelKey]: {
           ...current,
-          config: { ...current.config, [field]: value },
+          config: nextConfig,
         },
       };
     });
@@ -205,6 +224,11 @@ export default function NotificationPreferencesPage() {
       delete nextFields[field];
       return { ...prev, [channelKey]: nextFields };
     });
+
+    if (channelKey === "email" && EMAIL_VERIFY_DEPENDENCY_FIELDS.has(field)) {
+      setEmailDiagnostics(null);
+      setEmailErrorCode(null);
+    }
   }
 
   function getBooleanValue(value: unknown): boolean {

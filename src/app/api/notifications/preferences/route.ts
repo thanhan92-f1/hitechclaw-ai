@@ -17,6 +17,17 @@ const EMAIL_VERIFY_METADATA_FIELDS = [
   "smtp_last_verify_error_code",
 ] as const;
 
+const EMAIL_VERIFY_DEPENDENCY_FIELDS = [
+  "smtp_host",
+  "smtp_port",
+  "smtp_secure",
+  "smtp_user",
+  "smtp_pass",
+  "smtp_from",
+  "smtp_reply_to",
+  "email",
+] as const;
+
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -86,6 +97,29 @@ function preserveEmailVerificationMetadata(
     if (nextConfig[field] === undefined && existingConfig[field] !== undefined) {
       nextConfig[field] = existingConfig[field];
     }
+  }
+
+  return nextConfig;
+}
+
+function clearEmailVerificationMetadataIfChanged(
+  channel: string,
+  config: Record<string, unknown>,
+  existingConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  if (channel !== "email") return config;
+
+  const changed = EMAIL_VERIFY_DEPENDENCY_FIELDS.some((field) => {
+    const nextValue = asTrimmedString(config[field]);
+    const previousValue = asTrimmedString(existingConfig[field]);
+    return nextValue !== previousValue;
+  });
+
+  if (!changed) return config;
+
+  const nextConfig = { ...config };
+  for (const field of EMAIL_VERIFY_METADATA_FIELDS) {
+    delete nextConfig[field];
   }
 
   return nextConfig;
@@ -200,9 +234,13 @@ export async function PUT(req: NextRequest) {
       [tenantId, body.channel],
     );
     const existingConfig = (existing.rows[0]?.config ?? {}) as Record<string, unknown>;
-    const mergedConfig = preserveEmailVerificationMetadata(
+    const mergedConfig = clearEmailVerificationMetadataIfChanged(
       body.channel,
-      preserveExistingSecrets(body.channel, body.config ?? {}, existingConfig),
+      preserveEmailVerificationMetadata(
+        body.channel,
+        preserveExistingSecrets(body.channel, body.config ?? {}, existingConfig),
+        existingConfig,
+      ),
       existingConfig,
     );
 
