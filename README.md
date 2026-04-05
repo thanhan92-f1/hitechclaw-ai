@@ -256,7 +256,35 @@ HiTechClaw AI is open source and contributions are welcome. See [CONTRIBUTING.md
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Non-commercial use only.
+
+### Usage Terms
+
+Allowed without separate commercial permission:
+
+- personal learning and private experimentation
+- academic or educational work
+- internal research, testing, and evaluation
+- internal non-commercial use by a company or organization
+
+Not allowed without prior written commercial permission:
+
+- selling, sublicensing, or commercializing the project or derivatives
+- paid consulting, implementation, integration, deployment, or training
+- paid client work, contract delivery, managed services, or outsourcing
+- including the project in a paid product, hosted service, SaaS, bundle, or marketplace listing
+- using the project in a workflow intended to generate revenue or commercial advantage
+
+Important: availability on GitHub, npm, or any public source distribution channel does not grant any commercial right.
+
+References:
+
+- `LICENSE` — controlling license terms
+- `NOTICE` — short license notice
+- `COMMERCIAL-LICENSE.md` — commercial licensing information
+- `docs/licensing.md` — operator-friendly licensing explainer
+
+Attribution: `Nguyen Thanh An by Pho Tue SoftWare Solutions JSC`
 
 ---
 
