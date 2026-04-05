@@ -1,0 +1,92 @@
+name: Docker · Build & Publish Images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "packages/*/src/**"
+      - "packages/channels/*/src/**"
+      - "Dockerfile"
+      - "packages/web/Dockerfile"
+      - ".github/workflows/docker-publish.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag override (e.g. v2.1.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/hitechclaw-server
+  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/hitechclaw-web
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: server
+            dockerfile: Dockerfile
+            context: .
+            image_env: SERVER_IMAGE
+          - name: web
+            dockerfile: packages/web/Dockerfile
+            context: .
+            image_env: WEB_IMAGE
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine tags
+        id: tags
+        run: |
+          IMAGE="${{ matrix.name == 'server' && env.SERVER_IMAGE || env.WEB_IMAGE }}"
+          TAGS="${IMAGE}:sha-${GITHUB_SHA::7}"
+
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            TAGS="${TAGS},${IMAGE}:${VERSION},${IMAGE}:latest"
+          elif [[ "${{ inputs.tag }}" != "" ]]; then
+            TAGS="${TAGS},${IMAGE}:${{ inputs.tag }}"
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            TAGS="${TAGS},${IMAGE}:develop"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+      - name: Trivy scan ${{ matrix.name }}
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+        with:
+          image-ref: ${{ steps.tags.outputs.tags }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
