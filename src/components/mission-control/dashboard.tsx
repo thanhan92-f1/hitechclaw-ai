@@ -72,9 +72,10 @@ export function ShellHeader({
   );
 }
 
-export function LoadingState({ label: _label = "Syncing dashboard" }: { label?: string }) {
+export function LoadingState({ label = "Syncing dashboard" }: { label?: string }) {
   return (
     <div className="space-y-5">
+      <span className="sr-only">{label}</span>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SkeletonCard lines={1} height="h-10" />
         <SkeletonCard lines={1} height="h-10" />

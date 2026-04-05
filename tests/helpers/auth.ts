@@ -1,4 +1,4 @@
-import { type BrowserContext, type APIRequestContext } from "@playwright/test";
+import { type BrowserContext } from "@playwright/test";
 
 export const MC_URL = process.env.HITECHCLAW_AI_BASE_URL || "http://localhost:3000";
 export const ADMIN_TOKEN = process.env.MC_ADMIN_TOKEN || "test-admin-token";

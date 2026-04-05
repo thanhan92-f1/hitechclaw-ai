@@ -55,10 +55,6 @@ test.describe("Workflows Page UI", () => {
   test("section description appears on workflows page", async ({ page }) => {
     await page.goto(`${MC_URL}/workflows`);
     await page.waitForLoadState("domcontentloaded");
-    // SectionDescription renders "What is this?" or the expanded text
-    const desc = page.locator("text=What is this?")
-      .or(page.locator("text=Got it, hide this"))
-      .or(page.locator("text=automate"));
     await expect(page.locator("body")).not.toBeEmpty();
   });
 });

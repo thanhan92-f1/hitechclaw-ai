@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MC_URL, ADMIN_TOKEN, authHeaders } from "./helpers/auth";
+import { MC_URL, ADMIN_TOKEN } from "./helpers/auth";
 
 /* ── Client Portal — UI + API tests ──────────────────────────── */
 

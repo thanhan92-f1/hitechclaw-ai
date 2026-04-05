@@ -32,8 +32,6 @@ test.describe("Dashboard Features UI", () => {
   test("dashboard stat cards have tooltips", async ({ page }) => {
     await page.goto(`${MC_URL}/`);
     await page.waitForLoadState("domcontentloaded");
-    // MetricTooltip renders (i) icons — look for info icons or tooltip triggers
-    const infoIcons = page.locator('[aria-label*="info" i], [title*="info" i], svg.lucide-info');
     // Soft check — tooltips may not render if no data
     await expect(page.locator("body")).not.toBeEmpty();
   });

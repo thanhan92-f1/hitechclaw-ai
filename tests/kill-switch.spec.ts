@@ -38,10 +38,6 @@ test.describe("Kill Switch UI", () => {
   test("header contains kill switch button", async ({ page }) => {
     await page.goto(`${MC_URL}/`);
     await page.waitForLoadState("domcontentloaded");
-    // Kill switch button should be in the header
-    const killBtn = page.locator("header").locator("button").filter({ hasText: /kill/i })
-      .or(page.locator('[aria-label*="kill" i]'))
-      .or(page.locator("header svg").locator("..").filter({ hasText: /kill/i }));
     // It may be hidden text or icon-only — just check main header renders
     const header = page.locator("header").first();
     await expect(header).toBeVisible();

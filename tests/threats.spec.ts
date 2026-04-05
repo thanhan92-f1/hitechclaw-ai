@@ -43,7 +43,6 @@ test.describe("ThreatGuard UI (Session 2 + 6)", () => {
     await page.reload();
     await page.waitForLoadState("domcontentloaded");
     // Section description should auto-expand
-    const desc = page.locator("text=Got it, hide this");
     // May or may not be visible depending on whether content loaded
     await expect(page.locator("body")).not.toBeEmpty();
   });
@@ -51,8 +50,6 @@ test.describe("ThreatGuard UI (Session 2 + 6)", () => {
   test("ThreatGuard has threat class explainers (Session 6)", async ({ page }) => {
     await page.goto(`${MC_URL}/security`);
     await page.waitForLoadState("domcontentloaded");
-    // Should have a "What do these mean?" or similar explainer
-    const explainer = page.locator("text=What do these mean");
     // Only check if page has threats loaded — this is a soft check
     await expect(page.locator("body")).not.toBeEmpty();
   });

@@ -72,9 +72,6 @@ test.describe("Costs Page UI", () => {
   test("costs page has CSV export button", async ({ page }) => {
     await page.goto(`${MC_URL}/costs`);
     await page.waitForLoadState("domcontentloaded");
-    const exportBtn = page.locator("text=Export")
-      .or(page.locator("text=CSV"))
-      .or(page.locator("text=Download"));
     // Export button should exist (even if no data)
     await expect(page.locator("body")).not.toBeEmpty();
   });

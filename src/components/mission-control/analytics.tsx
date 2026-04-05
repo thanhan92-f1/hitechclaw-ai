@@ -4,10 +4,7 @@ import { useState } from "react";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -103,16 +100,6 @@ const CHANNEL_COLORS: Record<string, string> = {
   unknown: "#8888A0",
 };
 
-const EVENT_TYPE_COLORS: Record<string, string> = {
-  message_received: "#00D47E",
-  message_sent: "#00D47E",
-  tool_call: "#f59e0b",
-  error: "#ef4444",
-  cron: "#3b82f6",
-  system: "#8888A0",
-  note: "#8888A0",
-};
-
 function formatDay(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en", { month: "short", day: "numeric" });
@@ -143,7 +130,7 @@ function AnalyticsTooltip({ active, payload, label }: { active?: boolean; payloa
 
 /* ─── Summary Cards ─────────────────────────────────────── */
 
-function SummaryCards({ totals, sessionStats }: { totals: AnalyticsData["totals"]; sessionStats: SessionStats }) {
+function SummaryCards({ totals }: { totals: AnalyticsData["totals"] }) {
   const stats = [
     { label: "Total Events", value: totals.total_events, color: "#00D47E" },
     { label: "Active Agents", value: totals.active_agents, color: "#00D47E" },
@@ -539,7 +526,7 @@ export function AnalyticsScreen() {
       </SectionDescription>
 
       {/* Summary Cards */}
-      <SummaryCards totals={totals} sessionStats={sessionStats} />
+      <SummaryCards totals={totals} />
 
       {/* Direction Ratio */}
       <CardEntranceWrapper index={4}>

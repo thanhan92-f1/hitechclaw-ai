@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MC_URL, authHeaders } from "./helpers/auth";
+import { MC_URL } from "./helpers/auth";
 
 /* ── Session 5: Setup Wizard — first-run detection, setup flow ──── */
 
@@ -23,7 +23,7 @@ test.describe("Setup Wizard UI", () => {
   });
 
   test("setup page shows step 1 or redirects to dashboard", async ({ page }) => {
-    const response = await page.goto(`${MC_URL}/setup`);
+    await page.goto(`${MC_URL}/setup`);
     await page.waitForLoadState("domcontentloaded");
     const url = page.url();
     // If setup already complete, it may redirect to dashboard
@@ -39,9 +39,6 @@ test.describe("Setup Wizard UI", () => {
     await page.waitForLoadState("domcontentloaded");
     if (page.url().includes("/setup")) {
       // Should NOT have sidebar navigation
-      const sidebar = page.locator("aside nav");
-      // Setup page bypasses the app shell, so no sidebar
-      const hasSidebar = await sidebar.isVisible().catch(() => false);
       // Soft check — the sidebar should be hidden on setup page
       expect(page.url()).toContain("/setup");
     }

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MC_URL, ADMIN_TOKEN, authHeaders } from "./helpers/auth";
+import { MC_URL, authHeaders } from "./helpers/auth";
 
 test.describe("Tools API", () => {
   const routes = [

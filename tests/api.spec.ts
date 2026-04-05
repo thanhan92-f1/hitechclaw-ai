@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MC_URL, ADMIN_TOKEN, AGENT_TOKEN, authHeaders } from "./helpers/auth";
+import { MC_URL, AGENT_TOKEN, authHeaders } from "./helpers/auth";
 
 test.describe("Intake API (public)", () => {
   test("POST /api/intake accepts submission without auth", async ({ request }) => {
