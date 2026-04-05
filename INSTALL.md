@@ -127,6 +127,8 @@ Configure `MC_CRON_KEY_PATH` in `.env` and register nodes with SSH credentials v
 
 ## Troubleshooting
 
+For local host-based development and isolated Playwright testing, prefer the workflows in [docs/development.md](docs/development.md), including `npm run dev:up`, `npm run test:setup`, and `npm run test:e2e:managed`.
+
 ### Port 3000 or 5432 already in use
 
 ```bash

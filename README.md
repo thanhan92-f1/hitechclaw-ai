@@ -143,6 +143,50 @@ For the full installation guide with environment configuration, troubleshooting,
 
 For host-based local development with only the database in Docker, see [docs/development.md](docs/development.md).
 
+For isolated local Playwright testing, use the dedicated test database profile and `npm run test:e2e:local`.
+
+Common local commands:
+
+- `npm run dev:up` — start dev DB and run dev migrations
+- `npm run dev:clean` — remove dev DB container and volume
+- `npm run test:setup` — start test DB and run test migrations
+- `npm run test:e2e:managed` — run Playwright with managed app startup
+- `npm run test:e2e:ci-local` — CI-like clean local Playwright run
+- `npm run check:local` — dev DB + test DB + lint + smoke tests
+- `npm run check:pre-push` — stronger local validation before pushing
+- `npm run check:summary` — print the recommended developer workflow summary
+- `npm run clean:all` — clean dev/test DBs and local generated artifacts
+- `npm run hooks:install` — install tracked local Git hook templates
+
+---
+
+## Developer Experience
+
+HiTechClaw AI supports a host-based development workflow where the app runs locally and only the databases run in Docker.
+
+### Recommended setup
+
+1. `Copy-Item .env.development.example .env.local`
+2. `Copy-Item .env.test.example .env.test.local`
+3. `npm install`
+4. `npm run dev:up`
+5. `npm run test:setup`
+6. `npm run hooks:install`
+
+### Recommended daily workflow
+
+- Start app dependencies: `npm run dev:up`
+- Run app locally: `npm run dev`
+- Run smoke checks: `npm run check:local`
+- Run stronger pre-push gate: `npm run check:pre-push`
+- Clean everything when needed: `npm run clean:all`
+
+### Developer references
+
+- [docs/development.md](docs/development.md) — local dev, test DBs, Playwright workflows, cleanup
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution process and local validation expectations
+- [INSTALL.md](INSTALL.md) — container-first installation path
+
 ---
 
 ## Best With OpenClaw & NemoClaw. Works With Anything.

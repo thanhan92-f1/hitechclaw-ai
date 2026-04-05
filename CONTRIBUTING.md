@@ -27,9 +27,44 @@ Use [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai/discussio
 1. Fork the repo
 2. Create a branch: `git checkout -b fix/your-fix-name`
 3. Make your changes
-4. Test locally with `docker compose up`
-5. Commit with a clear message: `fix: prevent duplicate threat alerts within cooldown window`
-6. Open a PR against `main`
+4. Prepare local dev/test infrastructure:
+	- `Copy-Item .env.development.example .env.local`
+	- `Copy-Item .env.test.example .env.test.local`
+	- `npm install`
+	- `npm run dev:up`
+	- `npm run test:setup`
+5. Run local verification:
+	- `npm run check:local`
+	- `npm run check:pre-push` for a stronger gate before pushing
+6. Optional: install the tracked Git hook template with `npm run hooks:install`
+7. Commit with a clear message: `fix: prevent duplicate threat alerts within cooldown window`
+8. Open a PR against `main`
+
+### Local workflow
+
+For the full local development workflow, see [docs/development.md](docs/development.md).
+
+Recommended commands:
+
+- `npm run dev:up` — start local dev database and run migrations
+- `npm run dev` — start the Next.js app locally
+- `npm run test:setup` — start and migrate the isolated test database
+- `npm run test:e2e:managed` — run Playwright with managed app startup
+- `npm run test:e2e:ci-local` — reset and run a CI-like local test pass
+- `npm run check:pre-push` — full local gate before pushing
+- `npm run clean:all` — remove local DBs and generated artifacts
+
+### Git hooks
+
+This repository includes a tracked `.githooks/pre-push` template.
+
+To enable it for your local clone:
+
+```powershell
+npm run hooks:install
+```
+
+The hook runs `npm run check:pre-push` before every push.
 
 ### Commit messages
 

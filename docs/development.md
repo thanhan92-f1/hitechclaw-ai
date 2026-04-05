@@ -62,6 +62,18 @@ To reset the development database volume:
 npm run dev:reset
 ```
 
+To fully clean the development stack volume:
+
+```powershell
+npm run dev:clean
+```
+
+To clean dev, test, and generated local artifacts together:
+
+```powershell
+npm run clean:all
+```
+
 Or:
 
 ```powershell
@@ -185,6 +197,91 @@ npm run test:db:down
 npm run test:db:reset
 ```
 
+To fully clean the test stack volume:
+
+```powershell
+npm run test:clean
+```
+
+### Run local Playwright end-to-end tests
+
+This command will:
+
+1. ensure the test database is up,
+2. run test migrations,
+3. start the app on port `3001`,
+4. wait for readiness,
+5. execute Playwright,
+6. stop the temporary app process.
+
+```powershell
+npm run test:e2e:local
+```
+
+Smoke-only run:
+
+```powershell
+npm run test:smoke:local
+```
+
+### Run managed Playwright mode
+
+If the test database is already prepared, Playwright can manage the app process itself through `webServer`:
+
+```powershell
+npm run test:setup
+npm run test:e2e:managed
+```
+
+Smoke-only:
+
+```powershell
+npm run test:smoke:managed
+```
+
+### Run CI-like local Playwright mode
+
+This mode resets the test database, reruns migrations, disables Playwright server reuse, and executes the full suite in a cleaner local approximation of CI:
+
+```powershell
+npm run test:e2e:ci-local
+```
+
+### Run all local checks
+
+Run database startup, migrations, lint, and smoke tests in one flow:
+
+```powershell
+npm run check:local
+```
+
+### Run the pre-push local gate
+
+Run a stronger local verification pass before pushing:
+
+```powershell
+npm run check:pre-push
+```
+
+This runs:
+
+1. `npm run check:local`
+2. `npm run test:e2e:ci-local`
+
+### Install the git hook template
+
+To wire the repository's tracked pre-push hook into your local Git config:
+
+```powershell
+npm run hooks:install
+```
+
+This sets `core.hooksPath` to `.githooks` for the current clone.
+
 ### Test token compatibility
 
 Playwright auth helpers now accept either `MC_AGENT_TOKEN` or the standard `MC_AGENT_TOKENS` format.
+
+### Playwright env loading
+
+`playwright.config.ts` now auto-loads `.env.test.local` first and falls back to `.env.local`, without overriding variables already provided by the shell or CI.

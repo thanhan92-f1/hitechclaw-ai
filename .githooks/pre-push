@@ -1,0 +1,8 @@
+#!/usr/bin/env pwsh
+$ErrorActionPreference = 'Stop'
+
+Write-Host '[githooks/pre-push] Running repository pre-push checks...'
+& pwsh -ExecutionPolicy Bypass -File ./scripts/pre-push-check.ps1
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
