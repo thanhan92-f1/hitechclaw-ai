@@ -1,0 +1,258 @@
+name: Continuous Integration
+
+"on":
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/screenshots/**"
+      - "docs/assets/**"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/screenshots/**"
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      run_full_regression:
+        description: "Run the full Playwright regression suite in addition to smoke coverage"
+        required: false
+        default: true
+        type: boolean
+      build_docker_image:
+        description: "Validate the production Docker image during manual runs"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  PORT: 3000
+  NODE_ENV: test
+  POSTGRES_USER: hitechclaw-ai
+  POSTGRES_PASSWORD: hitechclaw-ai
+  POSTGRES_DB: hitechclaw-ai
+  DATABASE_URL: postgresql://hitechclaw-ai:hitechclaw-ai@127.0.0.1:5432/hitechclaw-ai
+  HITECHCLAW_AI_BASE_URL: http://127.0.0.1:3000
+  NEXTAUTH_URL: http://127.0.0.1:3000
+  NEXTAUTH_SECRET: ci-nextauth-secret-for-github-actions-only
+  MC_ADMIN_TOKEN: test-admin-token
+  MC_AGENT_TOKENS: default:test-agent-token
+  MC_AGENT_TOKEN: default:test-agent-token
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint_and_build:
+    name: Lint and build application
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 and restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock.json
+        run: npm ci
+
+      - name: Run ESLint across the Next.js workspace
+        run: npm run lint
+
+      - name: Produce a standalone production build
+        run: npm run build
+
+  smoke_tests:
+    name: Smoke test critical APIs and UI flows
+    needs: lint_and_build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_USER: hitechclaw-ai
+          POSTGRES_PASSWORD: hitechclaw-ai
+          POSTGRES_DB: hitechclaw-ai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hitechclaw-ai -d hitechclaw-ai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 and restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock.json
+        run: npm ci
+
+      - name: Install Playwright browser dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for PostgreSQL service to become reachable
+        run: npx wait-on tcp:127.0.0.1:5432
+
+      - name: Apply SQL and TypeScript migrations
+        run: npm run db:migrate
+
+      - name: Build the application before serving it to Playwright
+        run: npm run build
+
+      - name: Start the Next.js production server in the background
+        run: |
+          npm run start > hitechclaw-server.log 2>&1 &
+          echo $! > hitechclaw-server.pid
+
+      - name: Wait for application health endpoint
+        run: npx wait-on http://127.0.0.1:3000/api/health
+
+      - name: Execute the smoke-tagged Playwright suite
+        run: npm run test:smoke
+
+      - name: Upload Playwright HTML report when smoke tests fail
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-report
+          path: playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload server log when smoke tests fail
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-server-log
+          path: hitechclaw-server.log
+          if-no-files-found: ignore
+
+      - name: Stop background server cleanly
+        if: always()
+        run: |
+          if [[ -f hitechclaw-server.pid ]]; then
+            kill "$(cat hitechclaw-server.pid)" || true
+          fi
+
+  full_regression:
+    name: Full Playwright regression suite
+    if: github.event_name == 'push' || github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_full_regression)
+    needs: lint_and_build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_USER: hitechclaw-ai
+          POSTGRES_PASSWORD: hitechclaw-ai
+          POSTGRES_DB: hitechclaw-ai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hitechclaw-ai -d hitechclaw-ai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 and restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock.json
+        run: npm ci
+
+      - name: Install Playwright browser dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Wait for PostgreSQL service to become reachable
+        run: npx wait-on tcp:127.0.0.1:5432
+
+      - name: Apply SQL and TypeScript migrations
+        run: npm run db:migrate
+
+      - name: Build the application before serving it to Playwright
+        run: npm run build
+
+      - name: Start the Next.js production server in the background
+        run: |
+          npm run start > hitechclaw-server.log 2>&1 &
+          echo $! > hitechclaw-server.pid
+
+      - name: Wait for application health endpoint
+        run: npx wait-on http://127.0.0.1:3000/api/health
+
+      - name: Execute the full Playwright regression suite
+        run: npm run test:e2e
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-full-report
+          path: playwright-report
+          if-no-files-found: ignore
+
+      - name: Upload server log on regression failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-server-log
+          path: hitechclaw-server.log
+          if-no-files-found: ignore
+
+      - name: Stop background server cleanly
+        if: always()
+        run: |
+          if [[ -f hitechclaw-server.pid ]]; then
+            kill "$(cat hitechclaw-server.pid)" || true
+          fi
+
+  docker_image_validation:
+    name: Validate Docker production image
+    if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.build_docker_image)
+    needs: lint_and_build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the Docker image without pushing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: hitechclaw-ai:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

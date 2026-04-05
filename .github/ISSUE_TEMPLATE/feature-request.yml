@@ -1,12 +1,21 @@
 name: Feature request
 description: Suggest a new feature or improvement
 title: "[Feature] "
-labels: ["feature-request"]
+labels: ["feature-request", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
         Describe the problem you're solving, not just the feature you want. Context helps us build the right thing.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched existing issues, discussions, and roadmap items before opening this request.
+          required: true
+        - label: This request is aligned with the repository's self-hosted AI governance scope.
+          required: true
   - type: textarea
     id: problem
     attributes:
@@ -42,3 +51,35 @@ body:
         - API / SDK
         - Documentation
         - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority from your perspective
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Who benefits from this?
+      placeholder: "Operators managing multiple tenants and security teams reviewing threat incidents."
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: What would success look like?
+      description: Define concrete outcomes or acceptance criteria.
+      placeholder: |
+        - Health status is visible on the agent list page
+        - Operators can filter by unhealthy agents
+        - Data is available via API for automation
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks, trade-offs, or implementation notes
+      placeholder: "This may increase dashboard query cost, so caching or pre-aggregation may be needed."

@@ -1,0 +1,124 @@
+name: Pull Request Quality Gate
+
+"on":
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate_pr_body:
+    name: Validate pull request body quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Enforce pull request template completeness
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const bodyLower = body.toLowerCase();
+
+            const requiredSections = [
+              '## summary',
+              '## why this change exists',
+              '## scope',
+              '## type of change',
+              '## validation',
+              '## risk assessment',
+              '## notes for reviewers',
+            ];
+
+            const missingSections = requiredSections.filter((section) => !bodyLower.includes(section));
+            const checkedType = /- \[x\] (documentation|installation guidance|operations \/ runbook|ci \/ github automation|security hardening|application feature or bug fix|database or migration change)/i.test(body);
+            const checkedValidation = /- \[x\] (markdown reviewed|commands checked for consistency|paths, ports, and service names verified|related docs updated|change remains consistent with the repository's non-commercial license model|local build, workflow, or test impact reviewed)/i.test(body);
+            const checkedRisk = /- \[x\] (no security impact|security-sensitive change documented|destructive behavior called out explicitly|backward compatibility considered)/i.test(body);
+
+            const errors = [];
+            if (!body.trim()) errors.push('Pull request body is empty.');
+            if (missingSections.length) errors.push(`Missing required sections: ${missingSections.join(', ')}`);
+            if (!checkedType) errors.push('At least one item in **Type of Change** must be checked.');
+            if (!checkedValidation) errors.push('At least one item in **Validation** must be checked.');
+            if (!checkedRisk) errors.push('At least one item in **Risk Assessment** must be checked.');
+
+            const summary = [
+              '# Pull Request Quality Gate',
+              '',
+              `PR: #${pr.number}`,
+              '',
+            ];
+
+            if (errors.length) {
+              summary.push('## Result');
+              summary.push('Failed');
+              summary.push('');
+              summary.push('## Findings');
+              for (const error of errors) summary.push(`- ${error}`);
+              core.summary.addRaw(summary.join('\n')).write();
+              core.setFailed(errors.join(' | '));
+              return;
+            }
+
+            summary.push('## Result');
+            summary.push('Passed');
+            summary.push('');
+            summary.push('PR body includes the required governance sections and checklist selections.');
+            core.summary.addRaw(summary.join('\n')).write();
+
+      - name: Comment guidance on failed validation
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const body = [
+              'The pull request description is missing required governance details.',
+              '',
+              'Please update the PR body so it includes:',
+              '- all required sections from the PR template',
+              '- at least one checked item in **Type of Change**',
+              '- at least one checked item in **Validation**',
+              '- at least one checked item in **Risk Assessment**',
+              '',
+              'Once updated, this check will run again automatically.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.find((comment) => comment.user?.type === 'Bot' && comment.body?.includes('pull request description is missing required governance details'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });

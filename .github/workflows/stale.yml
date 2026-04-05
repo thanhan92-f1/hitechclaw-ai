@@ -1,0 +1,48 @@
+name: Stale Issue and Pull Request Management
+
+"on":
+  schedule:
+    - cron: "45 3 * * 2"
+  workflow_dispatch:
+
+concurrency:
+  group: stale-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark inactive items as stale
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Mark and close stale items according to repository policy
+        uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,security,blocked
+          exempt-pr-labels: pinned,security,blocked
+          days-before-issue-stale: 30
+          days-before-issue-close: 10
+          days-before-pr-stale: 21
+          days-before-pr-close: 7
+          stale-issue-message: >-
+            This issue has been marked as stale because it has not had recent activity.
+            Please add an update, reproduction detail, or implementation direction within 10 days to keep it open.
+          stale-pr-message: >-
+            This pull request has been marked as stale because it has not had recent activity.
+            Please push an update or leave a status note within 7 days to keep it open.
+          close-issue-message: >-
+            Closing due to inactivity. This can be reopened with fresh context, logs, or a confirmed implementation plan.
+          close-pr-message: >-
+            Closing due to inactivity. Reopen when the work is ready to continue.
+          operations-per-run: 250
+          ascending: true
+          remove-issue-stale-when-updated: true
+          remove-pr-stale-when-updated: true

@@ -1,0 +1,145 @@
+name: Dependency and Repository Maintenance
+
+"on":
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: maintenance-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  dependabot_triage:
+    name: Triage safe Dependabot pull requests
+    if: github.event_name == 'pull_request_target' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot update metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply maintenance labels to the pull request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labels = ["dependencies"];
+            const updateType = `${{ toJSON(steps.metadata.outputs.update-type) }}`.replaceAll('"', '');
+            const ecosystem = `${{ toJSON(steps.metadata.outputs.package-ecosystem) }}`.replaceAll('"', '');
+
+            if (ecosystem) labels.push(`deps:${ecosystem}`);
+            if (updateType.includes('semver-patch')) labels.push('automerge-candidate', 'patch');
+            if (updateType.includes('semver-minor')) labels.push('automerge-candidate', 'minor');
+            if (updateType.includes('semver-major')) labels.push('major-update');
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels,
+            });
+
+      - name: Auto-approve patch and minor dependency updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        uses: hmarr/auto-approve-action@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for safe dependency updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request-number: ${{ github.event.pull_request.number }}
+          merge-method: squash
+
+  dependency_health_report:
+    name: Generate dependency health report
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 and restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock.json
+        run: npm ci
+
+      - name: Produce npm audit JSON report
+        run: |
+          mkdir -p reports
+          npm audit --json > reports/npm-audit.json || true
+
+      - name: Produce npm outdated report
+        run: |
+          npm outdated --json > reports/npm-outdated.json || true
+
+      - name: Summarize dependency health in the workflow summary
+        run: |
+          node <<'EOF'
+          const fs = require('fs');
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+
+          function readJson(path) {
+            try {
+              return JSON.parse(fs.readFileSync(path, 'utf8'));
+            } catch {
+              return null;
+            }
+          }
+
+          const audit = readJson('reports/npm-audit.json');
+          const outdated = readJson('reports/npm-outdated.json') || {};
+          const vulnerabilities = audit?.metadata?.vulnerabilities || {};
+          const outdatedPackages = Object.keys(outdated).length;
+
+          const lines = [
+            '# Dependency Health Report',
+            '',
+            '| Signal | Value |',
+            '| --- | ---: |',
+            `| Critical vulnerabilities | ${vulnerabilities.critical ?? 0} |`,
+            `| High vulnerabilities | ${vulnerabilities.high ?? 0} |`,
+            `| Moderate vulnerabilities | ${vulnerabilities.moderate ?? 0} |`,
+            `| Low vulnerabilities | ${vulnerabilities.low ?? 0} |`,
+            `| Outdated packages | ${outdatedPackages} |`,
+            '',
+            'Artifacts contain the raw `npm audit` and `npm outdated` output for follow-up review.',
+          ];
+
+          fs.appendFileSync(summaryPath, `${lines.join('\n')}\n`);
+          EOF
+
+      - name: Upload dependency reports as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-health-reports
+          path: reports
+          if-no-files-found: error

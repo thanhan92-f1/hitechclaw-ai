@@ -1,12 +1,21 @@
 name: Bug report
 description: Something isn't working as expected
 title: "[Bug] "
-labels: ["bug"]
+labels: ["bug", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting. The more detail you provide, the faster we can fix it.
+        Thanks for reporting. The more detail you provide, the faster we can reproduce, triage, and fix the problem.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate report.
+          required: true
+        - label: I can reproduce this on the latest main branch, latest container image, or latest deployed build available to me.
+          required: true
   - type: textarea
     id: what-happened
     attributes:
@@ -33,6 +42,36 @@ body:
         4. Observe that the agent continues running
     validations:
       required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical - production outage, data loss, or major security risk
+        - High - major feature broken or high operational impact
+        - Medium - important issue with a workaround
+        - Low - minor issue or cosmetic defect
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Dashboard / Overview
+        - Agent Management
+        - ThreatGuard / Security
+        - Cost Tracking
+        - Workflow Builder
+        - Infrastructure Monitoring
+        - MCP Gateway
+        - Authentication / RBAC
+        - API / SDK
+        - Installation / Deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
@@ -47,8 +86,26 @@ body:
         - Manual (npm run dev)
         - HiTechClaw Ai Cloud
         - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: Include OS, browser, runtime version, container version, and any relevant infrastructure details.
+      placeholder: |
+        - OS: Ubuntu 24.04
+        - Browser: Chrome 135
+        - Node.js: 22.x
+        - Deployment: Docker Compose on a single VM
   - type: textarea
     id: logs
     attributes:
       label: Relevant logs or screenshots
       description: Paste error messages, console output, or attach screenshots.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Business or operational impact
+      description: Explain how this affects users, agents, automation, or operations.
+      placeholder: "This blocks setup for new tenants because the wizard cannot complete step 2."

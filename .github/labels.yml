@@ -1,0 +1,107 @@
+- name: bug
+  color: "d73a4a"
+  description: Confirmed defect or regression.
+
+- name: feature-request
+  color: "a2eeef"
+  description: Proposed product enhancement or new capability.
+
+- name: documentation
+  color: "0075ca"
+  description: Documentation, guides, README, or runbook changes.
+
+- name: ci
+  color: "5319e7"
+  description: Continuous integration, automation, or workflow pipeline work.
+
+- name: security
+  color: "b60205"
+  description: Security-sensitive change, report, or hardening work.
+
+- name: installation
+  color: "1d76db"
+  description: Installation, setup, bootstrap, or deployment guidance.
+
+- name: workflows
+  color: "0e8a16"
+  description: Workflow builder, schedulers, automation nodes, or orchestration logic.
+
+- name: dependencies
+  color: "0366d6"
+  description: Dependency update or package maintenance.
+
+- name: automerge-candidate
+  color: "2ea44f"
+  description: Safe automated merge candidate after required checks pass.
+
+- name: patch
+  color: "c5def5"
+  description: Patch-level dependency or maintenance update.
+
+- name: minor
+  color: "bfd4f2"
+  description: Minor-level dependency or maintenance update.
+
+- name: major-update
+  color: "fbca04"
+  description: Major dependency or platform update requiring manual review.
+
+- name: deps:npm
+  color: "e99695"
+  description: npm ecosystem dependency work.
+
+- name: deps:github-actions
+  color: "cfd3d7"
+  description: GitHub Actions dependency work.
+
+- name: deps:docker
+  color: "0052cc"
+  description: Docker image or Docker tooling dependency work.
+
+- name: area:frontend
+  color: "f9d0c4"
+  description: Next.js app router UI, React components, or frontend UX changes.
+
+- name: area:api
+  color: "fef2c0"
+  description: API routes, request handling, or integration surface changes.
+
+- name: area:database
+  color: "c2e0c6"
+  description: Database schema, migrations, or persistence changes.
+
+- name: area:infra
+  color: "d4c5f9"
+  description: Infrastructure monitoring, Docker, deployment, or platform work.
+
+- name: area:docs
+  color: "006b75"
+  description: Repository documentation and instructional content.
+
+- name: area:github
+  color: "7057ff"
+  description: GitHub repository metadata, templates, or automation.
+
+- name: needs-triage
+  color: "ededed"
+  description: Awaiting maintainer review and classification.
+
+- name: stale
+  color: "8b949e"
+  description: Marked stale due to inactivity.
+
+- name: pinned
+  color: "0052cc"
+  description: Exempt from stale handling and general cleanup automation.
+
+- name: blocked
+  color: "000000"
+  description: Cannot progress until an external dependency or decision is resolved.
+
+- name: good first issue
+  color: "7057ff"
+  description: Suitable for first-time contributors.
+
+- name: help wanted
+  color: "008672"
+  description: Community contribution is welcome.

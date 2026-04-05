@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="License" />
+  <img src="https://img.shields.io/badge/license-Non--Commercial-blue" alt="License" />
   <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version" />
   <img src="https://img.shields.io/badge/docker-compose%20up-green" alt="Docker" />
 </p>
@@ -181,9 +181,9 @@ HiTechClaw AI was built on OpenClaw and has first-class integration with the Ope
 
 ## Pricing
 
-### Self-Hosted: Free Forever
+### Self-Hosted: Free for Strictly Non-Commercial Use
 
-The full HiTechClaw AI platform, self-hosted, MIT licensed. 3 agents, 1 server, all features. No feature gates — just usage limits that grow with you.
+The full HiTechClaw AI platform, self-hosted, for strictly non-commercial use under the repository license. 3 agents, 1 server, all features. No feature gates — just usage limits that grow with you.
 
 ```bash
 docker compose up -d
@@ -233,6 +233,8 @@ For teams that want managed hosting, more capacity, and zero ops overhead.
 
 HiTechClaw AI is open source and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+Repository operations and automation are documented in [docs/github-governance.md](docs/github-governance.md).
+
 **Where we want contributions:**
 - Integrations and SDK adapters (CrewAI, AutoGen, LangChain)
 - ThreatGuard detection patterns
@@ -251,12 +253,14 @@ HiTechClaw AI is open source and contributions are welcome. See [CONTRIBUTING.md
 
 - [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai.git/discussions) — questions, ideas, show & tell
 - [Issues](https://github.com/thanhan92-f1/hitechclaw-ai.git/issues) — bug reports and feature requests
+- [Support Guide](SUPPORT.md) — where to ask questions, report bugs, and route licensing or security topics
+- [Security Policy](SECURITY.md) — private vulnerability reporting and security expectations
 - [ai.hitehclaw.com](https://ai.hitechclaw.com) — website and cloud platform
 ---
 
 ## License
 
-Non-commercial use only.
+Strictly non-commercial use only. See [LICENSE](LICENSE) and [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
 
 ### Usage Terms
 

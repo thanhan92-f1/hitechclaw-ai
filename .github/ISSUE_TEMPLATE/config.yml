@@ -1,8 +1,17 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question / Help
-    url: https://github.com/thanhan92-f1/hitechclaw-ai/issues
-    about: Ask questions and get help from the community
+  - name: Questions, usage help, and operator support
+    url: https://github.com/thanhan92-f1/hitechclaw-ai/discussions
+    about: Use Discussions for support questions, implementation advice, and general product conversations.
+  - name: Security disclosures
+    url: https://github.com/thanhan92-f1/hitechclaw-ai/security/advisories/new
+    about: Report vulnerabilities privately. Do not open public issues for exploitable security problems.
+  - name: Installation and deployment guide
+    url: https://github.com/thanhan92-f1/hitechclaw-ai/blob/main/INSTALL.md
+    about: Review setup, Docker, environment, and upgrade guidance before opening installation issues.
+  - name: API and integration reference
+    url: https://github.com/thanhan92-f1/hitechclaw-ai/blob/main/API.md
+    about: Review the API reference before filing SDK or integration questions.
   - name: Discord
     url: https://discord.gg/hitechclaw
-    about: Chat with the HiTechClaw Ai community in real-time
+    about: Chat with the HiTechClaw AI community in real time.

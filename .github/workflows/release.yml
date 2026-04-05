@@ -1,0 +1,233 @@
+name: Release and Delivery
+
+"on":
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Optional release version label for manual runs, for example v0.2.0-rc.1"
+        required: false
+        type: string
+      publish_container:
+        description: "Publish the Docker image to GitHub Container Registry"
+        required: false
+        default: true
+        type: boolean
+      publish_github_release:
+        description: "Create or update a GitHub Release with the generated bundle"
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  PORT: 3000
+  NODE_ENV: production
+  POSTGRES_USER: hitechclaw-ai
+  POSTGRES_PASSWORD: hitechclaw-ai
+  POSTGRES_DB: hitechclaw-ai
+  DATABASE_URL: postgresql://hitechclaw-ai:hitechclaw-ai@127.0.0.1:5432/hitechclaw-ai
+  HITECHCLAW_AI_BASE_URL: http://127.0.0.1:3000
+  NEXTAUTH_URL: http://127.0.0.1:3000
+  NEXTAUTH_SECRET: release-pipeline-nextauth-secret
+  MC_ADMIN_TOKEN: release-pipeline-admin-token
+  MC_AGENT_TOKENS: default:release-pipeline-agent-token
+  MC_AGENT_TOKEN: default:release-pipeline-agent-token
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify_release_candidate:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22 and restore npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies from package-lock.json
+        run: npm ci
+
+      - name: Run ESLint before cutting a release
+        run: npm run lint
+
+      - name: Produce the standalone Next.js build
+        run: npm run build
+
+  create_release_bundle:
+    name: Create self-hosted release bundle
+    needs: verify_release_candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build compressed release archive
+        run: |
+          mkdir -p dist
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=playwright-report \
+            --exclude=test-results \
+            -czf dist/hitechclaw-ai-release.tgz \
+            .
+
+      - name: Derive release metadata
+        id: release_bundle_meta
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_VERSION="${GITHUB_REF#refs/tags/}"
+          elif [[ -n "${{ inputs.release_version }}" ]]; then
+            RELEASE_VERSION="${{ inputs.release_version }}"
+          else
+            RELEASE_VERSION="manual-${GITHUB_SHA::7}"
+          fi
+
+          {
+            echo "release_version=${RELEASE_VERSION}"
+            echo "bundle_name=hitechclaw-ai-${RELEASE_VERSION}.tgz"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "release_version=${RELEASE_VERSION}"
+            echo "bundle_name=hitechclaw-ai-${RELEASE_VERSION}.tgz"
+          } >> "$GITHUB_OUTPUT"
+
+          mv dist/hitechclaw-ai-release.tgz "dist/hitechclaw-ai-${RELEASE_VERSION}.tgz"
+
+      - name: Upload release bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-hosted-release-bundle
+          path: dist/${{ steps.release_bundle_meta.outputs.bundle_name }}
+          if-no-files-found: error
+
+  publish_container_image:
+    name: Publish production Docker image
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_container)
+    needs: verify_release_candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker image metadata and tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=sha,prefix=sha-
+            type=raw,value=manual-${{ github.sha }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+          labels: |
+            org.opencontainers.image.title=HiTechClaw AI
+            org.opencontainers.image.description=Self-hosted AI governance platform image
+            org.opencontainers.image.vendor=Pho Tue SoftWare Solutions JSC
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish_github_release:
+    name: Publish GitHub release record
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_github_release)
+    needs:
+      - verify_release_candidate
+      - create_release_bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Download prepared release bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: self-hosted-release-bundle
+          path: dist
+
+      - name: Determine release version and notes mode
+        id: release_publish_meta
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_VERSION="${GITHUB_REF#refs/tags/}"
+            RELEASE_TAG="${RELEASE_VERSION}"
+          elif [[ -n "${{ inputs.release_version }}" ]]; then
+            RELEASE_VERSION="${{ inputs.release_version }}"
+            RELEASE_TAG="${RELEASE_VERSION}"
+          else
+            RELEASE_VERSION="manual-${GITHUB_SHA::7}"
+            RELEASE_TAG="${RELEASE_VERSION}"
+          fi
+
+          if [[ "${RELEASE_VERSION}" == *-rc* || "${RELEASE_VERSION}" == *-beta* || "${RELEASE_VERSION}" == *-alpha* || "${GITHUB_REF}" != refs/tags/* ]]; then
+            PRERELEASE=true
+          else
+            PRERELEASE=false
+          fi
+
+          echo "prerelease=${PRERELEASE}" >> "$GITHUB_ENV"
+
+          {
+            echo "release_version=${RELEASE_VERSION}"
+            echo "release_tag=${RELEASE_TAG}"
+          } >> "$GITHUB_ENV"
+
+          {
+            echo "release_version=${RELEASE_VERSION}"
+            echo "release_tag=${RELEASE_TAG}"
+            echo "prerelease=${PRERELEASE}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish release notes and bundle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_publish_meta.outputs.release_tag }}
+          name: HiTechClaw AI ${{ steps.release_publish_meta.outputs.release_version }}
+          generate_release_notes: true
+          prerelease: ${{ steps.release_publish_meta.outputs.prerelease }}
+          files: dist/*

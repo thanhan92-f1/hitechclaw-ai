@@ -2,6 +2,18 @@
 
 - Describe the change clearly.
 
+## Why This Change Exists
+
+- Describe the problem being solved.
+- Link the related issue, discussion, or incident if available.
+
+## Scope
+
+- User-facing impact:
+- Operational impact:
+- Security impact:
+- Rollback plan:
+
 ## Type of Change
 
 - [ ] Documentation
@@ -9,6 +21,8 @@
 - [ ] Operations / runbook
 - [ ] CI / GitHub automation
 - [ ] Security hardening
+- [ ] Application feature or bug fix
+- [ ] Database or migration change
 
 ## Validation
 
@@ -17,15 +31,18 @@
 - [ ] Paths, ports, and service names verified
 - [ ] Related docs updated
 - [ ] Change remains consistent with the repository's non-commercial license model
+- [ ] Local build, workflow, or test impact reviewed
 
 ## Risk Assessment
 
 - [ ] No security impact
 - [ ] Security-sensitive change documented
 - [ ] Destructive behavior called out explicitly
+- [ ] Backward compatibility considered
 
 ## Notes for Reviewers
 
 - Dependencies affected:
 - Services affected:
 - Follow-up work:
+- Screenshots / logs / artifacts:

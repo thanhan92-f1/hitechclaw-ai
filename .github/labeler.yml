@@ -1,0 +1,94 @@
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "INSTALL.md"
+          - "API.md"
+          - "FEATURES.md"
+          - "QUICKSTART.md"
+          - "CHANGELOG.md"
+          - "docs/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/labeler.yml"
+          - ".github/labels.yml"
+          - ".github/dependabot.yml"
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/lib/auth-utils.ts"
+          - "src/lib/password.ts"
+          - "src/lib/rbac.ts"
+          - "src/lib/redact.ts"
+          - "src/lib/rate-limit.ts"
+          - "src/lib/threat-scanner.ts"
+          - "src/app/api/auth/**"
+          - "src/app/api/mcp/proxy/**"
+          - "src/app/api/tools/_utils.ts"
+
+installation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "INSTALL.md"
+          - "Dockerfile"
+          - "docker-compose.yml"
+          - "docker-entrypoint.sh"
+          - "ecosystem.config.js"
+
+workflows:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/components/mission-control/workflows.tsx"
+          - "src/lib/workflow-engine.ts"
+          - "src/app/workflows/**"
+          - "tests/workflows.spec.ts"
+
+area:frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/app/**"
+          - "src/components/**"
+          - "src/hooks/**"
+          - "public/**"
+
+area:api:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/app/api/**"
+          - "src/lib/**"
+
+area:database:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "migrations/**"
+          - "scripts/migrate.ts"
+          - "src/lib/db.ts"
+
+area:infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "Dockerfile"
+          - "docker-compose.yml"
+          - "docker-entrypoint.sh"
+          - "ecosystem.config.js"
+          - "src/app/infrastructure/**"
+          - "src/app/api/infra/**"
+          - "tests/infrastructure.spec.ts"
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "INSTALL.md"
+          - "API.md"
+          - "FEATURES.md"
+          - "docs/**"
+
+area:github:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
