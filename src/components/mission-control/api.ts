@@ -308,6 +308,18 @@ export function timeAgo(dateStr: string | null) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+export function useNow(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(timer);
+  }, [intervalMs]);
+
+  return now;
+}
+
 export function activityStatus(lastActive: string | null) {
   if (!lastActive) {
     return { label: "Offline", dot: "bg-red", tone: "text-red", panel: "border-red/40" };

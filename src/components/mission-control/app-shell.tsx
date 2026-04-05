@@ -663,7 +663,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
 
       {/* Guided Tour (activated by ?tour=1 after setup wizard) */}
       {/* Global Keyboard Shortcuts */}
-      <GlobalShortcuts onOpenPalette={() => setPaletteOpen(true)} onOpenKill={() => setQuickKillOpen(true)} />
+      <GlobalShortcuts onOpenPalette={() => setPaletteOpen(true)} />
       <GuidedTour />
     </div>
   );

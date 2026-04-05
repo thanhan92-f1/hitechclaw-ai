@@ -17,7 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
-import { usePollingFetch, timeAgo } from "@/components/mission-control/api";
+import { useNow, usePollingFetch, timeAgo } from "@/components/mission-control/api";
 
 /* ── Types ── */
 

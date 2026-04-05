@@ -413,7 +413,6 @@ export default function AgentDetailPage() {
       )}
       {activeTab === "activity" && (
         <ActivityTab
-          events={data.events}
           filteredEvents={filteredEvents}
           eventTypes={eventTypes}
           filter={filter}
@@ -590,20 +589,24 @@ function SecurityTab({ data }: { data: AgentData }) {
 /* ── Performance Tab ───────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════════ */
 
-function PerformanceTab({ data, chartData, totalMessages, totalToolCalls, errorRate7d }: {
+function PerformanceTab({ data, chartData, totalMessages, totalToolCalls, totalTokens, totalErrors, errorRate7d }: {
   data: AgentData;
   chartData: Array<Record<string, unknown>>;
   totalMessages: number;
   totalToolCalls: number;
+  totalTokens: number;
+  totalErrors: number;
   errorRate7d: number;
 }) {
   return (
     <div className="space-y-5">
       {/* Summary pills */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         <StatPill label="Cost (30d)" value={formatCost(data.cost.cost_30d)} colour="text-[var(--accent)]" />
-        <StatPill label="Tokens (30d)" value={formatCompact(Number(data.cost.tokens_30d))} colour="text-[var(--warning)]" />
+        <StatPill label="Tokens (7d)" value={formatCompact(totalTokens)} colour="text-[var(--warning)]" />
         <StatPill label="Messages (7d)" value={totalMessages} />
+        <StatPill label="Tool Calls (7d)" value={totalToolCalls} />
+        <StatPill label="Errors (7d)" value={totalErrors} colour={totalErrors > 0 ? "text-red-400" : "text-[var(--text-secondary)]"} />
         <StatPill label="Error Rate (7d)" value={`${errorRate7d}%`} colour={errorRate7d > 10 ? "text-red-400" : "text-[var(--text-secondary)]"} />
       </div>
 
