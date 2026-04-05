@@ -9,7 +9,12 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const range = url.searchParams.get("range") || "30d";
+  const tenantId = url.searchParams.get("tenant_id");
   const interval = range === "24h" ? "24 hours" : range === "7d" ? "7 days" : "30 days";
+  const params: (string | number)[] = [interval];
+  const tenantJoin = tenantId ? "LEFT JOIN agents a ON a.id = events.agent_id" : "";
+  const tenantFilter = tenantId ? "AND a.tenant_id = $2" : "";
+  if (tenantId) params.push(tenantId);
 
   try {
     // Model usage from events metadata (where provider/model fields exist)
@@ -20,11 +25,13 @@ export async function GET(req: NextRequest) {
          COUNT(*) as event_count,
          COALESCE(SUM(token_estimate), 0) as total_tokens
        FROM events
+       ${tenantJoin}
        WHERE created_at >= NOW() - $1::interval
          AND metadata IS NOT NULL
+         ${tenantFilter}
        GROUP BY provider, model
        ORDER BY total_tokens DESC`,
-      [interval]
+      params
     );
 
     // Join with pricing to get costs

@@ -9,7 +9,11 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const range = url.searchParams.get("range") || "30d";
+  const tenantId = url.searchParams.get("tenant_id");
   const interval = range === "24h" ? "24 hours" : range === "7d" ? "7 days" : "30 days";
+  const params: (string | number)[] = [interval];
+  const tenantFilter = tenantId ? "AND ds.tenant_id = $2" : "";
+  if (tenantId) params.push(tenantId);
 
   try {
     const result = await query(
@@ -24,19 +28,19 @@ export async function GET(req: NextRequest) {
                    ELSE 0 END as cost_per_1k_tokens
        FROM daily_stats ds
        LEFT JOIN agents a ON a.id = ds.agent_id
-       WHERE ds.day >= CURRENT_DATE - $1::interval
+       WHERE ds.day >= CURRENT_DATE - $1::interval ${tenantFilter}
        GROUP BY ds.agent_id, a.name, a.tenant_id
        ORDER BY total_cost DESC`,
-      [interval]
+      params
     );
 
     // Daily breakdown per agent (for sparklines)
     const daily = await query(
       `SELECT agent_id, day, estimated_cost_usd as cost
        FROM daily_stats
-       WHERE day >= CURRENT_DATE - $1::interval
+       WHERE day >= CURRENT_DATE - $1::interval ${tenantId ? "AND tenant_id = $2" : ""}
        ORDER BY agent_id, day`,
-      [interval]
+      params
     );
 
     const dailyByAgent: Record<string, { day: string; cost: number }[]> = {};

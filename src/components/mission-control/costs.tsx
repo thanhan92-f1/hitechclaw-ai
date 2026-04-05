@@ -904,7 +904,7 @@ function BudgetDialog({ agents, existingBudgets, onClose, onSaved }: {
                 <input
                   value={scopeId}
                   onChange={e => setScopeId(e.target.value)}
-                  placeholder="e.g. transformate"
+                  placeholder="e.g. default"
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/40"
                 />
               )}

@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
   const tenantFilter = tenantId ? "AND ds.tenant_id = $2" : "";
   const params: (string | number)[] = [interval];
   if (tenantId) params.push(tenantId);
+  const byTenantParams: (string | number)[] = [interval];
+  const byTenantFilter = tenantId ? "AND ds.tenant_id = $2" : "";
+  if (tenantId) byTenantParams.push(tenantId);
 
   try {
     // Total cost this period
@@ -54,9 +57,9 @@ export async function GET(req: NextRequest) {
       `SELECT ds.tenant_id, SUM(ds.estimated_cost_usd) as cost,
               SUM(ds.estimated_tokens) as tokens
        FROM daily_stats ds
-       WHERE ds.day >= CURRENT_DATE - $1::interval
+       WHERE ds.day >= CURRENT_DATE - $1::interval ${byTenantFilter}
        GROUP BY ds.tenant_id ORDER BY cost DESC`,
-      [interval]
+      byTenantParams
     );
 
     // Last month total (for comparison)
@@ -97,6 +100,10 @@ export async function GET(req: NextRequest) {
     );
 
     // Budget status
+    const budgetsParams: string[] = [];
+    const budgetsWhere = tenantId ? "WHERE bl.tenant_id = $1" : "";
+    if (tenantId) budgetsParams.push(tenantId);
+
     const budgets = await query(
       `SELECT bl.*,
               COALESCE((SELECT SUM(estimated_cost_usd) FROM daily_stats
@@ -107,7 +114,9 @@ export async function GET(req: NextRequest) {
                         WHERE day >= date_trunc('month', CURRENT_DATE)
                         AND (bl.scope_type = 'tenant' AND tenant_id = bl.scope_id
                              OR bl.scope_type = 'agent' AND agent_id = bl.scope_id)), 0) as month_spend
-       FROM budget_limits bl`
+       FROM budget_limits bl
+       ${budgetsWhere}`,
+      budgetsParams
     );
 
     return NextResponse.json({
