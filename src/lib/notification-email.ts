@@ -50,7 +50,7 @@ export function isSmtpConfigured(config: Record<string, unknown>): boolean {
   );
 }
 
-function getTransporter(config: Record<string, unknown>): Transporter {
+export function getNotificationEmailTransporter(config: Record<string, unknown>): Transporter {
   const port = getPort(config);
   const secure = getSecure(config, port);
   const host = getString(config, "smtp_host", "SMTP_HOST");
@@ -68,6 +68,15 @@ function getTransporter(config: Record<string, unknown>): Transporter {
         }
       : undefined,
   });
+}
+
+export async function verifyNotificationEmailConfig(config: Record<string, unknown>): Promise<void> {
+  if (!isSmtpConfigured(config)) {
+    throw new Error("SMTP is not configured. Provide SMTP host, port, and from address in the Email channel settings.");
+  }
+
+  const mailer = getNotificationEmailTransporter(config);
+  await mailer.verify();
 }
 
 export async function resolveNotificationEmail(
@@ -120,7 +129,7 @@ export async function sendNotificationEmail({
     throw new Error("No recipient email configured for this tenant.");
   }
 
-  const mailer = getTransporter(config);
+  const mailer = getNotificationEmailTransporter(config);
   const from = getString(config, "smtp_from", "SMTP_FROM");
   const replyTo = getString(config, "smtp_reply_to", "SMTP_REPLY_TO");
   await mailer.sendMail({

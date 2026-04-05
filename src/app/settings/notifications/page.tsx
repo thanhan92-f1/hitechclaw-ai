@@ -131,6 +131,7 @@ export default function NotificationPreferencesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
   const [testResult, setTestResult] = useState<{ channel: string; ok: boolean; message: string } | null>(null);
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, ValidationErrors>>({});
@@ -334,6 +335,58 @@ export default function NotificationPreferencesPage() {
       setTestResult({ channel: channelKey, ok: false, message: "Failed to send test" });
     } finally {
       setTesting(null);
+      setTimeout(() => setTestResult(null), 5000);
+    }
+  }
+
+  async function verifyEmailChannel() {
+    const emailState = getChannelState("email");
+    const errors = validateChannel("email", emailState);
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors((prev) => ({ ...prev, email: errors }));
+      setTestResult({ channel: "email", ok: false, message: "Please fix the highlighted email fields." });
+      setTimeout(() => setTestResult(null), 5000);
+      return;
+    }
+
+    setVerifyingEmail(true);
+    setTestResult(null);
+    try {
+      const saveRes = await fetch("/api/notifications/preferences", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          channel: "email",
+          enabled: emailState.enabled,
+          config: emailState.config,
+        }),
+      });
+
+      if (!saveRes.ok) {
+        const err = (await saveRes.json()) as { error?: string };
+        setTestResult({ channel: "email", ok: false, message: err.error ?? "Failed to save email settings before verification." });
+        return;
+      }
+
+      await fetchPrefs();
+
+      const res = await fetch("/api/notifications/email/verify", {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const data = (await res.json()) as { ok?: boolean; message?: string; error?: string };
+      if (res.ok) {
+        setTestResult({ channel: "email", ok: true, message: data.message ?? "SMTP verified" });
+      } else {
+        setTestResult({ channel: "email", ok: false, message: data.error ?? "SMTP verification failed" });
+      }
+    } catch {
+      setTestResult({ channel: "email", ok: false, message: "Failed to verify SMTP settings" });
+    } finally {
+      setVerifyingEmail(false);
       setTimeout(() => setTestResult(null), 5000);
     }
   }
@@ -552,10 +605,25 @@ export default function NotificationPreferencesPage() {
                     ) : null}
                     Save
                   </button>
+                  {ch.key === "email" ? (
+                    <button
+                      type="button"
+                      onClick={() => void verifyEmailChannel()}
+                      disabled={verifyingEmail || !state.enabled}
+                      className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                    >
+                      {verifyingEmail ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-3.5 w-3.5" />
+                      )}
+                      Verify SMTP
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => void testChannel(ch.key)}
-                    disabled={testing === ch.key || !state.enabled}
+                    disabled={testing === ch.key || !state.enabled || (ch.key === "email" && verifyingEmail)}
                     className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
                   >
                     {testing === ch.key ? (
