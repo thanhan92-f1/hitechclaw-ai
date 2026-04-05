@@ -8,6 +8,7 @@ const SECRET_FIELDS: Record<string, string[]> = {
   slack: ["webhook_url"],
   discord: ["webhook_url"],
   webhook: ["secret_value"],
+  zalo: ["bot_token", "webhook_secret"],
 };
 
 const EMAIL_VERIFY_METADATA_FIELDS = [
@@ -177,6 +178,16 @@ function normalizeNotificationConfig(channel: string, config: Record<string, unk
     if (enabled && !nextConfig.url) {
       throw new Error("Webhook channel requires a destination URL.");
     }
+  } else if (channel === "zalo") {
+    nextConfig.bot_token = asTrimmedString(nextConfig.bot_token);
+    nextConfig.chat_id = asTrimmedString(nextConfig.chat_id);
+    nextConfig.agent_id = asTrimmedString(nextConfig.agent_id);
+    nextConfig.webhook_secret = asTrimmedString(nextConfig.webhook_secret);
+    nextConfig.reply_prefix = asTrimmedString(nextConfig.reply_prefix);
+
+    if (enabled && (!nextConfig.bot_token || !nextConfig.chat_id)) {
+      throw new Error("Zalo channel requires bot token and chat ID.");
+    }
   }
 
   return encryptSecretFields(channel, nextConfig);
@@ -222,7 +233,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "channel is required" }, { status: 400 });
   }
 
-  const validChannels = ["email", "slack", "telegram", "discord", "webhook"];
+  const validChannels = ["email", "slack", "telegram", "discord", "webhook", "zalo"];
   if (!validChannels.includes(body.channel)) {
     return NextResponse.json({ error: `Invalid channel. Must be one of: ${validChannels.join(", ")}` }, { status: 400 });
   }

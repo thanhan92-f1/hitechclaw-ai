@@ -3,7 +3,7 @@
  *
  * Replaces hardcoded Telegram alerts. Creates an in-app notification
  * and fans out to all configured external channels (Telegram, Slack,
- * Discord, webhook) based on tenant notification preferences.
+ * Discord, webhook, Zalo) based on tenant notification preferences.
  *
  * Never throws — notification failure is non-fatal.
  */
@@ -11,6 +11,7 @@
 import { query } from "@/lib/db";
 import { sendNotificationEmail } from "@/lib/notification-email";
 import { decryptStoredSecret } from "@/lib/notification-secrets";
+import { getZaloBotToken, sendZaloMessage } from "@/lib/zalo";
 
 export type NotificationType =
   | "threat"
@@ -150,6 +151,9 @@ async function dispatchToChannel(
     case "email":
       await sendEmail(config, params);
       break;
+    case "zalo":
+      await sendZalo(config, message);
+      break;
   }
 }
 
@@ -241,6 +245,14 @@ async function sendWebhook(
   if (!res.ok) {
     throw new Error(`Webhook returned ${res.status}`);
   }
+}
+
+async function sendZalo(config: Record<string, unknown>, text: string): Promise<void> {
+  const botToken = getZaloBotToken(config);
+  const chatId = String(config.chat_id ?? "").trim();
+  if (!botToken || !chatId) return;
+
+  await sendZaloMessage({ botToken, chatId }, text);
 }
 
 /* ── Legacy Compatibility ── */

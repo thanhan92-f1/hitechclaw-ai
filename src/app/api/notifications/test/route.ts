@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { sendNotificationEmail } from "@/lib/notification-email";
 import { decryptStoredSecret } from "@/lib/notification-secrets";
+import { getZaloBotMe, getZaloBotToken, sendZaloMessage } from "@/lib/zalo";
 
 /**
  * POST /api/notifications/test — send a test notification to a specific channel
@@ -120,6 +121,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           message: "Test email sent successfully",
+        });
+      }
+
+      case "zalo": {
+        const botToken = getZaloBotToken(config);
+        const chatId = String(config.chat_id ?? "").trim();
+        if (!botToken || !chatId) {
+          return NextResponse.json({ error: "Zalo bot token and chat ID are required" }, { status: 400 });
+        }
+
+        const me = await getZaloBotMe(botToken);
+        await sendZaloMessage(
+          { botToken, chatId },
+          `${testMessage}\n\nConnected bot: ${me.name ?? me.id ?? "unknown"}`,
+        );
+
+        return NextResponse.json({
+          ok: true,
+          message: `Test Zalo notification sent successfully via ${me.name ?? me.id ?? "bot"}`,
         });
       }
 

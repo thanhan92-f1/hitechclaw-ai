@@ -423,20 +423,24 @@ Save notification channel configuration.
 
 ```json
 {
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "config": { "bot_token": "...", "chat_id": "..." },
-      "types": ["threat", "anomaly", "budget"]
-    },
-    "slack": {
-      "enabled": false,
-      "config": { "webhook_url": "" },
-      "types": []
+  "channel": "zalo",
+  "enabled": true,
+  "config": {
+    "bot_token": "zlp_bot_...",
+    "chat_id": "conversation-or-user-id",
+    "agent_id": "soc-bot",
+    "webhook_secret": "shared-secret",
+    "reply_prefix": "[HiTechClaw AI]",
+    "types": {
+      "threat_critical": true,
+      "threat_high": true,
+      "approval": true
     }
   }
 }
 ```
+
+Supported channels: `email`, `telegram`, `slack`, `discord`, `webhook`, `zalo`.
 
 ### POST /api/notifications/test
 
@@ -444,6 +448,25 @@ Send a test notification to a configured channel.
 
 **Auth:** Admin token
 **Body:** `{ "channel": "telegram" }`
+
+For `zalo`, the service verifies the configured bot token with Zalo Bot API, then sends a test message to the configured `chat_id`.
+
+### GET /api/zalo/webhook
+
+Lightweight health check for inbound Zalo integration.
+
+**Auth:** None
+
+### POST /api/zalo/webhook
+
+Receive inbound Zalo bot callbacks.
+
+**Auth:** Optional `X-Bot-Api-Secret-Token` header when a `webhook_secret` is configured for the active Zalo channel.
+
+Behavior:
+- logs inbound messages into `events`, `sessions`, and `daily_stats`
+- supports `/ping`, `/help`, and `/status` auto-replies
+- ignores non-message callback event types
 
 ---
 

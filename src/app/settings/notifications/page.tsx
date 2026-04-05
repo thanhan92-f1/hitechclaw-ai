@@ -67,7 +67,7 @@ interface ChannelDef {
   }>;
 }
 
-const SECRET_FIELDS = new Set(["smtp_pass", "bot_token", "webhook_url", "secret_value"]);
+const SECRET_FIELDS = new Set(["smtp_pass", "bot_token", "webhook_url", "secret_value", "webhook_secret"]);
 const EMAIL_VERIFY_DEPENDENCY_FIELDS = new Set([
   "smtp_host",
   "smtp_port",
@@ -122,6 +122,19 @@ const CHANNELS: ChannelDef[] = [
       { key: "smtp_from", label: "From Address", type: "text", placeholder: "HiTechClaw AI <alerts@example.com>" },
       { key: "smtp_reply_to", label: "Reply-To", type: "text", placeholder: "security@example.com", help: "Optional reply-to address." },
       { key: "email", label: "Email Address", type: "text", placeholder: "you@example.com", help: "Optional. Falls back to the tenant admin email if left blank." },
+    ],
+  },
+  {
+    key: "zalo",
+    label: "Zalo Bot",
+    icon: MessageSquare,
+    description: "Send alerts to a Zalo bot conversation and enable simple inbound chat webhook flows.",
+    fields: [
+      { key: "bot_token", label: "Bot Token", type: "password", placeholder: "zlp_bot_...", help: "Bot access token from Zalo Bot Platform." },
+      { key: "chat_id", label: "Chat ID", type: "text", placeholder: "user-or-conversation-id", help: "Target Zalo user or conversation identifier for outbound alerts." },
+      { key: "agent_id", label: "Agent ID", type: "text", placeholder: "soc-bot", help: "Optional internal agent identifier used for inbound chat logging." },
+      { key: "webhook_secret", label: "Webhook Secret", type: "password", placeholder: "shared-secret", help: "Optional. Validates inbound webhook requests via X-Bot-Api-Secret-Token." },
+      { key: "reply_prefix", label: "Reply Prefix", type: "text", placeholder: "[HiTechClaw AI]", help: "Optional prefix added to automatic webhook replies." },
     ],
   },
   {
@@ -385,6 +398,14 @@ export default function NotificationPreferencesPage() {
       if (!url) errors.url = "Webhook URL is required.";
     }
 
+    if (channelKey === "zalo") {
+      const botToken = String(state.config.bot_token ?? "").trim();
+      const chatId = String(state.config.chat_id ?? "").trim();
+      const configured = Boolean(state.config.bot_token_configured);
+      if (!botToken && !configured) errors.bot_token = "Bot token is required.";
+      if (!chatId) errors.chat_id = "Chat ID is required.";
+    }
+
     return errors;
   }
 
@@ -645,9 +666,23 @@ export default function NotificationPreferencesPage() {
                   <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
                     Saved mail settings are persisted in the database per channel. SMTP password is stored encrypted and is never sent back to the UI after save.
                   </div>
-                ) : ["telegram", "slack", "discord", "webhook"].includes(ch.key) ? (
+                ) : ["telegram", "slack", "discord", "webhook", "zalo"].includes(ch.key) ? (
                   <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
                     Sensitive channel secrets are stored encrypted in the database. Leave a secret field blank to keep the existing saved value.
+                  </div>
+                ) : null}
+
+                {ch.key === "zalo" ? (
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)] space-y-1.5">
+                    <p className="font-medium text-[var(--text-primary)]">Zalo webhook setup</p>
+                    <p>
+                      Configure your Zalo Bot callback URL to
+                      <span className="mx-1 rounded bg-white/[0.05] px-1.5 py-0.5 font-mono text-[11px] text-[var(--text-primary)]">
+                        /api/zalo/webhook
+                      </span>
+                      and use the same webhook secret here if you enable signed callbacks.
+                    </p>
+                    <p>Outbound notifications use the bot token and chat ID above. Inbound chat supports basic commands such as <span className="font-mono text-[var(--text-primary)]">/ping</span>, <span className="font-mono text-[var(--text-primary)]">/help</span>, and <span className="font-mono text-[var(--text-primary)]">/status</span>.</p>
                   </div>
                 ) : null}
 
