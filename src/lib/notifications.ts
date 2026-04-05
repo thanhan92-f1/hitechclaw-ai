@@ -9,6 +9,7 @@
  */
 
 import { query } from "@/lib/db";
+import { sendNotificationEmail } from "@/lib/notification-email";
 
 export type NotificationType =
   | "threat"
@@ -146,9 +147,21 @@ async function dispatchToChannel(
       await sendWebhook(config, message, params);
       break;
     case "email":
-      // Email SMTP not yet implemented — skip silently
+      await sendEmail(config, params);
       break;
   }
+}
+
+async function sendEmail(
+  config: Record<string, unknown>,
+  params: SendNotificationParams,
+): Promise<void> {
+  await sendNotificationEmail({
+    tenantId: params.tenantId,
+    config,
+    subject: `${severityEmoji(params.severity)} ${params.title}`,
+    text: formatMessage(params),
+  });
 }
 
 async function sendTelegram(config: Record<string, unknown>, text: string): Promise<void> {

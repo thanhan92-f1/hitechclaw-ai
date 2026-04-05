@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { sendNotificationEmail } from "@/lib/notification-email";
 
 /**
  * POST /api/notifications/test — send a test notification to a specific channel
@@ -109,13 +110,15 @@ export async function POST(req: NextRequest) {
       }
 
       case "email": {
-        // Email sending would require SMTP config — just validate config for now
-        if (!config.email) {
-          return NextResponse.json({ error: "Email address is required" }, { status: 400 });
-        }
+        await sendNotificationEmail({
+          tenantId,
+          config,
+          subject: "HiTechClaw AI Test Notification",
+          text: testMessage,
+        });
         return NextResponse.json({
           ok: true,
-          message: "HiTechClaw AI Email configuration saved. SMTP integration coming soon.",
+          message: "Test email sent successfully",
         });
       }
 

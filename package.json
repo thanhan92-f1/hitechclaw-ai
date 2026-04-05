@@ -49,6 +49,7 @@
     "db:migrate:test": "node --env-file=.env.test.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts"
   },
   "dependencies": {
+    "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.20.0",
     "@xyflow/react": "^12.10.2",
     "bcryptjs": "^3.0.3",
@@ -60,6 +61,7 @@
     "lucide-react": "^1.7.0",
     "marked": "^17.0.6",
     "next": "^16.2.2",
+    "nodemailer": "^8.0.4",
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

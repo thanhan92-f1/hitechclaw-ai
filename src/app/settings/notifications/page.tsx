@@ -82,9 +82,16 @@ const CHANNELS: ChannelDef[] = [
     key: "email",
     label: "Email",
     icon: Mail,
-    description: "Receive alert emails. SMTP integration coming soon.",
+    description: "Receive alert emails with SMTP settings managed directly in the UI.",
     fields: [
-      { key: "email", label: "Email Address", type: "text", placeholder: "you@example.com" },
+      { key: "smtp_host", label: "SMTP Host", type: "text", placeholder: "smtp.example.com", help: "Mail server hostname." },
+      { key: "smtp_port", label: "SMTP Port", type: "text", placeholder: "587", help: "Usually 587 for STARTTLS or 465 for SMTPS." },
+      { key: "smtp_secure", label: "SMTP Secure", type: "text", placeholder: "false", help: "Use true for implicit TLS, false for STARTTLS/plain." },
+      { key: "smtp_user", label: "SMTP Username", type: "text", placeholder: "alerts@example.com" },
+      { key: "smtp_pass", label: "SMTP Password", type: "password", placeholder: "app-password-or-secret" },
+      { key: "smtp_from", label: "From Address", type: "text", placeholder: "HiTechClaw AI <alerts@example.com>" },
+      { key: "smtp_reply_to", label: "Reply-To", type: "text", placeholder: "security@example.com", help: "Optional reply-to address." },
+      { key: "email", label: "Email Address", type: "text", placeholder: "you@example.com", help: "Optional. Falls back to the tenant admin email if left blank." },
     ],
   },
   {

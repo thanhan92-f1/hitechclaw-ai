@@ -1,6 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 
+function asTrimmedString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeNotificationConfig(channel: string, config: Record<string, unknown>, enabled: boolean): Record<string, unknown> {
+  const nextConfig = { ...config };
+
+  if (channel === "email") {
+    const smtpPort = asTrimmedString(nextConfig.smtp_port);
+    const smtpSecure = asTrimmedString(nextConfig.smtp_secure).toLowerCase();
+
+    if (smtpPort && !/^\d+$/.test(smtpPort)) {
+      throw new Error("SMTP port must be a valid number.");
+    }
+
+    if (smtpSecure && !["true", "false", "1", "0"].includes(smtpSecure)) {
+      throw new Error("SMTP secure must be true or false.");
+    }
+
+    nextConfig.smtp_host = asTrimmedString(nextConfig.smtp_host);
+    nextConfig.smtp_port = smtpPort;
+    nextConfig.smtp_secure = smtpSecure || "false";
+    nextConfig.smtp_user = asTrimmedString(nextConfig.smtp_user);
+    nextConfig.smtp_pass = asTrimmedString(nextConfig.smtp_pass);
+    nextConfig.smtp_from = asTrimmedString(nextConfig.smtp_from);
+    nextConfig.smtp_reply_to = asTrimmedString(nextConfig.smtp_reply_to);
+    nextConfig.email = asTrimmedString(nextConfig.email);
+
+    if (enabled) {
+      if (!nextConfig.smtp_host || !nextConfig.smtp_port || !nextConfig.smtp_from) {
+        throw new Error("Email channel requires SMTP host, port, and from address.");
+      }
+    }
+  }
+
+  return nextConfig;
+}
+
 /**
  * GET /api/notifications/preferences — get all notification channel preferences
  */
@@ -42,12 +80,22 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: `Invalid channel. Must be one of: ${validChannels.join(", ")}` }, { status: 400 });
   }
 
+  let normalizedConfig: Record<string, unknown>;
+  try {
+    normalizedConfig = normalizeNotificationConfig(body.channel, body.config ?? {}, body.enabled);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Invalid configuration" },
+      { status: 400 },
+    );
+  }
+
   await query(
     `INSERT INTO notification_preferences (tenant_id, channel, enabled, config, updated_at)
      VALUES ($1, $2, $3, $4, NOW())
      ON CONFLICT (tenant_id, channel) DO UPDATE
      SET enabled = $3, config = $4, updated_at = NOW()`,
-    [tenantId, body.channel, body.enabled, JSON.stringify(body.config)],
+    [tenantId, body.channel, body.enabled, JSON.stringify(normalizedConfig)],
   );
 
   return NextResponse.json({ ok: true });
