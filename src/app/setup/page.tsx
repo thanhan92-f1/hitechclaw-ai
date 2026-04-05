@@ -1237,7 +1237,7 @@ function SdkStep({
   -H "Authorization: Bearer ${selectedAgent?.token || "YOUR_TOKEN"}" \
   -d '{
     "agent_id": "your-agent",
-    "type": "message_sent",
+    "event_type": "message_sent",
     "content": "Hello from my agent!"
   }'`,
     },

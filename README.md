@@ -143,6 +143,8 @@ See it appear on your dashboard in real time.
 
 For the full installation guide with environment configuration, troubleshooting, and upgrade instructions, see [INSTALL.md](INSTALL.md).
 
+For split-host OpenClaw or NemoClaw production deployments, see [docs/openclaw-production-setup.md](docs/openclaw-production-setup.md).
+
 For host-based local development with only the database in Docker, see [docs/development.md](docs/development.md).
 
 For isolated local Playwright testing, use the dedicated test database profile and `npm run test:e2e:local`.
@@ -186,6 +188,7 @@ HiTechClaw AI supports a host-based development workflow where the app runs loca
 ### Developer references
 
 - [docs/development.md](docs/development.md) — local dev, test DBs, Playwright workflows, cleanup
+- [docs/openclaw-production-setup.md](docs/openclaw-production-setup.md) — split-host OpenClaw / NemoClaw production setup
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution process and local validation expectations
 - [INSTALL.md](INSTALL.md) — container-first installation path
 
