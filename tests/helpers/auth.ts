@@ -4,9 +4,10 @@ export const MC_URL = process.env.HITECHCLAW_AI_BASE_URL || "http://localhost:30
 export const ADMIN_TOKEN = process.env.MC_ADMIN_TOKEN || "test-admin-token";
 /** Agent token env may be "name:token" format — extract just the token */
 export const AGENT_TOKEN = (() => {
-  const raw = process.env.MC_AGENT_TOKEN || "test-agent-token";
-  const colonIdx = raw.indexOf(":");
-  return colonIdx >= 0 ? raw.slice(colonIdx + 1) : raw;
+  const raw = process.env.MC_AGENT_TOKEN || process.env.MC_AGENT_TOKENS || "default:test-agent-token";
+  const firstToken = raw.split(",")[0]?.trim() || "default:test-agent-token";
+  const colonIdx = firstToken.indexOf(":");
+  return colonIdx >= 0 ? firstToken.slice(colonIdx + 1) : firstToken;
 })();
 
 /** Extract hostname from MC_URL for cookie domain */

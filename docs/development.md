@@ -31,6 +31,12 @@ Minimum values to change before real team usage:
 ## 2. Start Only the Database Container
 
 ```powershell
+npm run dev:up
+```
+
+Equivalent low-level command:
+
+```powershell
 npm run dev:db:up
 ```
 
@@ -41,10 +47,22 @@ This starts:
 To stop it:
 
 ```powershell
+npm run dev:down
+```
+
+Or:
+
+```powershell
 npm run dev:db:down
 ```
 
 To reset the development database volume:
+
+```powershell
+npm run dev:reset
+```
+
+Or:
 
 ```powershell
 npm run dev:db:reset
@@ -119,3 +137,54 @@ docker compose -f docker-compose.dev.yml --env-file .env.local logs db
 npm run dev:db:reset
 npm run db:migrate:dev
 ```
+
+## Local E2E / Playwright Database Profile
+
+For isolated browser testing, use the dedicated test database stack.
+
+### Test files
+
+- `docker-compose.test.yml` — dedicated database container for Playwright or local integration testing.
+- `.env.test.example` — tracked template for test settings.
+- `.env.test.local` — your untracked local test environment file.
+
+### Create the test environment file
+
+```powershell
+Copy-Item .env.test.example .env.test.local
+```
+
+### Start the test database
+
+```powershell
+npm run test:db:up
+```
+
+### Run test migrations
+
+```powershell
+npm run db:migrate:test
+```
+
+Or run both in one step:
+
+```powershell
+npm run test:setup
+```
+
+### Test profile defaults
+
+- App URL: `http://localhost:3001`
+- Database port: `55432`
+- Database volume: `pgdata_test`
+
+### Stop or reset the test database
+
+```powershell
+npm run test:db:down
+npm run test:db:reset
+```
+
+### Test token compatibility
+
+Playwright auth helpers now accept either `MC_AGENT_TOKEN` or the standard `MC_AGENT_TOKENS` format.

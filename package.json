@@ -14,6 +14,9 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:up": "pwsh -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1",
+    "dev:down": "pwsh -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1",
+    "dev:reset": "pwsh -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -Reset",
     "dev:db:up": "docker compose -f docker-compose.dev.yml --env-file .env.local up -d",
     "dev:db:down": "docker compose -f docker-compose.dev.yml --env-file .env.local down",
     "dev:db:logs": "docker compose -f docker-compose.dev.yml --env-file .env.local logs -f db",
@@ -24,8 +27,13 @@
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
+    "test:db:up": "pwsh -ExecutionPolicy Bypass -File ./scripts/test-db-up.ps1",
+    "test:db:down": "pwsh -ExecutionPolicy Bypass -File ./scripts/test-db-down.ps1",
+    "test:db:reset": "pwsh -ExecutionPolicy Bypass -File ./scripts/test-db-up.ps1 -Reset",
+    "test:setup": "npm run test:db:up && npm run db:migrate:test",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:migrate:dev": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts"
+    "db:migrate:dev": "node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts",
+    "db:migrate:test": "node --env-file=.env.test.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts"
   },
   "dependencies": {
     "@types/pg": "^8.20.0",
