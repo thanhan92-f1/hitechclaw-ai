@@ -19,7 +19,7 @@ export async function POST(
     const result = await query(
       `SELECT id, name, definition, status, trigger_type, trigger_config, tenant_id
        FROM workflows
-       WHERE webhook_token = $1 AND status = 'active' AND trigger_type = 'webhook'
+       WHERE trigger_config->>'webhook_token' = $1 AND status = 'active' AND trigger_type = 'webhook'
        LIMIT 1`,
       [token]
     );
@@ -83,7 +83,7 @@ export async function GET(
     const result = await query(
       `SELECT id, name, status, trigger_type, run_count, last_run_at
        FROM workflows
-       WHERE webhook_token = $1
+       WHERE trigger_config->>'webhook_token' = $1
        LIMIT 1`,
       [token]
     );

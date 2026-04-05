@@ -15,7 +15,7 @@ export async function GET(
     const status = req.nextUrl.searchParams.get("status");
 
     let sql = `
-      SELECT id, workflow_id, status, started_at, completed_at,
+      SELECT id, workflow_id, status, created_at as started_at, completed_at,
              step_results, error, triggered_by
       FROM workflow_runs
       WHERE workflow_id = $1
@@ -28,7 +28,7 @@ export async function GET(
     }
 
     queryParams.push(Number(limit));
-    sql += ` ORDER BY started_at DESC LIMIT $${queryParams.length}`;
+    sql += ` ORDER BY created_at DESC LIMIT $${queryParams.length}`;
 
     const result = await query(sql, queryParams);
 

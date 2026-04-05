@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       `SELECT id, name, status, trigger_config, last_run_at, run_count,
               (SELECT COUNT(*)::int FROM workflow_runs wr
                WHERE wr.workflow_id = w.id AND wr.status = 'failed'
-               AND wr.started_at > NOW() - INTERVAL '24 hours') as recent_failures
+             AND wr.created_at > NOW() - INTERVAL '24 hours') as recent_failures
        FROM workflows w
        WHERE trigger_type = 'cron' AND status = 'active'
        ORDER BY name`
@@ -38,7 +38,9 @@ export async function GET(req: NextRequest) {
 
     // Webhook workflows
     const webhookWorkflows = await query(
-      `SELECT id, name, status, webhook_token, last_run_at, run_count
+      `SELECT id, name, status,
+              COALESCE(trigger_config->>'webhook_token', '') as webhook_token,
+              last_run_at, run_count
        FROM workflows
        WHERE trigger_type = 'webhook' AND status = 'active'
        ORDER BY name`
@@ -47,11 +49,11 @@ export async function GET(req: NextRequest) {
     // Recent runs across all scheduled/webhook workflows
     const recentRuns = await query(
       `SELECT wr.id, wr.workflow_id, w.name as workflow_name,
-              wr.status, wr.triggered_by, wr.started_at, wr.completed_at, wr.error
+            wr.status, wr.triggered_by, wr.created_at as started_at, wr.completed_at, wr.error
        FROM workflow_runs wr
        JOIN workflows w ON w.id = wr.workflow_id
        WHERE wr.triggered_by IN ('cron', 'webhook')
-       ORDER BY wr.started_at DESC
+       ORDER BY wr.created_at DESC
        LIMIT 20`
     );
 

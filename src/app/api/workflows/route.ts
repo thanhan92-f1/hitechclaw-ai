@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const tenantId = req.nextUrl.searchParams.get("tenant_id") ?? "transformate";
 
     let sql = `
-      SELECT id, name, description, status, trigger_type, trigger_config, created_by,
+      SELECT id, name, description, definition, status, trigger_type, trigger_config, created_by,
              tenant_id, last_run_at, run_count, created_at, updated_at,
              (SELECT COUNT(*)::int FROM workflow_runs wr WHERE wr.workflow_id = w.id) as total_runs,
              (SELECT COUNT(*)::int FROM workflow_runs wr WHERE wr.workflow_id = w.id AND wr.status = 'failed') as failed_runs

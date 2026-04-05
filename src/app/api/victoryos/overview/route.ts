@@ -15,13 +15,13 @@ export async function GET(req: NextRequest) {
     // 1. Summary stats
     const summary = await query(
       `SELECT
-        COUNT(*)::int as total_messages,
-        COUNT(*) FILTER (WHERE role = 'user')::int as user_messages,
-        COUNT(*) FILTER (WHERE role = 'assistant')::int as assistant_messages,
-        COUNT(*) FILTER (WHERE status = 'error')::int as errors,
-        COUNT(*) FILTER (WHERE status = 'interrupted')::int as interrupted,
-        COUNT(*) FILTER (WHERE status = 'sent')::int as delivered
-       FROM vos_messages
+        COUNT(*) FILTER (WHERE event_type IN ('message_received', 'message_sent', 'error'))::int as total_messages,
+        COUNT(*) FILTER (WHERE event_type = 'message_received' OR direction = 'inbound')::int as user_messages,
+        COUNT(*) FILTER (WHERE event_type = 'message_sent' OR direction = 'outbound')::int as assistant_messages,
+        COUNT(*) FILTER (WHERE event_type = 'error')::int as errors,
+        0::int as interrupted,
+        COUNT(*) FILTER (WHERE event_type = 'message_sent' OR direction = 'outbound')::int as delivered
+       FROM events
        WHERE created_at > NOW() - $1::interval`,
       [interval]
     );
@@ -33,9 +33,8 @@ export async function GET(req: NextRequest) {
         COALESCE(MIN((metadata->>'durationMs')::numeric), 0)::int as min_duration_ms,
         COALESCE(MAX((metadata->>'durationMs')::numeric), 0)::int as max_duration_ms,
         COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY (metadata->>'durationMs')::numeric), 0)::int as p95_duration_ms
-       FROM vos_messages
-       WHERE role = 'assistant'
-         AND status = 'sent'
+       FROM events
+       WHERE (event_type = 'message_sent' OR direction = 'outbound')
          AND metadata->>'durationMs' IS NOT NULL
          AND created_at > NOW() - $1::interval`,
       [interval]
@@ -50,9 +49,8 @@ export async function GET(req: NextRequest) {
         COALESCE(SUM((metadata->'usage'->>'cacheWrite')::bigint), 0)::bigint as cache_write_tokens,
         COALESCE(SUM((metadata->'usage'->>'total')::bigint), 0)::bigint as total_tokens,
         COUNT(DISTINCT metadata->>'model')::int as model_count
-       FROM vos_messages
-       WHERE role = 'assistant'
-         AND status = 'sent'
+       FROM events
+       WHERE (event_type = 'message_sent' OR direction = 'outbound')
          AND metadata->'usage' IS NOT NULL
          AND created_at > NOW() - $1::interval`,
       [interval]
@@ -61,17 +59,16 @@ export async function GET(req: NextRequest) {
     // 4. Per-channel activity
     const channelActivity = await query(
       `SELECT
-        c.name as channel_name,
-        c.slug as channel_slug,
-        COUNT(m.id)::int as message_count,
-        COUNT(m.id) FILTER (WHERE m.role = 'user')::int as user_count,
-        COUNT(m.id) FILTER (WHERE m.role = 'assistant' AND m.status = 'sent')::int as assistant_count,
-        COUNT(m.id) FILTER (WHERE m.status = 'error')::int as error_count,
-        MAX(m.created_at) as last_message_at
-       FROM vos_channels c
-       LEFT JOIN vos_messages m ON m.channel_id = c.id
-         AND m.created_at > NOW() - $1::interval
-       GROUP BY c.id, c.name, c.slug
+        COALESCE(NULLIF(channel_id, ''), 'unknown') as channel_name,
+        COALESCE(NULLIF(channel_id, ''), 'unknown') as channel_slug,
+        COUNT(*) FILTER (WHERE event_type IN ('message_received', 'message_sent', 'error'))::int as message_count,
+        COUNT(*) FILTER (WHERE event_type = 'message_received' OR direction = 'inbound')::int as user_count,
+        COUNT(*) FILTER (WHERE event_type = 'message_sent' OR direction = 'outbound')::int as assistant_count,
+        COUNT(*) FILTER (WHERE event_type = 'error')::int as error_count,
+        MAX(created_at) as last_message_at
+       FROM events
+       WHERE created_at > NOW() - $1::interval
+       GROUP BY COALESCE(NULLIF(channel_id, ''), 'unknown')
        ORDER BY message_count DESC`,
       [interval]
     );
@@ -84,9 +81,8 @@ export async function GET(req: NextRequest) {
         COUNT(*)::int as message_count,
         COALESCE(AVG((metadata->>'durationMs')::numeric), 0)::int as avg_duration_ms,
         COALESCE(SUM((metadata->'usage'->>'total')::bigint), 0)::bigint as total_tokens
-       FROM vos_messages
-       WHERE role = 'assistant'
-         AND status = 'sent'
+       FROM events
+       WHERE (event_type = 'message_sent' OR direction = 'outbound')
          AND metadata->>'model' IS NOT NULL
          AND created_at > NOW() - $1::interval
        GROUP BY metadata->>'model', metadata->>'provider'
@@ -98,10 +94,10 @@ export async function GET(req: NextRequest) {
     const hourlyPattern = await query(
       `SELECT
         EXTRACT(HOUR FROM created_at)::int as hour,
-        COUNT(*)::int as count,
-        COUNT(*) FILTER (WHERE role = 'user')::int as user_count,
-        COUNT(*) FILTER (WHERE role = 'assistant')::int as assistant_count
-       FROM vos_messages
+        COUNT(*) FILTER (WHERE event_type IN ('message_received', 'message_sent', 'error'))::int as count,
+        COUNT(*) FILTER (WHERE event_type = 'message_received' OR direction = 'inbound')::int as user_count,
+        COUNT(*) FILTER (WHERE event_type = 'message_sent' OR direction = 'outbound')::int as assistant_count
+       FROM events
        WHERE created_at > NOW() - $1::interval
        GROUP BY EXTRACT(HOUR FROM created_at)
        ORDER BY hour`,
@@ -112,11 +108,11 @@ export async function GET(req: NextRequest) {
     const dailyVolume = await query(
       `SELECT
         DATE(created_at) as day,
-        COUNT(*)::int as total,
-        COUNT(*) FILTER (WHERE role = 'user')::int as user_msgs,
-        COUNT(*) FILTER (WHERE role = 'assistant' AND status = 'sent')::int as assistant_msgs,
-        COUNT(*) FILTER (WHERE status = 'error')::int as errors
-       FROM vos_messages
+        COUNT(*) FILTER (WHERE event_type IN ('message_received', 'message_sent', 'error'))::int as total,
+        COUNT(*) FILTER (WHERE event_type = 'message_received' OR direction = 'inbound')::int as user_msgs,
+        COUNT(*) FILTER (WHERE event_type = 'message_sent' OR direction = 'outbound')::int as assistant_msgs,
+        COUNT(*) FILTER (WHERE event_type = 'error')::int as errors
+       FROM events
        WHERE created_at > NOW() - $1::interval
        GROUP BY DATE(created_at)
        ORDER BY day`,
@@ -126,33 +122,40 @@ export async function GET(req: NextRequest) {
     // 8. Recent messages (last 10)
     const recentMessages = await query(
       `SELECT
-        m.id,
-        m.role,
-        LEFT(m.content, 120) as content_preview,
-        m.status,
-        m.metadata,
-        m.created_at,
-        c.name as channel_name,
-        c.slug as channel_slug
-       FROM vos_messages m
-       JOIN vos_channels c ON c.id = m.channel_id
-       ORDER BY m.created_at DESC
+        id,
+        CASE
+          WHEN event_type = 'message_received' OR direction = 'inbound' THEN 'user'
+          WHEN event_type = 'message_sent' OR direction = 'outbound' THEN 'assistant'
+          ELSE event_type
+        END as role,
+        LEFT(COALESCE(content, ''), 120) as content_preview,
+        CASE
+          WHEN event_type = 'error' THEN 'error'
+          WHEN event_type = 'message_sent' OR direction = 'outbound' THEN 'sent'
+          ELSE 'received'
+        END as status,
+        metadata,
+        created_at,
+        COALESCE(NULLIF(channel_id, ''), 'unknown') as channel_name,
+        COALESCE(NULLIF(channel_id, ''), 'unknown') as channel_slug
+       FROM events
+       WHERE event_type IN ('message_received', 'message_sent', 'error')
+       ORDER BY created_at DESC
        LIMIT 10`
     );
 
     // 9. Error details (recent errors/interrupted)
     const recentErrors = await query(
       `SELECT
-        m.id,
-        LEFT(m.content, 200) as content_preview,
-        m.status,
-        m.metadata,
-        m.created_at,
-        c.name as channel_name
-       FROM vos_messages m
-       JOIN vos_channels c ON c.id = m.channel_id
-       WHERE m.status IN ('error', 'interrupted')
-       ORDER BY m.created_at DESC
+        id,
+        LEFT(COALESCE(content, ''), 200) as content_preview,
+        'error' as status,
+        metadata,
+        created_at,
+        COALESCE(NULLIF(channel_id, ''), 'unknown') as channel_name
+       FROM events
+       WHERE event_type = 'error'
+       ORDER BY created_at DESC
        LIMIT 5`
     );
 

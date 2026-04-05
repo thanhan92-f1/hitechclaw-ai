@@ -100,8 +100,8 @@ export async function GET(req: NextRequest) {
         MAX(message_count)::int as max_messages_in_session,
         COUNT(*) FILTER (WHERE last_active > NOW() - INTERVAL '1 hour')::int as active_sessions
        FROM sessions s
-       ${agentId ? "WHERE s.agent_id = $2" : ""}`,
-      agentId ? [interval, agentId] : []
+       ${agentId ? "WHERE s.agent_id = $1" : ""}`,
+      agentId ? [agentId] : []
     );
 
     // 7. Top senders (who messages the agents most)
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
         tool_name,
         COUNT(*)::int as call_count,
         COALESCE(AVG(duration_ms), 0)::int as avg_duration_ms,
-        COUNT(*) FILTER (WHERE result_summary LIKE '%error%' OR result_summary LIKE '%fail%')::int as failures
+        COUNT(*) FILTER (WHERE COALESCE(status, 'completed') <> 'completed')::int as failures
        FROM tool_calls
        WHERE created_at > NOW() - $1::interval
          ${agentId ? "AND agent_id = $2" : ""}
