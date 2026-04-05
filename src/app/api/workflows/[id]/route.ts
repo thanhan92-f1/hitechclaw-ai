@@ -12,10 +12,12 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const result = await query(
-      `SELECT * FROM workflows WHERE id = $1`,
-      [id]
-    );
+    const tenantId = req.nextUrl.searchParams.get("tenant_id");
+    const sql = tenantId && tenantId !== "all"
+      ? `SELECT * FROM workflows WHERE id = $1 AND tenant_id = $2`
+      : `SELECT * FROM workflows WHERE id = $1`;
+    const queryParams = tenantId && tenantId !== "all" ? [id, tenantId] : [id];
+    const result = await query(sql, queryParams);
 
     if (result.rowCount === 0) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
@@ -39,10 +41,19 @@ export async function PUT(
 
   try {
     const { id } = await params;
+    const tenantId = req.nextUrl.searchParams.get("tenant_id");
 
     // Fetch old values for audit diff
-    const oldResult = await query("SELECT name, status, trigger_type, tenant_id FROM workflows WHERE id = $1", [id]);
+    const oldSql = tenantId && tenantId !== "all"
+      ? "SELECT name, status, trigger_type, tenant_id FROM workflows WHERE id = $1 AND tenant_id = $2"
+      : "SELECT name, status, trigger_type, tenant_id FROM workflows WHERE id = $1";
+    const oldParams = tenantId && tenantId !== "all" ? [id, tenantId] : [id];
+    const oldResult = await query(oldSql, oldParams);
     const oldValues = oldResult.rows[0] as Record<string, unknown> | undefined;
+
+    if (!oldValues) {
+      return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+    }
 
     const body = (await req.json()) as {
       name?: string;
@@ -72,8 +83,15 @@ export async function PUT(
     sets.push(`updated_at = NOW()`);
     values.push(id);
 
+    let sql = `UPDATE workflows SET ${sets.join(", ")} WHERE id = $${idx}`;
+    if (tenantId && tenantId !== "all") {
+      values.push(tenantId);
+      sql += ` AND tenant_id = $${values.length}`;
+    }
+    sql += ` RETURNING *`;
+
     const result = await query(
-      `UPDATE workflows SET ${sets.join(", ")} WHERE id = $${idx} RETURNING *`,
+      sql,
       values
     );
 
@@ -110,9 +128,14 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    const tenantId = req.nextUrl.searchParams.get("tenant_id");
+    const sql = tenantId && tenantId !== "all"
+      ? `DELETE FROM workflows WHERE id = $1 AND tenant_id = $2 RETURNING id, name, tenant_id`
+      : `DELETE FROM workflows WHERE id = $1 RETURNING id, name, tenant_id`;
+    const queryParams = tenantId && tenantId !== "all" ? [id, tenantId] : [id];
     const result = await query(
-      `DELETE FROM workflows WHERE id = $1 RETURNING id, name, tenant_id`,
-      [id]
+      sql,
+      queryParams
     );
 
     if (result.rowCount === 0) {

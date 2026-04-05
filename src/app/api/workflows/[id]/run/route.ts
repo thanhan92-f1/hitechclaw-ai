@@ -13,9 +13,14 @@ export async function POST(
 
   try {
     const { id } = await params;
+    const tenantId = req.nextUrl.searchParams.get("tenant_id");
 
     // Fetch workflow
-    const wf = await query(`SELECT * FROM workflows WHERE id = $1`, [id]);
+    const sql = tenantId && tenantId !== "all"
+      ? `SELECT * FROM workflows WHERE id = $1 AND tenant_id = $2`
+      : `SELECT * FROM workflows WHERE id = $1`;
+    const queryParams = tenantId && tenantId !== "all" ? [id, tenantId] : [id];
+    const wf = await query(sql, queryParams);
     if (wf.rowCount === 0) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
     }
