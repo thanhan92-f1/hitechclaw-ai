@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { SectionDescription } from "@/components/mission-control/dashboard-clarity";
-import { Search, Filter, Clock, Zap, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronRight, Activity } from "lucide-react";
+import { Search, Filter, AlertTriangle, CheckCircle, XCircle, ChevronDown, Activity } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface TraceRow {

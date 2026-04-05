@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   ArrowLeft,
-  Building2,
   Bot,
-  Code2,
   Zap,
   Rocket,
   Check,

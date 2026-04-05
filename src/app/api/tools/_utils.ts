@@ -1,7 +1,6 @@
 import { timingSafeEqual, createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import type { UserRole } from "@/lib/rbac";
 
 export type Role = "owner" | "admin" | "operator" | "agent" | "viewer";
 

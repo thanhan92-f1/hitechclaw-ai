@@ -12,7 +12,7 @@ import { ShellHeader, Card, SectionTitle } from "@/components/mission-control/da
 import { CardEntranceWrapper, SkeletonCard } from "@/components/mission-control/charts";
 import { useActiveRuns } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "@/components/mission-control/kill-confirm-modal";
-import { OctagonX, Pause, Play, Shield, DollarSign, Activity, Zap, AlertTriangle } from "lucide-react";
+import { OctagonX, Pause, Play, Shield, Activity, Zap, AlertTriangle } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -590,13 +590,11 @@ function SecurityTab({ data }: { data: AgentData }) {
 /* ── Performance Tab ───────────────────────────────────── */
 /* ═══════════════════════════════════════════════════════════ */
 
-function PerformanceTab({ data, chartData, totalMessages, totalToolCalls, totalTokens, totalErrors, errorRate7d }: {
+function PerformanceTab({ data, chartData, totalMessages, totalToolCalls, errorRate7d }: {
   data: AgentData;
   chartData: Array<Record<string, unknown>>;
   totalMessages: number;
   totalToolCalls: number;
-  totalTokens: number;
-  totalErrors: number;
   errorRate7d: number;
 }) {
   return (
@@ -697,7 +695,6 @@ function PerformanceTab({ data, chartData, totalMessages, totalToolCalls, totalT
 /* ═══════════════════════════════════════════════════════════ */
 
 function ActivityTab({
-  events,
   filteredEvents,
   eventTypes,
   filter,
@@ -705,7 +702,6 @@ function ActivityTab({
   expandedEvent,
   setExpandedEvent,
 }: {
-  events: Event[];
   filteredEvents: Event[];
   eventTypes: string[];
   filter: string;

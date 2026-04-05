@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { validateRole, unauthorized, forbidden } from "@/app/api/tools/_utils";
+import { validateRole, unauthorized } from "@/app/api/tools/_utils";
 
 export const dynamic = "force-dynamic";
 

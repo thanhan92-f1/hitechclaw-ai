@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
   );
 
   // Mark which session is the current one
-  const currentTokenHash = getCurrentTokenHash(req);
   const sessions = result.rows.map((row: { id: string; ip_address: string; user_agent: string; created_at: string; expires_at: string }) => ({
     ...row,
     is_current: false, // We can't reliably match without storing hash in response

@@ -44,7 +44,6 @@ export async function GET(req: NextRequest) {
 
   const nodes = nodesResult.rows.map((row: Record<string, unknown>) => {
     const meta = (row.metadata || {}) as Record<string, unknown>;
-    const instance = (meta.instance || row.id) as string;
 
     // Match agents to nodes by tenant or metadata
     const nodeAgents = (agentsResult.rows as Array<Record<string, unknown>>).filter((a) => {
