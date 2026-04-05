@@ -27,7 +27,7 @@ import { TrendCharts } from "./trend-charts";
 import { TenantCards } from "./tenant-cards";
 import { EmptyState, FirstRunBanner } from "./empty-states";
 import { Bot, AlertTriangle, ChevronDown, OctagonX, Shield, Wallet, Users, Radio } from "lucide-react";
-import { useActiveRuns } from "@/hooks/use-active-runs";
+import { isKillVerified, useActiveRuns } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "./kill-confirm-modal";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { StatusSummary, HealthGauge, MetricTooltip, SectionDescription } from "./dashboard-clarity";
@@ -1133,12 +1133,7 @@ function AgentsContent() {
           run={killTarget}
           onConfirm={async (reason) => {
             const result = await killRun(killTarget.run_id, reason);
-            if (
-              result.ok &&
-              (!result.verification ||
-                result.verification.status === "verified_stopped" ||
-                result.verification.status === "no_running_session_found")
-            ) {
+            if (result.ok && isKillVerified(result.verification)) {
               setKillTarget(null);
             }
             return result;

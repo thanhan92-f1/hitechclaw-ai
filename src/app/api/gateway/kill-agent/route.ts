@@ -29,6 +29,7 @@ interface AbortResult {
   session_key: string;
   label: string;
   ok: boolean;
+  terminal: boolean;
   detail: string;
 }
 
@@ -71,6 +72,10 @@ async function listGatewaySessions(sshHost: string, sshUser: string): Promise<Se
   );
   const listData = JSON.parse(listOutput) as { sessions?: SessionInfo[] };
   return listData.sessions ?? [];
+}
+
+function isTerminalAbortStatus(status?: string | null): boolean {
+  return status === "no-active-run" || status === "already-stopped";
 }
 
 function sshExec(host: string, user: string, command: string, timeoutMs = 15000): Promise<string> {
@@ -178,10 +183,12 @@ export async function POST(req: NextRequest) {
               `openclaw gateway call sessions.abort --params '{"key": "${session.key}"}' --json`
             );
             const abortData = JSON.parse(abortOutput) as { ok?: boolean; status?: string; abortedRunId?: string | null };
+            const terminal = abortData.ok === true || isTerminalAbortStatus(abortData.status);
             abortResults.push({
               session_key: session.key,
               label: session.displayName ?? session.label ?? session.key,
               ok: abortData.ok === true,
+              terminal,
               detail: abortData.abortedRunId
                 ? `Aborted run ${abortData.abortedRunId}`
                 : abortData.status ?? "aborted",
@@ -191,15 +198,18 @@ export async function POST(req: NextRequest) {
               session_key: session.key,
               label: session.displayName ?? session.label ?? session.key,
               ok: false,
+              terminal: false,
               detail: err instanceof Error ? err.message : "Abort failed",
             });
           }
         }
 
         const succeeded = abortResults.filter((r) => r.ok).length;
+        const terminalCount = abortResults.filter((r) => r.terminal).length;
         const failed = abortResults.filter((r) => !r.ok).length;
-        killOk = succeeded > 0;
-        killDetail = `Aborted ${succeeded}/${targets.length} running sessions${failed > 0 ? ` (${failed} failed)` : ""}`;
+        const noActiveRunCount = abortResults.filter((r) => r.terminal && !r.ok).length;
+        killOk = terminalCount > 0;
+        killDetail = `Resolved ${terminalCount}/${targets.length} running sessions (${succeeded} aborted${noActiveRunCount > 0 ? `, ${noActiveRunCount} already inactive` : ""}${failed > 0 ? `, ${failed} failed` : ""})`;
 
         // Verification continues in the shared Phase 7 block below.
       }
@@ -236,6 +246,7 @@ export async function POST(req: NextRequest) {
       const remainingSessions = kill_all
         ? verifySessions.filter((s) => s.status === "running")
         : verifySessions.filter((s) => s.status === "running" && matchesAgentSession(s, agent_id, agentName));
+      const allTargetsTerminal = abortResults.length > 0 && abortResults.every((result) => result.terminal);
 
       if (remainingSessions.length === 0) {
         verification = {
@@ -246,6 +257,17 @@ export async function POST(req: NextRequest) {
         };
         if (!killDetail.includes("verified stopped") && !killDetail.includes("already idle")) {
           killDetail += " — verified stopped";
+        }
+      } else if (allTargetsTerminal) {
+        verification = {
+          verified_dead: true,
+          remaining_sessions: remainingSessions.length,
+          verification_method: "session-recheck",
+          detail: `Gateway still reports ${remainingSessions.length} running session slot(s), but all abort responses were terminal/no-active-run`,
+        };
+        killOk = true;
+        if (!killDetail.includes("treated as stopped")) {
+          killDetail += ` — treated as stopped (${remainingSessions.length} stale session slot(s) remained listed)`;
         }
       } else {
         verification = {

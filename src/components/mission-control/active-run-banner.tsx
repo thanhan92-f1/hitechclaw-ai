@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OctagonX, Pause, Play, ChevronDown, Zap } from "lucide-react";
 import { KillConfirmModal } from "./kill-confirm-modal";
-import type { KillRunResult } from "@/hooks/use-active-runs";
+import { isKillVerified, type KillRunResult } from "@/hooks/use-active-runs";
 
 interface ActiveRun {
   run_id: string;
@@ -138,11 +138,7 @@ export function ActiveRunBanner() {
           error?: string;
           verification?: KillRunResult["verification"];
         };
-        const verifiedStopped =
-          !isMainAgent ||
-          !data.verification ||
-          data.verification.status === "verified_stopped" ||
-          data.verification.status === "no_running_session_found";
+        const verifiedStopped = !isMainAgent || isKillVerified(data.verification);
 
         if (res.ok && (data.ok ?? true) && verifiedStopped) {
           setRuns((prev) => prev.filter((r) => r.run_id !== killTarget.run_id));
@@ -172,14 +168,15 @@ export function ActiveRunBanner() {
     [killTarget]
   );
 
-  if (runs.length === 0 || dismissed) return null;
+  if ((runs.length === 0 || dismissed) && !killTarget) return null;
 
   const primary = runs[0];
   const hasMultiple = runs.length > 1;
 
   return (
     <>
-      <div className="border-b border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40">
+      {runs.length > 0 && !dismissed ? (
+        <div className="border-b border-red-500/30 bg-gradient-to-r from-red-950/40 via-red-900/20 to-red-950/40">
         <div className="flex items-center gap-3 px-4 py-2 sm:px-6">
           {/* Pulsing indicator */}
           <div className="relative flex h-2.5 w-2.5 shrink-0">
@@ -311,7 +308,8 @@ export function ActiveRunBanner() {
             ))}
           </div>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {killTarget ? (
         <KillConfirmModal

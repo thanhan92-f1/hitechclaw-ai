@@ -16,10 +16,10 @@ export interface ActiveRun {
 }
 
 export interface KillRunVerification {
-  status?: "verified_stopped" | "still_running" | "no_running_session_found" | "not_checked";
-  checked_at?: string;
-  remaining_sessions?: string[];
-  matched_targets?: number;
+  verified_dead?: boolean;
+  remaining_sessions?: number;
+  verification_method?: "session-recheck" | "skipped" | "failed";
+  detail?: string;
 }
 
 export interface KillRunResult {
@@ -37,6 +37,10 @@ export interface KillRunResult {
     detail: string;
   }>;
   verification?: KillRunVerification;
+}
+
+export function isKillVerified(verification?: KillRunVerification | null): boolean {
+  return !verification || verification.verified_dead === true;
 }
 
 function getAuthHeaders(): Record<string, string> {
@@ -122,14 +126,6 @@ export function useActiveRuns(agentId?: string, pollInterval = 5000) {
           verification: data.verification,
         };
 
-        if (
-          result.ok &&
-          (!result.verification ||
-            result.verification.status === "verified_stopped" ||
-            result.verification.status === "no_running_session_found")
-        ) {
-          setRuns((prev) => prev.filter((r) => r.run_id !== runId));
-        }
         triggerBurstPoll();
         return result;
       } catch (error) {
@@ -157,7 +153,6 @@ export function useActiveRuns(agentId?: string, pollInterval = 5000) {
         reason: reason ?? null,
       };
       if (res.ok) {
-        setRuns((prev) => prev.filter((r) => r.run_id !== runId));
         triggerBurstPoll();
       }
       return result;

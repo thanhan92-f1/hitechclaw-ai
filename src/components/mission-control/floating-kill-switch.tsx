@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OctagonX, Pause, Play, Zap, X, ChevronUp } from "lucide-react";
-import { useActiveRuns, type ActiveRun } from "@/hooks/use-active-runs";
+import { isKillVerified, useActiveRuns, type ActiveRun } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "./kill-confirm-modal";
 
 function formatDuration(startedAt: string): string {
@@ -65,12 +65,7 @@ export function FloatingKillSwitch() {
     async (reason: string) => {
       if (!killTarget) return;
       const result = await killRun(killTarget.run_id, reason || undefined);
-      if (
-        result.ok &&
-        (!result.verification ||
-          result.verification.status === "verified_stopped" ||
-          result.verification.status === "no_running_session_found")
-      ) {
+      if (result.ok && isKillVerified(result.verification)) {
         setKillTarget(null);
       }
       return result;
@@ -87,17 +82,18 @@ export function FloatingKillSwitch() {
     setExpanded(false);
   }, [runs, killRun]);
 
-  if (runs.length === 0) return null;
+  if (runs.length === 0 && !killTarget) return null;
 
   const mainAgents = runs.filter((r) => r.is_main_agent);
   const subRuns = runs.filter((r) => !r.is_main_agent);
 
   return (
     <>
-      <div
-        ref={panelRef}
-        className="fixed bottom-6 right-6 z-[90] flex flex-col items-end md:bottom-8 md:right-8"
-      >
+      {runs.length > 0 ? (
+        <div
+          ref={panelRef}
+          className="fixed bottom-6 right-6 z-[90] flex flex-col items-end md:bottom-8 md:right-8"
+        >
         {/* Expanded panel */}
         {expanded && (
           <div className="mb-3 w-[340px] overflow-hidden rounded-2xl border border-red-500/30 bg-[var(--bg-surface)] shadow-[0_20px_60px_rgba(220,38,38,0.2)]">
@@ -309,7 +305,8 @@ export function FloatingKillSwitch() {
             </p>
           </div>
         )}
-      </div>
+        </div>
+      ) : null}
 
       {killTarget && (
         <KillConfirmModal

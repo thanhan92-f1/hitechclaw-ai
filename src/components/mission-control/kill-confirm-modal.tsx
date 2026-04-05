@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OctagonX, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import type { KillRunResult } from "@/hooks/use-active-runs";
+import { isKillVerified, type KillRunResult } from "@/hooks/use-active-runs";
 
 interface ActiveRun {
   run_id: string;
@@ -49,19 +49,34 @@ export function KillConfirmModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
 
-  const verificationStatus = result?.verification?.status;
-  const isVerifiedStop = verificationStatus === "verified_stopped" || verificationStatus === "no_running_session_found";
+  const isVerifiedStop = isKillVerified(result?.verification);
 
   const handleConfirm = useCallback(async () => {
     setLoading(true);
     setResult(null);
     try {
+      console.log("[kill-confirm-modal] Sending kill request", {
+        run_id: run.run_id,
+        agent_id: run.agent_id,
+        reason: reason || null,
+      });
       const nextResult = await onConfirm(reason);
+      console.log("[kill-confirm-modal] Kill request completed", nextResult ?? null);
       setResult(nextResult ?? null);
+    } catch (error) {
+      console.error("[kill-confirm-modal] Kill request failed", error);
+      setResult({
+        ok: false,
+        run_id: run.run_id,
+        agent_id: run.agent_id,
+        agent_name: run.agent_name,
+        detail: error instanceof Error ? error.message : "Kill request failed",
+        reason: reason || null,
+      });
     } finally {
       setLoading(false);
     }
-  }, [reason, onConfirm]);
+  }, [reason, onConfirm, run.agent_id, run.agent_name, run.run_id]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
@@ -130,14 +145,17 @@ export function KillConfirmModal({
                 <p className="font-medium">
                   {result.detail ?? (result.ok ? "Kill request completed." : "Kill request failed.")}
                 </p>
-                {result.verification?.checked_at ? (
+                {result.verification?.verification_method ? (
                   <p className="text-[11px] opacity-80">
-                    Verification: {result.verification.status?.replaceAll("_", " ") ?? "unknown"}
+                    Verification: {result.verification.verification_method}
                   </p>
                 ) : null}
-                {result.verification?.remaining_sessions?.length ? (
+                {result.verification?.detail ? (
+                  <p className="text-[11px] opacity-80">{result.verification.detail}</p>
+                ) : null}
+                {typeof result.verification?.remaining_sessions === "number" && result.verification.remaining_sessions > 0 ? (
                   <p className="text-[11px] opacity-80">
-                    Remaining: {result.verification.remaining_sessions.join(", ")}
+                    Remaining sessions: {result.verification.remaining_sessions}
                   </p>
                 ) : null}
               </div>

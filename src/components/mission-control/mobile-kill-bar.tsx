@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { OctagonX } from "lucide-react";
-import { useActiveRuns } from "@/hooks/use-active-runs";
+import { isKillVerified, useActiveRuns } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "./kill-confirm-modal";
 
 function formatDuration(startedAt: string): string {
@@ -31,12 +31,7 @@ export function MobileKillBar() {
     async (reason: string) => {
       if (!killTarget) return;
       const result = await killRun(killTarget.run_id, reason || undefined);
-      if (
-        result.ok &&
-        (!result.verification ||
-          result.verification.status === "verified_stopped" ||
-          result.verification.status === "no_running_session_found")
-      ) {
+      if (result.ok && isKillVerified(result.verification)) {
         setKillTarget(null);
       }
       return result;
@@ -44,43 +39,44 @@ export function MobileKillBar() {
     [killTarget, killRun]
   );
 
-  if (runs.length === 0) return null;
+  if (runs.length === 0 && !killTarget) return null;
 
   const primary = runs[0];
 
   return (
     <>
-      {/* Persistent bar above mobile bottom nav */}
-      <div className="fixed inset-x-0 bottom-[calc(56px+max(env(safe-area-inset-bottom),4px))] z-[49] md:hidden">
-        <button
-          type="button"
-          onClick={() => setKillTarget(primary)}
-          className="flex w-full items-center justify-between gap-3 bg-red-700 px-4 py-2.5 text-white active:bg-red-800 transition-colors touch-manipulation"
-        >
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <div className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
-            </div>
-            <span className="truncate text-[13px] font-semibold">
-              {primary.agent_name}
-            </span>
-            <span className="text-[12px] font-medium text-red-200">
-              {formatDuration(primary.started_at)}
-            </span>
-            {runs.length > 1 && (
-              <span className="rounded-full bg-red-900/50 px-1.5 py-0.5 text-[10px] font-bold text-red-200">
-                +{runs.length - 1}
+      {primary ? (
+        <div className="fixed inset-x-0 bottom-[calc(56px+max(env(safe-area-inset-bottom),4px))] z-[49] md:hidden">
+          <button
+            type="button"
+            onClick={() => setKillTarget(primary)}
+            className="flex w-full items-center justify-between gap-3 bg-red-700 px-4 py-2.5 text-white active:bg-red-800 transition-colors touch-manipulation"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <div className="relative flex h-2 w-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+              </div>
+              <span className="truncate text-[13px] font-semibold">
+                {primary.agent_name}
               </span>
-            )}
-          </div>
+              <span className="text-[12px] font-medium text-red-200">
+                {formatDuration(primary.started_at)}
+              </span>
+              {runs.length > 1 && (
+                <span className="rounded-full bg-red-900/50 px-1.5 py-0.5 text-[10px] font-bold text-red-200">
+                  +{runs.length - 1}
+                </span>
+              )}
+            </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 rounded-lg bg-red-900/60 px-3 py-1.5 text-[12px] font-bold uppercase tracking-wide">
-            <OctagonX className="h-4 w-4" />
-            Stop
-          </div>
-        </button>
-      </div>
+            <div className="flex shrink-0 items-center gap-1.5 rounded-lg bg-red-900/60 px-3 py-1.5 text-[12px] font-bold uppercase tracking-wide">
+              <OctagonX className="h-4 w-4" />
+              Stop
+            </div>
+          </button>
+        </div>
+      ) : null}
 
       {killTarget ? (
         <KillConfirmModal

@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import { ShellHeader, Card, SectionTitle } from "@/components/mission-control/dashboard";
 import { CardEntranceWrapper, SkeletonCard } from "@/components/mission-control/charts";
-import { useActiveRuns } from "@/hooks/use-active-runs";
+import { isKillVerified, useActiveRuns } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "@/components/mission-control/kill-confirm-modal";
 import { OctagonX, Pause, Play, Shield, Activity, Zap, AlertTriangle } from "lucide-react";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
@@ -360,12 +360,7 @@ export default function AgentDetailPage() {
           run={killTarget}
           onConfirm={async (reason) => {
             const result = await killRun(killTarget.run_id, reason);
-            if (
-              result.ok &&
-              (!result.verification ||
-                result.verification.status === "verified_stopped" ||
-                result.verification.status === "no_running_session_found")
-            ) {
+            if (result.ok && isKillVerified(result.verification)) {
               setKillTarget(null);
             }
             return result;

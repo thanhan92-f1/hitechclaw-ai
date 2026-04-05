@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { OctagonX } from "lucide-react";
-import { useActiveRuns, type ActiveRun } from "@/hooks/use-active-runs";
+import { isKillVerified, useActiveRuns, type ActiveRun } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "./kill-confirm-modal";
 
 export function KillSwitchButton() {
@@ -20,12 +20,7 @@ export function KillSwitchButton() {
   const handleKillConfirm = useCallback(async (reason: string) => {
     if (!killTarget) return;
     const result = await killRun(killTarget.run_id, reason || undefined);
-    if (
-      result.ok &&
-      (!result.verification ||
-        result.verification.status === "verified_stopped" ||
-        result.verification.status === "no_running_session_found")
-    ) {
+    if (result.ok && isKillVerified(result.verification)) {
       setKillTarget(null);
     }
     return result;
