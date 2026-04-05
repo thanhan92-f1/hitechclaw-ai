@@ -24,6 +24,43 @@ export async function POST(_req: NextRequest) {
 
   try {
     const result = await verifyNotificationEmailConfig(row.config ?? {});
+    const verifyTimestamp = new Date().toISOString();
+
+    await query(
+      `UPDATE notification_preferences
+       SET config = jsonb_set(
+         jsonb_set(
+           jsonb_set(
+             jsonb_set(
+               COALESCE(config, '{}'::jsonb),
+               '{smtp_last_verified_at}',
+               to_jsonb($3::text),
+               true
+             ),
+             '{smtp_last_verify_status}',
+             to_jsonb($4::text),
+             true
+           ),
+           '{smtp_last_verify_message}',
+           to_jsonb($5::text),
+           true
+         ),
+         '{smtp_last_verify_error_code}',
+         to_jsonb($6::text),
+         true
+       ),
+       updated_at = NOW()
+       WHERE tenant_id = $1 AND channel = $2`,
+      [
+        tenantId,
+        "email",
+        verifyTimestamp,
+        result.ok ? "success" : "failed",
+        result.message,
+        result.errorCode ?? "",
+      ],
+    );
+
     if (!result.ok) {
       return NextResponse.json(
         {
@@ -31,14 +68,44 @@ export async function POST(_req: NextRequest) {
           error: result.message,
           errorCode: result.errorCode,
           diagnostics: result.diagnostics,
+          verifiedAt: verifyTimestamp,
         },
         { status: 502 },
       );
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, verifiedAt: verifyTimestamp });
   } catch (error) {
     const message = error instanceof Error ? error.message : "SMTP verification failed";
+
+    await query(
+      `UPDATE notification_preferences
+       SET config = jsonb_set(
+         jsonb_set(
+           jsonb_set(
+             jsonb_set(
+               COALESCE(config, '{}'::jsonb),
+               '{smtp_last_verified_at}',
+               to_jsonb($3::text),
+               true
+             ),
+             '{smtp_last_verify_status}',
+             to_jsonb($4::text),
+             true
+           ),
+           '{smtp_last_verify_message}',
+           to_jsonb($5::text),
+           true
+         ),
+         '{smtp_last_verify_error_code}',
+         to_jsonb($6::text),
+         true
+       ),
+       updated_at = NOW()
+       WHERE tenant_id = $1 AND channel = $2`,
+      [tenantId, "email", new Date().toISOString(), "failed", message, ""],
+    );
+
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

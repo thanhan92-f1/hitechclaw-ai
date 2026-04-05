@@ -10,6 +10,13 @@ const SECRET_FIELDS: Record<string, string[]> = {
   webhook: ["secret_value"],
 };
 
+const EMAIL_VERIFY_METADATA_FIELDS = [
+  "smtp_last_verified_at",
+  "smtp_last_verify_status",
+  "smtp_last_verify_message",
+  "smtp_last_verify_error_code",
+] as const;
+
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -61,6 +68,23 @@ function encryptSecretFields(channel: string, config: Record<string, unknown>): 
     const value = asTrimmedString(nextConfig[field]);
     if (value) {
       nextConfig[field] = encryptSecret(value);
+    }
+  }
+
+  return nextConfig;
+}
+
+function preserveEmailVerificationMetadata(
+  channel: string,
+  config: Record<string, unknown>,
+  existingConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  if (channel !== "email") return config;
+
+  const nextConfig = { ...config };
+  for (const field of EMAIL_VERIFY_METADATA_FIELDS) {
+    if (nextConfig[field] === undefined && existingConfig[field] !== undefined) {
+      nextConfig[field] = existingConfig[field];
     }
   }
 
@@ -176,7 +200,11 @@ export async function PUT(req: NextRequest) {
       [tenantId, body.channel],
     );
     const existingConfig = (existing.rows[0]?.config ?? {}) as Record<string, unknown>;
-    const mergedConfig = preserveExistingSecrets(body.channel, body.config ?? {}, existingConfig);
+    const mergedConfig = preserveEmailVerificationMetadata(
+      body.channel,
+      preserveExistingSecrets(body.channel, body.config ?? {}, existingConfig),
+      existingConfig,
+    );
 
     normalizedConfig = normalizeNotificationConfig(body.channel, mergedConfig, body.enabled);
   } catch (error) {

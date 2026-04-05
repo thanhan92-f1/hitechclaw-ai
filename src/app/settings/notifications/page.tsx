@@ -47,6 +47,10 @@ interface EmailDiagnostics {
   replyTo: string;
 }
 
+interface SaveChannelOptions {
+  silent?: boolean;
+}
+
 type ValidationErrors = Record<string, string>;
 
 interface ChannelDef {
@@ -132,6 +136,18 @@ function getAuthHeaders(): Record<string, string> {
     if (csrf) headers["x-csrf-token"] = decodeURIComponent(csrf);
   }
   return headers;
+}
+
+function formatVerificationTime(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 /* ── Component ── */
@@ -288,15 +304,17 @@ export default function NotificationPreferencesPage() {
     return errors;
   }
 
-  async function saveChannel(channelKey: string) {
+  async function saveChannel(channelKey: string, options?: SaveChannelOptions): Promise<boolean> {
     setSaving(channelKey);
     const state = getChannelState(channelKey);
     const errors = validateChannel(channelKey, state);
     if (Object.keys(errors).length > 0) {
       setValidationErrors((prev) => ({ ...prev, [channelKey]: errors }));
       setSaving(null);
-      setTestResult({ channel: channelKey, ok: false, message: "Please fix the highlighted fields." });
-      return;
+      if (!options?.silent) {
+        setTestResult({ channel: channelKey, ok: false, message: "Please fix the highlighted fields." });
+      }
+      return false;
     }
     try {
       const res = await fetch("/api/notifications/preferences", {
@@ -313,15 +331,27 @@ export default function NotificationPreferencesPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        setTestResult({ channel: channelKey, ok: false, message: (err as { error: string }).error });
+        if (!options?.silent) {
+          setTestResult({ channel: channelKey, ok: false, message: (err as { error: string }).error });
+        }
+        return false;
       } else {
-        setTestResult({ channel: channelKey, ok: true, message: "Saved" });
+        await fetchPrefs();
+        if (!options?.silent) {
+          setTestResult({ channel: channelKey, ok: true, message: "Saved" });
+        }
+        return true;
       }
     } catch {
-      setTestResult({ channel: channelKey, ok: false, message: "Failed to save" });
+      if (!options?.silent) {
+        setTestResult({ channel: channelKey, ok: false, message: "Failed to save" });
+      }
+      return false;
     } finally {
       setSaving(null);
-      setTimeout(() => setTestResult(null), 3000);
+      if (!options?.silent) {
+        setTimeout(() => setTestResult(null), 3000);
+      }
     }
   }
 
@@ -366,26 +396,11 @@ export default function NotificationPreferencesPage() {
     setEmailDiagnostics(null);
     setEmailErrorCode(null);
     try {
-      const saveRes = await fetch("/api/notifications/preferences", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          channel: "email",
-          enabled: emailState.enabled,
-          config: emailState.config,
-        }),
-      });
-
-      if (!saveRes.ok) {
-        const err = (await saveRes.json()) as { error?: string };
-        setTestResult({ channel: "email", ok: false, message: err.error ?? "Failed to save email settings before verification." });
+      const saved = await saveChannel("email", { silent: true });
+      if (!saved) {
+        setTestResult({ channel: "email", ok: false, message: "Failed to save email settings before verification." });
         return;
       }
-
-      await fetchPrefs();
 
       const res = await fetch("/api/notifications/email/verify", {
         method: "POST",
@@ -394,6 +409,7 @@ export default function NotificationPreferencesPage() {
       const data = (await res.json()) as { ok?: boolean; message?: string; error?: string; errorCode?: string; diagnostics?: EmailDiagnostics };
       setEmailDiagnostics(data.diagnostics ?? null);
       setEmailErrorCode(data.errorCode ?? null);
+      await fetchPrefs();
       if (res.ok) {
         setTestResult({ channel: "email", ok: true, message: data.message ?? "SMTP verified" });
       } else {
@@ -405,6 +421,11 @@ export default function NotificationPreferencesPage() {
       setVerifyingEmail(false);
       setTimeout(() => setTestResult(null), 5000);
     }
+  }
+
+  async function saveAndVerifyEmailChannel() {
+    setTestResult({ channel: "email", ok: true, message: "Saving email settings before SMTP verification..." });
+    await verifyEmailChannel();
   }
 
   if (loading) {
@@ -447,6 +468,9 @@ export default function NotificationPreferencesPage() {
         const state = getChannelState(ch.key);
         const Icon = ch.icon;
         const isExpanded = expandedChannel === ch.key;
+        const emailVerifiedAt = ch.key === "email" ? formatVerificationTime(state.config.smtp_last_verified_at) : null;
+        const emailVerifyStatus = ch.key === "email" ? String(state.config.smtp_last_verify_status ?? "").trim() : "";
+        const emailVerifyMessage = ch.key === "email" ? String(state.config.smtp_last_verify_message ?? "").trim() : "";
 
         return (
           <div
@@ -520,6 +544,27 @@ export default function NotificationPreferencesPage() {
                 ) : ["telegram", "slack", "discord", "webhook"].includes(ch.key) ? (
                   <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/50 p-3 text-[12px] text-[var(--text-secondary)]">
                     Sensitive channel secrets are stored encrypted in the database. Leave a secret field blank to keep the existing saved value.
+                  </div>
+                ) : null}
+
+                {ch.key === "email" && emailVerifiedAt ? (
+                  <div className={`rounded-xl border p-3 text-[12px] ${
+                    emailVerifyStatus === "success"
+                      ? "border-[var(--accent)]/30 bg-[var(--accent)]/5 text-[var(--text-secondary)]"
+                      : "border-[var(--danger)]/30 bg-[var(--danger)]/5 text-[var(--text-secondary)]"
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {emailVerifyStatus === "success" ? (
+                        <CheckCircle className="h-4 w-4 text-[var(--accent)]" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-[var(--danger)]" />
+                      )}
+                      <span className="font-medium text-[var(--text-primary)]">
+                        Last SMTP verification: {emailVerifyStatus === "success" ? "Passed" : "Failed"}
+                      </span>
+                    </div>
+                    <p className="mt-1">Verified at {emailVerifiedAt}</p>
+                    {emailVerifyMessage ? <p className="mt-1">{emailVerifyMessage}</p> : null}
                   </div>
                 ) : null}
 
@@ -635,7 +680,7 @@ export default function NotificationPreferencesPage() {
                   <button
                     type="button"
                     onClick={() => void saveChannel(ch.key)}
-                    disabled={saving === ch.key}
+                    disabled={saving === ch.key || (ch.key === "email" && verifyingEmail)}
                     className="flex items-center gap-1.5 rounded-xl bg-[var(--accent)] px-4 py-2 text-[13px] font-semibold text-[var(--accent-foreground)] transition hover:bg-[var(--accent)]/90 disabled:opacity-50"
                   >
                     {saving === ch.key ? (
@@ -646,8 +691,23 @@ export default function NotificationPreferencesPage() {
                   {ch.key === "email" ? (
                     <button
                       type="button"
+                      onClick={() => void saveAndVerifyEmailChannel()}
+                      disabled={verifyingEmail || saving === "email" || !state.enabled}
+                      className="flex items-center gap-1.5 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-2 text-[13px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent)]/15 disabled:opacity-50"
+                    >
+                      {verifyingEmail || saving === "email" ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-3.5 w-3.5" />
+                      )}
+                      Save &amp; Verify
+                    </button>
+                  ) : null}
+                  {ch.key === "email" ? (
+                    <button
+                      type="button"
                       onClick={() => void verifyEmailChannel()}
-                      disabled={verifyingEmail || !state.enabled}
+                      disabled={verifyingEmail || saving === "email" || !state.enabled}
                       className="flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition hover:border-[var(--border-strong)] hover:text-[var(--text-primary)] disabled:opacity-50"
                     >
                       {verifyingEmail ? (
