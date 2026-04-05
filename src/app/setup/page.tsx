@@ -1205,23 +1205,18 @@ function SdkStep({
 }) {
   type InstallTab = "script" | "node" | "python" | "curl" | "openclaw" | "nemoclaw";
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.agent_id ?? "");
-  const selectedAgent = agents.find((agent) => agent.agent_id === selectedAgentId) ?? agents[0];
+  const [manualTab, setManualTab] = useState<InstallTab | null>(null);
+  const effectiveSelectedAgentId =
+    agents.some((agent) => agent.agent_id === selectedAgentId)
+      ? selectedAgentId
+      : (agents[0]?.agent_id ?? "");
+  const selectedAgent = agents.find((agent) => agent.agent_id === effectiveSelectedAgentId) ?? agents[0];
   const framework = selectedAgent?.framework ?? "custom";
   const preferredTab: InstallTab =
     framework === "openclaw" || framework === "nemoclaw" ? framework : "script";
-  const [tab, setTab] = useState<InstallTab>(preferredTab);
+  const tab: InstallTab = manualTab ?? preferredTab;
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://your-hitechclaw-ai-instance.com";
   const agentLabel = selectedAgent?.name?.trim() || selectedAgent?.agent_id || "your-agent";
-
-  useEffect(() => {
-    if (!selectedAgentId && agents[0]?.agent_id) {
-      setSelectedAgentId(agents[0].agent_id);
-    }
-  }, [agents, selectedAgentId]);
-
-  useEffect(() => {
-    setTab(preferredTab);
-  }, [preferredTab, selectedAgentId]);
 
   const snippets: Record<InstallTab, { label: string; code: string; description: string }> = {
     script: {
@@ -1346,7 +1341,10 @@ telemetry:
               <button
                 key={agent.agent_id}
                 type="button"
-                onClick={() => setSelectedAgentId(agent.agent_id)}
+                onClick={() => {
+                  setSelectedAgentId(agent.agent_id);
+                  setManualTab(null);
+                }}
                 className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
                   selectedAgent?.agent_id === agent.agent_id
                     ? "border-[var(--accent)]/50 bg-[var(--accent)]/10 text-[var(--accent)]"
@@ -1485,7 +1483,7 @@ telemetry:
           <button
             key={key}
             type="button"
-            onClick={() => setTab(key as typeof tab)}
+            onClick={() => setManualTab(key as InstallTab)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
               tab === key
                 ? "bg-[var(--accent)]/10 text-[var(--accent)]"
