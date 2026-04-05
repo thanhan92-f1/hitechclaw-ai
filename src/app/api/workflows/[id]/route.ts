@@ -41,7 +41,7 @@ export async function PUT(
     const { id } = await params;
 
     // Fetch old values for audit diff
-    const oldResult = await query("SELECT name, status, trigger_type FROM workflows WHERE id = $1", [id]);
+    const oldResult = await query("SELECT name, status, trigger_type, tenant_id FROM workflows WHERE id = $1", [id]);
     const oldValues = oldResult.rows[0] as Record<string, unknown> | undefined;
 
     const body = (await req.json()) as {
@@ -92,6 +92,7 @@ export async function PUT(
       oldValue: oldValues ?? undefined,
       newValue: body as Record<string, unknown>,
       ipAddress: getClientIp(req.headers),
+      tenantId: typeof result.rows[0]?.tenant_id === "string" ? result.rows[0].tenant_id as string : undefined,
     });
 
     return NextResponse.json({ workflow: result.rows[0], ok: true });
@@ -110,7 +111,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const result = await query(
-      `DELETE FROM workflows WHERE id = $1 RETURNING id, name`,
+      `DELETE FROM workflows WHERE id = $1 RETURNING id, name, tenant_id`,
       [id]
     );
 
@@ -118,7 +119,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
     }
 
-    const deleted = result.rows[0] as { id: number; name: string };
+    const deleted = result.rows[0] as { id: number; name: string; tenant_id: string | null };
     const user = await resolveUser(req);
     logAudit({
       actorType: user ? "user" : "system",
@@ -127,8 +128,9 @@ export async function DELETE(
       targetType: "workflow",
       targetId: id,
       description: `Deleted workflow "${deleted.name}"`,
-      oldValue: { name: deleted.name },
+      oldValue: { name: deleted.name, tenant_id: deleted.tenant_id },
       ipAddress: getClientIp(req.headers),
+      tenantId: deleted.tenant_id ?? undefined,
     });
 
     return NextResponse.json({ deleted: result.rows[0], ok: true });

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const status = req.nextUrl.searchParams.get("status");
-    const tenantId = req.nextUrl.searchParams.get("tenant_id") ?? "transformate";
+    const tenantId = req.nextUrl.searchParams.get("tenant_id");
 
     let sql = `
       SELECT id, name, description, definition, status, trigger_type, trigger_config, created_by,
@@ -17,9 +17,14 @@ export async function GET(req: NextRequest) {
              (SELECT COUNT(*)::int FROM workflow_runs wr WHERE wr.workflow_id = w.id) as total_runs,
              (SELECT COUNT(*)::int FROM workflow_runs wr WHERE wr.workflow_id = w.id AND wr.status = 'failed') as failed_runs
       FROM workflows w
-      WHERE tenant_id = $1
+      WHERE 1 = 1
     `;
-    const params: unknown[] = [tenantId];
+    const params: unknown[] = [];
+
+    if (tenantId && tenantId !== "all") {
+      params.push(tenantId);
+      sql += ` AND tenant_id = $${params.length}`;
+    }
 
     if (status && status !== "all") {
       params.push(status);
@@ -72,7 +77,7 @@ export async function POST(req: NextRequest) {
         body.trigger_type ?? "manual",
         body.trigger_config ? JSON.stringify(body.trigger_config) : null,
         body.created_by ?? null,
-        body.tenant_id ?? "transformate",
+        body.tenant_id ?? "default",
       ]
     );
 
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
       description: `Created workflow "${body.name}"`,
       newValue: { name: body.name, status: body.status ?? "draft", trigger_type: body.trigger_type ?? "manual" },
       ipAddress: getClientIp(req.headers),
-      tenantId: body.tenant_id ?? "transformate",
+      tenantId: body.tenant_id ?? "default",
     });
 
     return NextResponse.json({ workflow: result.rows[0], ok: true }, { status: 201 });
