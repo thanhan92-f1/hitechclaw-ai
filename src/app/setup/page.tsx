@@ -57,9 +57,12 @@ type SetupAgentDraft = {
   installMode: "script" | "remote" | "both";
   sshHost: string;
   sshUser: string;
+  sshPort: string;
+  sshKeyPath: string;
   nodeName: string;
   configPath: string;
   serviceName: string;
+  runtimeUser: string;
 };
 
 type RegisteredAgent = {
@@ -72,6 +75,9 @@ type RegisteredAgent = {
   service_name: string | null;
   ssh_host: string | null;
   ssh_user: string | null;
+  ssh_port?: number | null;
+  ssh_key_path?: string | null;
+  runtime_user?: string | null;
   node_id: string | null;
   install_snippet: string;
   deployment?: {
@@ -80,6 +86,16 @@ type RegisteredAgent = {
     output?: string;
     error?: string;
   };
+};
+
+type RetryDeployState = {
+  status: "idle" | "loading" | "success" | "error";
+  message: string;
+};
+
+type SshTestState = {
+  status: "idle" | "testing" | "success" | "error";
+  message: string;
 };
 
 function createDraftId() {
@@ -95,6 +111,8 @@ function createEmptyAgentDraft(framework = "openclaw"): SetupAgentDraft {
     installMode: framework === "openclaw" || framework === "nemoclaw" ? "both" : "script",
     sshHost: "",
     sshUser: "",
+    sshPort: "22",
+    sshKeyPath: "",
     nodeName: "",
     configPath: "",
     serviceName:
@@ -103,6 +121,7 @@ function createEmptyAgentDraft(framework = "openclaw"): SetupAgentDraft {
         : framework === "nemoclaw"
           ? "nemoclaw.service"
           : "",
+    runtimeUser: "",
   };
 }
 
@@ -127,6 +146,8 @@ export default function SetupPage() {
   ]);
   const [registeredAgents, setRegisteredAgents] = useState<RegisteredAgent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
+  const [sshTestResults, setSshTestResults] = useState<Record<string, SshTestState>>({});
+  const [retryDeployResults, setRetryDeployResults] = useState<Record<string, RetryDeployState>>({});
 
   // Step 4 — First Event
   const [eventReceived, setEventReceived] = useState(false);
@@ -202,6 +223,78 @@ export default function SetupPage() {
     setAgents((current) =>
       current.length > 1 ? current.filter((agent) => agent.clientId !== clientId) : current
     );
+    setSshTestResults((current) => {
+      const next = { ...current };
+      delete next[clientId];
+      return next;
+    });
+  }
+
+  async function testSshConnection(agent: SetupAgentDraft) {
+    const sshHost = agent.sshHost.trim();
+    const sshUser = agent.sshUser.trim();
+    const sshPort = agent.sshPort.trim();
+    const sshKeyPath = agent.sshKeyPath.trim();
+
+    if (!sshHost || !sshUser) {
+      setSshTestResults((current) => ({
+        ...current,
+        [agent.clientId]: {
+          status: "error",
+          message: "SSH host and SSH user are required.",
+        },
+      }));
+      return;
+    }
+
+    setSshTestResults((current) => ({
+      ...current,
+      [agent.clientId]: {
+        status: "testing",
+        message: "Testing SSH connectivity...",
+      },
+    }));
+
+    try {
+      const res = await fetch("/api/setup/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          step: "test-ssh",
+          ssh_host: sshHost,
+          ssh_user: sshUser,
+          ssh_port: sshPort || undefined,
+          ssh_key_path: sshKeyPath || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSshTestResults((current) => ({
+          ...current,
+          [agent.clientId]: {
+            status: "error",
+            message: data.error || "SSH test failed.",
+          },
+        }));
+        return;
+      }
+
+      setSshTestResults((current) => ({
+        ...current,
+        [agent.clientId]: {
+          status: "success",
+          message: data.output || "SSH connection successful.",
+        },
+      }));
+    } catch {
+      setSshTestResults((current) => ({
+        ...current,
+        [agent.clientId]: {
+          status: "error",
+          message: "Connection error while testing SSH.",
+        },
+      }));
+    }
   }
 
   async function handleStep1() {
@@ -245,9 +338,12 @@ export default function SetupPage() {
       description: agent.description.trim(),
       sshHost: agent.sshHost.trim(),
       sshUser: agent.sshUser.trim(),
+      sshPort: agent.sshPort.trim(),
+      sshKeyPath: agent.sshKeyPath.trim(),
       nodeName: agent.nodeName.trim(),
       configPath: agent.configPath.trim(),
       serviceName: agent.serviceName.trim(),
+      runtimeUser: agent.runtimeUser.trim(),
     }));
 
     if (trimmedAgents.some((agent) => !agent.name)) {
@@ -279,9 +375,12 @@ export default function SetupPage() {
             install_mode: agent.installMode,
             ssh_host: agent.sshHost || undefined,
             ssh_user: agent.sshUser || undefined,
+            ssh_port: agent.sshPort || undefined,
+            ssh_key_path: agent.sshKeyPath || undefined,
             node_name: agent.nodeName || undefined,
             config_path: agent.configPath || undefined,
             service_name: agent.serviceName || undefined,
+            runtime_user: agent.runtimeUser || undefined,
           })),
         }),
       });
@@ -301,6 +400,84 @@ export default function SetupPage() {
       setError("Connection error. Please try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function retryDeployment(agent: RegisteredAgent) {
+    const retryKey = agent.agent_id;
+    setRetryDeployResults((current) => ({
+      ...current,
+      [retryKey]: {
+        status: "loading",
+        message: "Retrying remote deployment...",
+      },
+    }));
+    setError("");
+
+    try {
+      const res = await fetch("/api/setup/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          step: "retry-deploy",
+          agent_id: agent.agent_id,
+          token: agent.token,
+          framework: agent.framework,
+          install_mode: agent.install_mode,
+          config_path: agent.config_path,
+          service_name: agent.service_name ?? undefined,
+          ssh_host: agent.ssh_host ?? undefined,
+          ssh_user: agent.ssh_user ?? undefined,
+          ssh_port: agent.ssh_port ?? undefined,
+          ssh_key_path: agent.ssh_key_path ?? undefined,
+        }),
+      });
+
+      const data = (await res.json()) as {
+        error?: string;
+        install_snippet?: string;
+        deployment?: RegisteredAgent["deployment"];
+      };
+
+      if (!res.ok || !data.deployment) {
+        setRetryDeployResults((current) => ({
+          ...current,
+          [retryKey]: {
+            status: "error",
+            message: data.error || "Failed to retry deployment.",
+          },
+        }));
+        return;
+      }
+
+      setRegisteredAgents((current) =>
+        current.map((item) =>
+          item.agent_id === agent.agent_id
+            ? {
+                ...item,
+                install_snippet: data.install_snippet || item.install_snippet,
+                deployment: data.deployment,
+              }
+            : item
+        )
+      );
+      setRetryDeployResults((current) => ({
+        ...current,
+        [retryKey]: {
+          status: data.deployment?.ok ? "success" : "error",
+          message: data.deployment?.ok
+            ? data.deployment.output || "Deployment retried successfully."
+            : data.deployment?.error || "Deployment still needs attention.",
+        },
+      }));
+    } catch {
+      setRetryDeployResults((current) => ({
+        ...current,
+        [retryKey]: {
+          status: "error",
+          message: "Connection error. Please try again.",
+        },
+      }));
     }
   }
 
@@ -520,6 +697,7 @@ export default function SetupPage() {
                 {agents.map((agent, index) => {
                   const needsRemoteFields =
                     agent.installMode === "remote" || agent.installMode === "both";
+                  const sshTest = sshTestResults[agent.clientId];
 
                   return (
                     <div
@@ -644,6 +822,31 @@ export default function SetupPage() {
                             </div>
                             <div>
                               <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                SSH Port <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={agent.sshPort}
+                                onChange={(e) => updateDraft(agent.clientId, { sshPort: e.target.value })}
+                                placeholder="22"
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                SSH Key Path <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.sshKeyPath}
+                                onChange={(e) => updateDraft(agent.clientId, { sshKeyPath: e.target.value })}
+                                placeholder="~/.ssh/id_rsa"
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
                                 Node Name <span className="text-[var(--text-tertiary)]">(optional)</span>
                               </label>
                               <input
@@ -666,6 +869,18 @@ export default function SetupPage() {
                                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
                               />
                             </div>
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
+                                Runtime User <span className="text-[var(--text-tertiary)]">(optional)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={agent.runtimeUser}
+                                onChange={(e) => updateDraft(agent.clientId, { runtimeUser: e.target.value })}
+                                placeholder={agent.framework === "openclaw" ? "openclaw" : "nemoclaw"}
+                                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
+                              />
+                            </div>
                             <div className="sm:col-span-2">
                               <label className="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">
                                 Config Path <span className="text-[var(--text-tertiary)]">(optional)</span>
@@ -677,6 +892,34 @@ export default function SetupPage() {
                                 placeholder={agent.framework === "openclaw" ? "~/.openclaw/my-agent.env" : agent.framework === "nemoclaw" ? "~/.nemoclaw/my-agent.yaml" : "~/.hitechclaw/my-agent.env"}
                                 className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-white placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent)]/50 focus:outline-none focus:ring-1 focus:ring-[#00D47E]/50 transition"
                               />
+                            </div>
+                            <div className="sm:col-span-2 space-y-2">
+                              <button
+                                type="button"
+                                onClick={() => testSshConnection(agent)}
+                                disabled={!agent.sshHost.trim() || !agent.sshUser.trim() || sshTest?.status === "testing"}
+                                className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/[0.03] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {sshTest?.status === "testing" ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="h-4 w-4" />
+                                )}
+                                Test SSH connection
+                              </button>
+                              {sshTest && (
+                                <div
+                                  className={`rounded-lg border px-3 py-2 text-xs ${
+                                    sshTest.status === "success"
+                                      ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--text-secondary)]"
+                                      : sshTest.status === "error"
+                                        ? "border-red-500/30 bg-red-500/10 text-red-300"
+                                        : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"
+                                  }`}
+                                >
+                                  {sshTest.message}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -729,6 +972,8 @@ export default function SetupPage() {
           {step === 3 && (
             <SdkStep
               agents={registeredAgents}
+              retryDeployResults={retryDeployResults}
+              onRetryDeployment={retryDeployment}
               onBack={() => setStep(2)}
               onNext={() => setStep(4)}
             />
@@ -947,10 +1192,14 @@ export default function SetupPage() {
 
 function SdkStep({
   agents,
+  retryDeployResults,
+  onRetryDeployment,
   onBack,
   onNext,
 }: {
   agents: RegisteredAgent[];
+  retryDeployResults: Record<string, RetryDeployState>;
+  onRetryDeployment: (agent: RegisteredAgent) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -1165,11 +1414,62 @@ telemetry:
                 {selectedAgent.deployment?.ok ? "Applied or ready" : selectedAgent.deployment?.error ? "Needs attention" : "Script ready"}
               </p>
             </div>
+            {(selectedAgent.ssh_host || selectedAgent.ssh_port || selectedAgent.ssh_key_path) && (
+              <>
+                <div>
+                  <span className="text-[var(--text-tertiary)]">SSH target</span>
+                  <p className="mt-1 break-all font-medium text-white">
+                    {selectedAgent.ssh_user ? `${selectedAgent.ssh_user}@` : ""}
+                    {selectedAgent.ssh_host}
+                    {selectedAgent.ssh_port ? `:${selectedAgent.ssh_port}` : ""}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[var(--text-tertiary)]">SSH key / runtime user</span>
+                  <p className="mt-1 break-all font-medium text-white">
+                    {selectedAgent.ssh_key_path || "Default SSH agent"}
+                    {selectedAgent.runtime_user ? ` · ${selectedAgent.runtime_user}` : ""}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
           {selectedAgent.deployment?.error && (
-            <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-200">
-              {selectedAgent.deployment.error}
-            </p>
+            <div className="mt-3 space-y-3">
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-200">
+                {selectedAgent.deployment.error}
+              </p>
+              {(selectedAgent.install_mode === "remote" || selectedAgent.install_mode === "both") && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => onRetryDeployment(selectedAgent)}
+                    disabled={retryDeployResults[selectedAgent.agent_id]?.status === "loading"}
+                    className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {retryDeployResults[selectedAgent.agent_id]?.status === "loading" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Rocket className="h-4 w-4" />
+                    )}
+                    Retry deployment
+                  </button>
+                  {retryDeployResults[selectedAgent.agent_id] && (
+                    <p
+                      className={`rounded-lg border px-3 py-2 text-xs ${
+                        retryDeployResults[selectedAgent.agent_id]?.status === "success"
+                          ? "border-[var(--accent)]/30 bg-[var(--accent)]/10 text-[var(--text-secondary)]"
+                          : retryDeployResults[selectedAgent.agent_id]?.status === "error"
+                            ? "border-red-500/30 bg-red-500/10 text-red-300"
+                            : "border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-secondary)]"
+                      }`}
+                    >
+                      {retryDeployResults[selectedAgent.agent_id]?.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
           {!selectedAgent.deployment?.error && selectedAgent.deployment?.output && (
             <p className="mt-3 rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/5 px-3 py-2 text-[var(--text-secondary)]">

@@ -16,9 +16,46 @@ type SetupAgentInput = {
   install_mode?: string;
   ssh_host?: string;
   ssh_user?: string;
+  ssh_port?: number | string;
+  ssh_key_path?: string;
   node_name?: string;
   config_path?: string;
   service_name?: string;
+  runtime_user?: string;
+};
+
+type SetupSshTestInput = {
+  ssh_host?: string;
+  ssh_user?: string;
+  ssh_port?: number | string;
+  ssh_key_path?: string;
+};
+
+type SshOptions = {
+  user: string;
+  host: string;
+  port?: number;
+  keyPath?: string;
+};
+
+type SetupRetryDeployInput = {
+  agent_id?: string;
+  framework?: string;
+  token?: string;
+  install_mode?: string;
+  config_path?: string;
+  service_name?: string;
+  ssh_host?: string;
+  ssh_user?: string;
+  ssh_port?: number | string;
+  ssh_key_path?: string;
+};
+
+type DeploymentResult = {
+  ok: boolean;
+  mode: InstallMode;
+  output?: string;
+  error?: string;
 };
 
 function slugify(value: string) {
@@ -26,6 +63,63 @@ function slugify(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") || `agent-${randomBytes(4).toString("hex")}`;
+}
+
+async function executeDeployment(args: {
+  installMode: InstallMode;
+  installSnippet: string;
+  sshHost?: string;
+  sshUser?: string;
+  sshPort?: number;
+  sshKeyPath?: string;
+}): Promise<DeploymentResult> {
+  const { installMode, installSnippet, sshHost, sshUser, sshPort, sshKeyPath } = args;
+
+  if ((installMode === "remote" || installMode === "both") && sshHost && sshUser) {
+    try {
+      const connection = await testRemoteConnection({
+        host: sshHost,
+        user: sshUser,
+        port: sshPort,
+        keyPath: sshKeyPath,
+      });
+      const remote = await runRemoteInstall(
+        {
+          host: sshHost,
+          user: sshUser,
+          port: sshPort,
+          keyPath: sshKeyPath,
+        },
+        installSnippet
+      );
+      return {
+        ok: true,
+        mode: installMode,
+        output:
+          [connection.stdout, remote.stdout, remote.stderr].filter(Boolean).join("\n") ||
+          "Configuration applied",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        mode: installMode,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  if (installMode !== "script") {
+    return {
+      ok: false,
+      mode: installMode,
+      error: "SSH host and SSH user are required for remote deployment",
+    };
+  }
+
+  return {
+    ok: true,
+    mode: installMode,
+  };
 }
 
 function normalizeFramework(value: string | undefined): SetupFramework {
@@ -86,11 +180,49 @@ async function runRemoteCommand(host: string, user: string, command: string) {
   return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
+function normalizeSshPort(value: number | string | undefined) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number.parseInt(trimmed, 10);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+}
+
+function buildSshCommand({ user, host, port, keyPath }: SshOptions, command: string) {
+  const parts = ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no"];
+  if (port) {
+    parts.push("-p", String(port));
+  }
+  if (keyPath) {
+    parts.push("-i", JSON.stringify(keyPath));
+  }
+  parts.push(`${user}@${host}`, JSON.stringify(command));
+  return parts.join(" ");
+}
+
+async function testRemoteConnection(options: SshOptions) {
+  const sshCommand = buildSshCommand(options, "echo hitechclaw-setup-ok");
+  const { stdout, stderr } = await execAsync(sshCommand, { timeout: 15000 });
+  return { stdout: stdout.trim(), stderr: stderr.trim() };
+}
+
+async function runRemoteInstall(options: SshOptions, command: string) {
+  const sshCommand = buildSshCommand(options, command);
+  const { stdout, stderr } = await execAsync(sshCommand, { timeout: 30000 });
+  return { stdout: stdout.trim(), stderr: stderr.trim() };
+}
+
 async function upsertInfraNode(args: {
   nodeName: string;
   host: string;
   sshUser?: string;
+  sshPort?: number;
+  sshKeyPath?: string;
   framework: SetupFramework;
+  runtimeUser?: string;
 }) {
   const nodeId = slugify(args.nodeName || args.host);
   await query(
@@ -107,7 +239,13 @@ async function upsertInfraNode(args: {
       args.nodeName,
       args.host,
       args.sshUser ?? null,
-      JSON.stringify({ frameworks: [args.framework], provisioned_by: "setup-wizard" }),
+      JSON.stringify({
+        frameworks: [args.framework],
+        provisioned_by: "setup-wizard",
+        ssh_port: args.sshPort ?? null,
+        ssh_key_path: args.sshKeyPath ?? null,
+        openclaw_user: args.runtimeUser ?? null,
+      }),
     ]
   );
   return nodeId;
@@ -153,6 +291,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    case "test-ssh": {
+      const sshBody = body as SetupSshTestInput;
+      const sshHost = sshBody.ssh_host?.trim();
+      const sshUser = sshBody.ssh_user?.trim();
+      const sshPort = normalizeSshPort(sshBody.ssh_port);
+      const sshKeyPath = sshBody.ssh_key_path?.trim() || undefined;
+
+      if (!sshHost || !sshUser) {
+        return NextResponse.json(
+          { error: "ssh_host and ssh_user are required" },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const result = await testRemoteConnection({
+          host: sshHost,
+          user: sshUser,
+          port: sshPort,
+          keyPath: sshKeyPath,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          ssh_host: sshHost,
+          ssh_user: sshUser,
+          ssh_port: sshPort ?? null,
+          ssh_key_path: sshKeyPath ?? null,
+          output: result.stdout || result.stderr || "SSH connection successful",
+        });
+      } catch (error) {
+        return NextResponse.json(
+          {
+            ok: false,
+            ssh_host: sshHost,
+            ssh_user: sshUser,
+            ssh_port: sshPort ?? null,
+            ssh_key_path: sshKeyPath ?? null,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     case "agent": {
       const rawAgents: SetupAgentInput[] = Array.isArray(body.agents)
         ? body.agents as SetupAgentInput[]
@@ -163,9 +346,12 @@ export async function POST(req: NextRequest) {
             install_mode: body.install_mode,
             ssh_host: body.ssh_host,
             ssh_user: body.ssh_user,
+            ssh_port: body.ssh_port,
+            ssh_key_path: body.ssh_key_path,
             node_name: body.node_name,
             config_path: body.config_path,
             service_name: body.service_name,
+            runtime_user: body.runtime_user,
           } satisfies SetupAgentInput];
 
       const agents = rawAgents.filter((agent): agent is SetupAgentInput => typeof agent?.name === "string" && agent.name.trim().length > 0);
@@ -191,7 +377,10 @@ export async function POST(req: NextRequest) {
         const serviceName = item.service_name?.trim() || undefined;
         const sshHost = item.ssh_host?.trim() || undefined;
         const sshUser = item.ssh_user?.trim() || undefined;
+        const sshPort = normalizeSshPort(item.ssh_port);
+        const sshKeyPath = item.ssh_key_path?.trim() || undefined;
         const nodeName = item.node_name?.trim() || normalizedName;
+        const runtimeUser = item.runtime_user?.trim() || undefined;
 
         const existing = await query("SELECT id FROM agents WHERE id = $1 LIMIT 1", [agentId]);
         if ((existing.rows as Array<{ id: string }>).length > 0) {
@@ -209,7 +398,16 @@ export async function POST(req: NextRequest) {
               normalizedName,
               description,
               framework,
-              JSON.stringify({ install_mode: installMode, ssh_host: sshHost, ssh_user: sshUser, config_path: configPath, service_name: serviceName }),
+              JSON.stringify({
+                install_mode: installMode,
+                ssh_host: sshHost,
+                ssh_user: sshUser,
+                ssh_port: sshPort,
+                ssh_key_path: sshKeyPath,
+                config_path: configPath,
+                service_name: serviceName,
+                runtime_user: runtimeUser,
+              }),
               agentId,
             ]
           );
@@ -223,7 +421,16 @@ export async function POST(req: NextRequest) {
               description,
               framework,
               tokenHash,
-              JSON.stringify({ install_mode: installMode, ssh_host: sshHost, ssh_user: sshUser, config_path: configPath, service_name: serviceName }),
+              JSON.stringify({
+                install_mode: installMode,
+                ssh_host: sshHost,
+                ssh_user: sshUser,
+                ssh_port: sshPort,
+                ssh_key_path: sshKeyPath,
+                config_path: configPath,
+                service_name: serviceName,
+                runtime_user: runtimeUser,
+              }),
             ]
           );
         }
@@ -234,7 +441,10 @@ export async function POST(req: NextRequest) {
             nodeName,
             host: sshHost,
             sshUser,
+            sshPort,
+            sshKeyPath,
             framework,
+            runtimeUser,
           });
         }
 
@@ -254,11 +464,22 @@ export async function POST(req: NextRequest) {
 
         if ((installMode === "remote" || installMode === "both") && sshHost && sshUser) {
           try {
-            const remote = await runRemoteCommand(sshHost, sshUser, installSnippet);
+            const connection = await testRemoteConnection({
+              host: sshHost,
+              user: sshUser,
+              port: sshPort,
+              keyPath: sshKeyPath,
+            });
+            const remote = await runRemoteInstall({
+              host: sshHost,
+              user: sshUser,
+              port: sshPort,
+              keyPath: sshKeyPath,
+            }, installSnippet);
             deployment = {
               ok: true,
               mode: installMode,
-              output: remote.stdout || remote.stderr || "Configuration applied",
+              output: [connection.stdout, remote.stdout, remote.stderr].filter(Boolean).join("\n") || "Configuration applied",
             };
           } catch (error) {
             deployment = {
@@ -285,6 +506,9 @@ export async function POST(req: NextRequest) {
           service_name: serviceName ?? null,
           ssh_host: sshHost ?? null,
           ssh_user: sshUser ?? null,
+          ssh_port: sshPort ?? null,
+          ssh_key_path: sshKeyPath ?? null,
+          runtime_user: runtimeUser ?? null,
           node_id: nodeId,
           install_snippet: installSnippet,
           deployment,
