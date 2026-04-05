@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { OctagonX, Pause, Play, ChevronDown, Zap } from "lucide-react";
 import { KillConfirmModal } from "./kill-confirm-modal";
+import type { KillRunResult } from "@/hooks/use-active-runs";
 
 interface ActiveRun {
   run_id: string;
@@ -118,15 +119,54 @@ export function ActiveRunBanner() {
     async (reason: string) => {
       if (!killTarget) return;
       try {
-        await fetch(`/api/tools/agents-live/${killTarget.run_id}/kill`, {
-          method: "POST",
-          headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: reason || undefined }),
-        });
-        setRuns((prev) => prev.filter((r) => r.run_id !== killTarget.run_id));
-        setKillTarget(null);
+        const isMainAgent = killTarget.run_id.startsWith("agent:");
+        const res = await fetch(
+          isMainAgent ? "/api/gateway/kill-agent" : `/api/tools/agents-live/${killTarget.run_id}/kill`,
+          {
+            method: "POST",
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify(
+              isMainAgent
+                ? { agent_id: killTarget.agent_id, reason: reason || undefined }
+                : { reason: reason || undefined }
+            ),
+          }
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          detail?: string;
+          error?: string;
+          verification?: KillRunResult["verification"];
+        };
+        const verifiedStopped =
+          !isMainAgent ||
+          !data.verification ||
+          data.verification.status === "verified_stopped" ||
+          data.verification.status === "no_running_session_found";
+
+        if (res.ok && (data.ok ?? true) && verifiedStopped) {
+          setRuns((prev) => prev.filter((r) => r.run_id !== killTarget.run_id));
+          setKillTarget(null);
+        }
+
+        return {
+          ok: res.ok && (data.ok ?? true),
+          run_id: killTarget.run_id,
+          agent_id: killTarget.agent_id,
+          agent_name: killTarget.agent_name,
+          detail: data.detail ?? data.error,
+          reason: reason || null,
+          verification: data.verification,
+        } satisfies KillRunResult;
       } catch {
-        // Silent
+        return {
+          ok: false,
+          run_id: killTarget.run_id,
+          agent_id: killTarget.agent_id,
+          agent_name: killTarget.agent_name,
+          detail: "Kill request failed",
+          reason: reason || null,
+        } satisfies KillRunResult;
       }
     },
     [killTarget]

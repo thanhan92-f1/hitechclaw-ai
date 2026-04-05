@@ -10,6 +10,9 @@ import { broadcast } from "@/lib/event-bus";
  *
  * POST /api/gateway/kill-agent
  * Body: { agent_id: string, reason?: string, kill_all?: boolean }
+ *
+ * Response includes `verified_dead: boolean` — true only if post-kill session
+ * check confirms zero running sessions remain.
  */
 
 interface SessionInfo {
@@ -17,6 +20,9 @@ interface SessionInfo {
   status: string;
   label?: string;
   displayName?: string;
+  agentId?: string;
+  agent_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface AbortResult {
@@ -24,6 +30,47 @@ interface AbortResult {
   label: string;
   ok: boolean;
   detail: string;
+}
+
+interface VerificationResult {
+  verified_dead: boolean;
+  remaining_sessions: number;
+  verification_method: "session-recheck" | "skipped" | "failed";
+  detail: string;
+}
+
+function matchesAgentSession(session: SessionInfo, agentId: string, agentName: string): boolean {
+  const haystacks = [
+    session.key,
+    session.label,
+    session.displayName,
+    session.agentId,
+    session.agent_id,
+    typeof session.metadata?.agent_id === "string" ? session.metadata.agent_id : undefined,
+    typeof session.metadata?.agentId === "string" ? session.metadata.agentId : undefined,
+    typeof session.metadata?.agent_name === "string" ? session.metadata.agent_name : undefined,
+    typeof session.metadata?.agentName === "string" ? session.metadata.agentName : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.toLowerCase());
+
+  const needles = [agentId, agentName]
+    .filter(Boolean)
+    .map((value) => value.toLowerCase());
+
+  return needles.some((needle) =>
+    haystacks.some((haystack) => haystack === needle || haystack.includes(needle))
+  );
+}
+
+async function listGatewaySessions(sshHost: string, sshUser: string): Promise<SessionInfo[]> {
+  const listOutput = await sshExec(
+    sshHost,
+    sshUser,
+    "openclaw gateway call sessions.list --json"
+  );
+  const listData = JSON.parse(listOutput) as { sessions?: SessionInfo[] };
+  return listData.sessions ?? [];
 }
 
 function sshExec(host: string, user: string, command: string, timeoutMs = 15000): Promise<string> {
@@ -85,6 +132,12 @@ export async function POST(req: NextRequest) {
   let killOk = false;
   let killDetail = "";
   const abortResults: AbortResult[] = [];
+  let verification: VerificationResult = {
+    verified_dead: false,
+    remaining_sessions: -1,
+    verification_method: "skipped",
+    detail: "Verification not started",
+  };
 
   if (!sshHost) {
     // No gateway SSH configured — event-only fallback with WARNING
@@ -95,23 +148,25 @@ export async function POST(req: NextRequest) {
   } else {
     try {
       // Step 1: List all sessions from the gateway
-      const listOutput = await sshExec(
-        sshHost,
-        sshUser,
-        "openclaw gateway call sessions.list --json"
-      );
-      const listData = JSON.parse(listOutput) as { sessions?: SessionInfo[] };
-      const sessions = listData.sessions ?? [];
+      const sessions = await listGatewaySessions(sshHost, sshUser);
 
-      // Step 2: Find running sessions (kill_all aborts ALL running, otherwise just "running" status)
+      // Step 2: Find agent-scoped running sessions unless kill_all is requested
       const targets = kill_all
         ? sessions.filter((s) => s.status === "running")
-        : sessions.filter((s) => s.status === "running");
+        : sessions.filter((s) => s.status === "running" && matchesAgentSession(s, agent_id, agentName));
 
       if (targets.length === 0) {
         killMethod = "gateway-ssh";
         killOk = true;
-        killDetail = "No running sessions found — agent is already idle";
+        killDetail = kill_all
+          ? "No running sessions found — gateway is already idle"
+          : "No matching running sessions found — agent is already idle";
+        verification = {
+          verified_dead: true,
+          remaining_sessions: 0,
+          verification_method: "session-recheck",
+          detail: killDetail,
+        };
       } else {
         // Step 3: Abort each running session
         killMethod = "gateway-ssh";
@@ -145,12 +200,81 @@ export async function POST(req: NextRequest) {
         const failed = abortResults.filter((r) => !r.ok).length;
         killOk = succeeded > 0;
         killDetail = `Aborted ${succeeded}/${targets.length} running sessions${failed > 0 ? ` (${failed} failed)` : ""}`;
+
+        // Verification continues in the shared Phase 7 block below.
       }
     } catch (err) {
       killMethod = "gateway-ssh";
       killOk = false;
       killDetail = `Gateway SSH failed: ${err instanceof Error ? err.message : "Unknown error"}`;
       console.error("[kill-agent] Gateway SSH error:", err);
+    }
+  }
+
+  // ── Phase 7: Kill Verification ──────────────────────────────────────
+  // After abort, wait briefly then re-check sessions to confirm agent is dead.
+  if (!sshHost || killMethod === "event-only") {
+    verification = {
+      verified_dead: false,
+      remaining_sessions: -1,
+      verification_method: "skipped",
+      detail: "No SSH host — verification skipped",
+    };
+  } else if (!killOk) {
+    verification = {
+      verified_dead: false,
+      remaining_sessions: -1,
+      verification_method: "skipped",
+      detail: "Kill failed — verification skipped",
+    };
+  } else {
+    // Wait 2s for abort to propagate through the gateway
+    await new Promise((r) => setTimeout(r, 2000));
+
+    try {
+      const verifySessions = await listGatewaySessions(sshHost, sshUser);
+      const remainingSessions = kill_all
+        ? verifySessions.filter((s) => s.status === "running")
+        : verifySessions.filter((s) => s.status === "running" && matchesAgentSession(s, agent_id, agentName));
+
+      if (remainingSessions.length === 0) {
+        verification = {
+          verified_dead: true,
+          remaining_sessions: 0,
+          verification_method: "session-recheck",
+          detail: "Confirmed: zero running sessions remain",
+        };
+        if (!killDetail.includes("verified stopped") && !killDetail.includes("already idle")) {
+          killDetail += " — verified stopped";
+        }
+      } else {
+        verification = {
+          verified_dead: false,
+          remaining_sessions: remainingSessions.length,
+          verification_method: "session-recheck",
+          detail: `WARNING: ${remainingSessions.length} session(s) still running after abort`,
+        };
+        killOk = false;
+        if (!killDetail.includes("still running")) {
+          killDetail += ` — ${remainingSessions.length} session(s) still running`;
+        }
+        console.warn(
+          `[kill-agent] Verification failed: ${remainingSessions.length} sessions still running`,
+          remainingSessions.map((s) => s.key)
+        );
+      }
+    } catch (err) {
+      verification = {
+        verified_dead: false,
+        remaining_sessions: -1,
+        verification_method: "failed",
+        detail: `Verification SSH failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      };
+      killOk = false;
+      if (!killDetail.includes("verification failed")) {
+        killDetail += ` — verification failed: ${err instanceof Error ? err.message : "Unknown error"}`;
+      }
+      console.error("[kill-agent] Verification error:", err);
     }
   }
 
@@ -171,6 +295,7 @@ export async function POST(req: NextRequest) {
           kill_success: killOk,
           kill_detail: killDetail,
           sessions_aborted: abortResults,
+          verification,
           is_main_agent: true,
         }),
         req.headers.get("x-forwarded-for") ?? null,
@@ -195,6 +320,8 @@ export async function POST(req: NextRequest) {
           kill_method: killMethod,
           kill_success: killOk,
           sessions_aborted: abortResults.length,
+          verification,
+          verified_dead: verification.verified_dead,
         }),
       ]
     );
@@ -211,6 +338,8 @@ export async function POST(req: NextRequest) {
       method: killMethod,
       sessions_aborted: abortResults.length,
       reason: reason ?? null,
+      verification,
+      verified_dead: verification.verified_dead,
     },
   });
 
@@ -222,5 +351,6 @@ export async function POST(req: NextRequest) {
     detail: killDetail,
     sessions: abortResults,
     reason: reason ?? null,
+    verification,
   });
 }

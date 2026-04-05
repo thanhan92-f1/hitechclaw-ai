@@ -359,8 +359,16 @@ export default function AgentDetailPage() {
         <KillConfirmModal
           run={killTarget}
           onConfirm={async (reason) => {
-            await killRun(killTarget.run_id, reason);
-            setKillTarget(null);
+            const result = await killRun(killTarget.run_id, reason);
+            if (
+              result.ok &&
+              (!result.verification ||
+                result.verification.status === "verified_stopped" ||
+                result.verification.status === "no_running_session_found")
+            ) {
+              setKillTarget(null);
+            }
+            return result;
           }}
           onCancel={() => setKillTarget(null)}
         />

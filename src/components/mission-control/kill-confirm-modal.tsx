@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { OctagonX, AlertTriangle } from "lucide-react";
+import { OctagonX, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import type { KillRunResult } from "@/hooks/use-active-runs";
 
 interface ActiveRun {
   run_id: string;
@@ -28,11 +29,12 @@ export function KillConfirmModal({
   onCancel,
 }: {
   run: ActiveRun;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string) => Promise<KillRunResult | void>;
   onCancel: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<KillRunResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -47,10 +49,18 @@ export function KillConfirmModal({
     return () => window.removeEventListener("keydown", handler);
   }, [onCancel]);
 
+  const verificationStatus = result?.verification?.status;
+  const isVerifiedStop = verificationStatus === "verified_stopped" || verificationStatus === "no_running_session_found";
+
   const handleConfirm = useCallback(async () => {
     setLoading(true);
-    await onConfirm(reason);
-    setLoading(false);
+    setResult(null);
+    try {
+      const nextResult = await onConfirm(reason);
+      setResult(nextResult ?? null);
+    } finally {
+      setLoading(false);
+    }
   }, [reason, onConfirm]);
 
   return (
@@ -95,6 +105,46 @@ export function KillConfirmModal({
           </p>
         </div>
 
+        {loading ? (
+          <div className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-[12px] text-cyan-200">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Sending kill signal and verifying agent shutdown...
+          </div>
+        ) : null}
+
+        {result ? (
+          <div
+            className={`mb-4 rounded-xl border px-3 py-2 text-[12px] ${
+              result.ok && isVerifiedStop
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                : "border-amber-500/20 bg-amber-500/10 text-amber-200"
+            }`}
+          >
+            <div className="flex items-start gap-2">
+              {result.ok && isVerifiedStop ? (
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              )}
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-medium">
+                  {result.detail ?? (result.ok ? "Kill request completed." : "Kill request failed.")}
+                </p>
+                {result.verification?.checked_at ? (
+                  <p className="text-[11px] opacity-80">
+                    Verification: {result.verification.status?.replaceAll("_", " ") ?? "unknown"}
+                  </p>
+                ) : null}
+                {result.verification?.remaining_sessions?.length ? (
+                  <p className="text-[11px] opacity-80">
+                    Remaining: {result.verification.remaining_sessions.join(", ")}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mb-4">
           <label
             htmlFor="kill-reason"
@@ -110,6 +160,7 @@ export function KillConfirmModal({
             onChange={(e) => setReason(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); }}
             placeholder="e.g. Agent producing incorrect outputs"
+            disabled={loading}
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] focus:border-red-500/40"
           />
         </div>

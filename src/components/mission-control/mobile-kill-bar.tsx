@@ -30,8 +30,16 @@ export function MobileKillBar() {
   const handleKillConfirm = useCallback(
     async (reason: string) => {
       if (!killTarget) return;
-      await killRun(killTarget.run_id, reason || undefined);
-      setKillTarget(null);
+      const result = await killRun(killTarget.run_id, reason || undefined);
+      if (
+        result.ok &&
+        (!result.verification ||
+          result.verification.status === "verified_stopped" ||
+          result.verification.status === "no_running_session_found")
+      ) {
+        setKillTarget(null);
+      }
+      return result;
     },
     [killTarget, killRun]
   );
