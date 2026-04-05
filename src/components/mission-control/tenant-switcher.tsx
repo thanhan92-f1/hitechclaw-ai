@@ -21,13 +21,12 @@ export function TenantSwitcher() {
   const { activeTenant, setActiveTenant } = useTenantFilter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [open, setOpen] = useState(false);
-  const [role, setRole] = useState<string>("viewer");
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
+  const [role] = useState<string>(() => {
+    if (typeof document === "undefined") return "viewer";
     const match = document.cookie.match(/mc_role=([^;]+)/);
-    if (match?.[1]) setRole(decodeURIComponent(match[1]));
-  }, []);
+    return match?.[1] ? decodeURIComponent(match[1]) : "viewer";
+  });
+  const ref = useRef<HTMLDivElement>(null);
 
   const isOwner = role === "owner" || role === "admin";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart, Bar, AreaChart, Area, CartesianGrid,
@@ -96,9 +96,13 @@ export function BenchmarksDashboard() {
 
   useEffect(() => {
     let mounted = true;
-    setError(null);
     apiFetch<OverviewData>(`/api/benchmarks/overview?range=${range}`)
-      .then((d) => { if (mounted) setData(d); })
+      .then((d) => {
+        if (mounted) {
+          setError(null);
+          setData(d);
+        }
+      })
       .catch((e) => { if (mounted) setError(e.message); });
     return () => { mounted = false; };
   }, [range]);
@@ -120,9 +124,6 @@ export function BenchmarksDashboard() {
       </div>
     );
   }
-
-  const s = data.summary;
-
   return (
     <div className="space-y-6">
       <SectionDescription id="benchmarks">

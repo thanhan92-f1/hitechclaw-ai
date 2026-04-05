@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
-  CheckCircle,
   ChevronRight,
   Clock,
   Loader2,
@@ -17,7 +16,6 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { SectionDescription } from "@/components/mission-control/dashboard-clarity";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { usePollingFetch, timeAgo } from "@/components/mission-control/api";
 
@@ -173,6 +171,7 @@ function IncidentList({
 }) {
   const url = `/api/incidents?status=${statusFilter}${severityFilter ? `&severity=${severityFilter}` : ""}`;
   const { data, loading } = usePollingFetch<ListData>(url, 15000);
+  const now = useNow(60000);
 
   const stats = data?.stats;
   const incidents = data?.incidents ?? [];
@@ -252,7 +251,7 @@ function IncidentList({
           {incidents.map((inc) => {
             const sev = SEVERITY_CONFIG[inc.severity] ?? SEVERITY_CONFIG.P3;
             const st = STATUS_CONFIG[inc.status] ?? STATUS_CONFIG.created;
-            const slaMs = inc.sla_deadline ? new Date(inc.sla_deadline).getTime() - Date.now() : null;
+            const slaMs = inc.sla_deadline ? new Date(inc.sla_deadline).getTime() - now : null;
             const sla = formatSla(slaMs, inc.sla_breached);
 
             return (

@@ -761,7 +761,7 @@ export function MCPInventory() {
             ⚠ {unapprovedCount} unapproved MCP server{unapprovedCount > 1 ? "s" : ""} detected
           </p>
           <p className="mt-0.5 text-xs text-amber-400/70">
-            Review and approve or remove servers you don't recognise.
+            Review and approve or remove servers you do not recognise.
           </p>
         </div>
       )}

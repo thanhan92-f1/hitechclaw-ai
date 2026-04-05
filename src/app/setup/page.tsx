@@ -830,13 +830,13 @@ function ConfettiEffect() {
           key={i}
           className="absolute animate-[confetti_1.5s_ease-out_forwards]"
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 40}%`,
-            width: `${6 + Math.random() * 6}px`,
-            height: `${6 + Math.random() * 6}px`,
+            left: `${(i * 37) % 100}%`,
+            top: `${(i * 17) % 40}%`,
+            width: `${6 + ((i * 13) % 6)}px`,
+            height: `${6 + ((i * 19) % 6)}px`,
             backgroundColor: colors[i % colors.length],
-            borderRadius: Math.random() > 0.5 ? "50%" : "2px",
-            animationDelay: `${Math.random() * 0.5}s`,
+            borderRadius: i % 3 === 0 ? "50%" : "2px",
+            animationDelay: `${((i * 7) % 5) / 10}s`,
             opacity: 0,
           }}
         />

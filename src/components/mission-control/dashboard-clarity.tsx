@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
-import { Info, ChevronDown } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Info } from "lucide-react";
 
 /* ── MetricTooltip ─────────────────────────────────────────────────────────── */
 
@@ -276,19 +276,15 @@ export function SectionDescription({
   children: ReactNode;
 }) {
   const storageKey = `${SECTION_SEEN_PREFIX}${id}`;
-  const [expanded, setExpanded] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof window === "undefined") return false;
     const seen = localStorage.getItem(storageKey);
     if (!seen) {
-      setExpanded(true);
       localStorage.setItem(storageKey, "1");
+      return true;
     }
-  }, [storageKey]);
-
-  if (!mounted) return null;
+    return false;
+  });
 
   return (
     <div className="mb-4">

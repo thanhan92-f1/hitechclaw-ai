@@ -26,10 +26,15 @@ export function QuickKillDialog({
   const [killing, setKilling] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Reset selection when opening or runs change
-  useEffect(() => {
-    if (open) setSelected(0);
-  }, [open, runs.length]);
+  const handleKill = useCallback(
+    async (run: ActiveRun) => {
+      setKilling(true);
+      await killRun(run.run_id, "Quick kill via Ctrl+Shift+K");
+      setKilling(false);
+      if (runs.length <= 1) onClose();
+    },
+    [killRun, runs.length, onClose]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -43,24 +48,14 @@ export function QuickKillDialog({
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelected((i) => Math.max(i - 1, 0));
-      } else if (e.key === "Enter" && runs[selected]) {
+      } else if (e.key === "Enter" && runs[Math.min(selected, runs.length - 1)]) {
         e.preventDefault();
-        handleKill(runs[selected]);
+        handleKill(runs[Math.min(selected, runs.length - 1)]);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, runs, selected, onClose]);
-
-  const handleKill = useCallback(
-    async (run: ActiveRun) => {
-      setKilling(true);
-      await killRun(run.run_id, "Quick kill via Ctrl+Shift+K");
-      setKilling(false);
-      if (runs.length <= 1) onClose();
-    },
-    [killRun, runs.length, onClose]
-  );
+  }, [open, runs, selected, onClose, handleKill]);
 
   if (!open) return null;
 
@@ -98,7 +93,7 @@ export function QuickKillDialog({
                 onClick={() => handleKill(run)}
                 disabled={killing}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition ${
-                  i === selected
+                  i === Math.min(selected, Math.max(runs.length - 1, 0))
                     ? "bg-red-500/10 text-red-200"
                     : "text-[var(--text-secondary)] hover:bg-white/[0.03]"
                 } disabled:opacity-50`}

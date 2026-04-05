@@ -141,7 +141,7 @@ function TokenReveal({ token, onDismiss }: { token: string; onDismiss: () => voi
         </button>
       </div>
       <button onClick={onDismiss} className="mt-3 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition">
-        I've saved the token — dismiss
+        I have saved the token — dismiss
       </button>
     </div>
   );
@@ -478,7 +478,7 @@ export function AdminPanel() {
           <Input label="Display Name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. My Assistant" />
           <Select label="Role" value={newRole} onChange={(e) => setNewRole(e.target.value)}>
             <option value="owner">owner — full control (use with caution)</option>
-            <option value="admin">admin — can intervene, can't destroy</option>
+            <option value="admin">admin — can intervene, cannot destroy</option>
             <option value="agent">agent — AI write-only (for AI assistants)</option>
             <option value="viewer">viewer — read-only access</option>
           </Select>
@@ -527,7 +527,7 @@ export function AdminPanel() {
           </Select>
           <Select label="New Role" value={editRole} onChange={(e) => setEditRole(e.target.value)}>
             <option value="owner">owner — full control</option>
-            <option value="admin">admin — can intervene, can't destroy</option>
+            <option value="admin">admin — can intervene, cannot destroy</option>
             <option value="agent">agent — AI write-only</option>
             <option value="viewer">viewer — read-only</option>
           </Select>

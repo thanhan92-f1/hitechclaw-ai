@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type AuthMode = "passphrase" | "email" | "magic";
@@ -17,15 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    const magicToken = searchParams.get("magic");
-    const magicEmailParam = searchParams.get("email");
-    if (magicToken && magicEmailParam) {
-      verifyMagicLink(magicToken, magicEmailParam);
-    }
-  }, [searchParams]);
-
-  async function verifyMagicLink(token: string, emailAddr: string) {
+  const verifyMagicLink = useCallback(async (token: string, emailAddr: string) => {
     setLoading(true);
     setError("");
     setMode("magic");
@@ -53,7 +45,18 @@ export default function LoginPage() {
       setError("Connection error. Please try again.");
       setLoading(false);
     }
-  }
+  }, [router]);
+
+  useEffect(() => {
+    const magicToken = searchParams.get("magic");
+    const magicEmailParam = searchParams.get("email");
+    if (magicToken && magicEmailParam) {
+      const timer = window.setTimeout(() => {
+        void verifyMagicLink(magicToken, magicEmailParam);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [searchParams, verifyMagicLink]);
 
   async function handlePassphraseLogin(e: React.FormEvent) {
     e.preventDefault();

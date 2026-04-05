@@ -56,11 +56,6 @@ export function HelpPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, toggle]);
 
-  // Close on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
   // Click outside to close
   useEffect(() => {
     if (!open) return;

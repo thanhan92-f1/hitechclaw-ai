@@ -61,11 +61,6 @@ export function FloatingKillSwitch() {
     return () => window.removeEventListener("keydown", handler);
   }, [expanded]);
 
-  // Auto-collapse when no runs
-  useEffect(() => {
-    if (runs.length === 0) setExpanded(false);
-  }, [runs.length]);
-
   const handleKillConfirm = useCallback(
     async (reason: string) => {
       if (!killTarget) return;

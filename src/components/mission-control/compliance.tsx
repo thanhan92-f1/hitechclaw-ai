@@ -78,13 +78,17 @@ function AuditLogTab() {
 
   useEffect(() => {
     let mounted = true;
-    setError(null);
     const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (actionFilter) params.set("action", actionFilter);
     if (resourceFilter) params.set("resource_type", resourceFilter);
 
     apiFetch<AuditData>(`/api/compliance/audit-log?${params}`)
-      .then((d) => { if (mounted) setData(d); })
+      .then((d) => {
+        if (mounted) {
+          setError(null);
+          setData(d);
+        }
+      })
       .catch((e) => { if (mounted) setError(e.message); });
     return () => { mounted = false; };
   }, [offset, actionFilter, resourceFilter]);

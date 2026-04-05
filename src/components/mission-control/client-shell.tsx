@@ -35,10 +35,6 @@ export function ClientShell({ children }: { children: ReactNode }) {
   const [tenantPlan, setTenantPlan] = useState<string>("");
 
   useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
     let mounted = true;
     const run = async () => {
       try {

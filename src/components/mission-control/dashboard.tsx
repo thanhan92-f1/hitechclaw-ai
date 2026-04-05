@@ -3,16 +3,13 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  CardEntranceWrapper,
-  EventsAreaChart,
   PulsingDot,
   SkeletonCard,
   Sparkline,
   StatCountUp,
   StatusRing,
-  TokensAreaChart,
 } from "./charts";
 import {
   activityStatus,
@@ -32,7 +29,6 @@ import { EmptyState, FirstRunBanner } from "./empty-states";
 import { Bot, AlertTriangle, ChevronDown, OctagonX, Shield, Wallet, Users, Radio } from "lucide-react";
 import { useActiveRuns } from "@/hooks/use-active-runs";
 import { KillConfirmModal } from "./kill-confirm-modal";
-import { StatCard as UiStatCard } from "./ui-cards";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { StatusSummary, HealthGauge, MetricTooltip, SectionDescription } from "./dashboard-clarity";
 import { computeHealthScore } from "@/lib/health-score";
@@ -732,7 +728,7 @@ function OverviewContent() {
           <Card>
             <SectionTitle title="Agents" note="Live feed" bar />
             <div className="space-y-2">
-              {agents.slice(0, 5).map((agent, agentIdx) => {
+              {agents.slice(0, 5).map((agent) => {
                 const status = activityStatus(agent.last_active);
                 const statusKey = agentStatusKey(agent.last_active);
                 return (
@@ -1551,57 +1547,33 @@ export function AnomalyWidget() {
 }
 
 export function OverviewScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <OverviewContent />;
 }
 
 export function ActionsScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <ActionsContent />;
 }
 
 export function HealthScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <HealthContent />;
 }
 
 export function AgentsScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <AgentsContent />;
 }
 
 export function SystemsScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <SystemsContent />;
 }
 
 export function ConfessionsScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <ConfessionsContent />;
 }
 
 export function VisualsScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <VisualsContent />;
 }
 
 export function AgentDetailScreen() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return <LoadingState />;
   return <AgentDetailContent />;
 }

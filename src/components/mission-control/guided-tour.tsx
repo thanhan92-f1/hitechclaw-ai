@@ -84,6 +84,15 @@ export function GuidedTour() {
     }
   }, [searchParams]);
 
+  const closeTour = useCallback(() => {
+    setActive(false);
+    localStorage.setItem(TOUR_DISMISSED_KEY, "1");
+    // Clean up URL param
+    const url = new URL(window.location.href);
+    url.searchParams.delete("tour");
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
+
   const positionTooltip = useCallback((stepIndex: number) => {
     const step = TOUR_STEPS[stepIndex];
     if (!step) return;
@@ -126,11 +135,12 @@ export function GuidedTour() {
 
     // Scroll element into view if needed
     el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, []);
+  }, [closeTour]);
 
   useEffect(() => {
     if (active) {
-      positionTooltip(currentStep);
+      const frame = window.requestAnimationFrame(() => positionTooltip(currentStep));
+      return () => window.cancelAnimationFrame(frame);
     }
   }, [active, currentStep, positionTooltip]);
 
@@ -141,15 +151,6 @@ export function GuidedTour() {
     window.addEventListener("resize", handler);
     return () => window.removeEventListener("resize", handler);
   }, [active, currentStep, positionTooltip]);
-
-  function closeTour() {
-    setActive(false);
-    localStorage.setItem(TOUR_DISMISSED_KEY, "1");
-    // Clean up URL param
-    const url = new URL(window.location.href);
-    url.searchParams.delete("tour");
-    router.replace(url.pathname + url.search, { scroll: false });
-  }
 
   function nextStep() {
     if (currentStep < TOUR_STEPS.length - 1) {

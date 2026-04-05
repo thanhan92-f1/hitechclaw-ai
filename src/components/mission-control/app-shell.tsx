@@ -2,43 +2,29 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { PageTransitionWrapper } from "./charts";
 import {
   AlertTriangle,
   LayoutDashboard,
-  Radio,
   Bot,
-  Server,
   Network,
   ShieldCheck,
-  BarChart3,
   Wallet,
-  Terminal,
   CheckCircle,
-  ListTodo,
-  Clock,
-  Activity,
   Workflow,
   FileText,
   Plug,
-  Globe,
-  Inbox,
-  Calendar,
-  Gauge,
   Shield,
   Lock,
-  Bell,
   LogOut,
   Menu,
   Home,
-  Wrench,
   MoreHorizontal,
   ChevronDown,
   Star,
   Search,
   Settings,
-  MessageSquare,
   PanelLeftClose,
   PanelLeft,
   GitBranch,
@@ -233,19 +219,16 @@ export function NotionShell({ children }: { children: ReactNode }) {
   // alertCount removed — NotificationDropdown now self-manages via /api/notifications
   const [isOpen, setIsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  // Initialize with server-safe defaults, restore from localStorage after hydration
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => loadCollapsedGroups());
   const [pinnedDocs, setPinnedDocs] = useState<PinnedDoc[]>([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    setCollapsedGroups(loadCollapsedGroups());
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
     try {
-      setSidebarCollapsed(localStorage.getItem("hitechclaw-ai-sidebar-collapsed") === "true");
-    } catch {}
-  }, []);
+      return localStorage.getItem("hitechclaw-ai-sidebar-collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickKillOpen, setQuickKillOpen] = useState(false);
 
@@ -286,22 +269,6 @@ export function NotionShell({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
-
-  // Auto-expand group containing active route
-  useEffect(() => {
-    if (!pathname) return;
-    for (const group of navGroups) {
-      const hasActive = group.items.some((item) => isRouteActive(pathname, item.href));
-      if (hasActive && collapsedGroups.has(group.key)) {
-        setCollapsedGroups((prev) => {
-          const next = new Set(prev);
-          next.delete(group.key);
-          saveCollapsedGroups(next);
-          return next;
-        });
-      }
-    }
-  }, [pathname]);
 
   // Fetch pending approvals
   useEffect(() => {
@@ -357,13 +324,9 @@ export function NotionShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  useEffect(() => {
-    setIsOpen(false);
-    setMoreOpen(false);
-  }, [pathname]);
-
   const handleNavSelect = () => {
     setIsOpen(false);
+    setMoreOpen(false);
   };
 
   // Skip shell chrome for login and setup pages (after all hooks to satisfy Rules of Hooks)
@@ -411,7 +374,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
           <Search className="h-3.5 w-3.5" />
           <span className="flex-1 text-left">Search</span>
           <kbd className="rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-tertiary)]">
-            {mounted && typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318K" : "Ctrl+K"}
+            <span suppressHydrationWarning>{typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318K" : "Ctrl+K"}</span>
           </kbd>
         </button>
       </div>}
@@ -549,7 +512,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                   <Search className="h-3.5 w-3.5" />
                   <span>Search</span>
                   <kbd className="ml-2 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-0.5 text-[10px] font-medium">
-                    {mounted && typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318K" : "Ctrl+K"}
+                    <span suppressHydrationWarning>{typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318K" : "Ctrl+K"}</span>
                   </kbd>
                 </button>
                 

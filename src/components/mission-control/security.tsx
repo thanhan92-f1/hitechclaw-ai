@@ -937,7 +937,7 @@ export function SecurityScreen() {
     30000
   );
 
-  const events = data?.events ?? [];
+  const events = useMemo(() => data?.events ?? [], [data?.events]);
 
   const refresh = useCallback(() => {
     setRefreshKey((k) => k + 1);

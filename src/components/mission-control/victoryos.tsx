@@ -187,7 +187,10 @@ export default function VictoryOSScreen() {
   };
 
   useEffect(() => {
-    fetchData(range);
+    const timer = window.setTimeout(() => {
+      fetchData(range);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [range]);
 
   // Fill hourly chart with all 24 hours

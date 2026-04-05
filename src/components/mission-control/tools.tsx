@@ -869,6 +869,7 @@ export function TasksToolScreen() {
   const [quickTitle, setQuickTitle] = useState("");
   const [quickPriority, setQuickPriority] = useState("P2");
   const { data, error, loading } = usePollingData<{ items: TaskItem[] }>("/api/tools/tasks", 12000);
+  const now = useNow(60000);
 
   const groups = useMemo(() => {
     const items = data?.items ?? [];
@@ -919,7 +920,7 @@ export function TasksToolScreen() {
   if (loading && !data) return <LoadingState label="Loading tasks" />;
 
   const renderTaskCard = (task: TaskItem) => {
-    const overdue = task.due_date && new Date(task.due_date).getTime() < Date.now() && task.status !== "done";
+    const overdue = task.due_date && new Date(task.due_date).getTime() < now && task.status !== "done";
     return (
       <Card key={task.id} className="space-y-3">
         <div className="flex items-start justify-between gap-3">

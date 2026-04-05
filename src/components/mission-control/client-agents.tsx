@@ -15,9 +15,9 @@ interface AgentWithStats {
   messages_30d: number;
 }
 
-function timeAgo(dateStr: string | null): string {
+function timeAgo(dateStr: string | null, now: number): string {
   if (!dateStr) return "Never";
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = now - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
@@ -27,9 +27,9 @@ function timeAgo(dateStr: string | null): string {
   return `${days}d ago`;
 }
 
-function StatusBadge({ lastSeen }: { lastSeen: string | null }) {
+function StatusBadge({ lastSeen, now }: { lastSeen: string | null; now: number }) {
   if (!lastSeen) return <span className="rounded-full bg-[var(--bg-surface-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-secondary)]">NEVER SEEN</span>;
-  const online = Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000;
+  const online = now - new Date(lastSeen).getTime() < 5 * 60 * 1000;
   return online
     ? <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">ONLINE</span>
     : <span className="rounded-full bg-[var(--bg-surface-2)]/50 px-2 py-0.5 text-[10px] font-bold text-[var(--text-secondary)]">OFFLINE</span>;
@@ -39,6 +39,7 @@ export function ClientAgents() {
   const [agents, setAgents] = useState<AgentWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +56,11 @@ export function ClientAgents() {
     load();
     const timer = setInterval(load, 30000);
     return () => { mounted = false; clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
   }, []);
 
   if (loading) return <div className="text-center text-[var(--text-tertiary)] py-20"><p className="animate-pulse">Loading agents...</p></div>;
@@ -81,10 +87,10 @@ export function ClientAgents() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-semibold text-white">{agent.name}</h3>
-                    <StatusBadge lastSeen={agent.last_seen_at} />
+                    <StatusBadge lastSeen={agent.last_seen_at} now={now} />
                   </div>
                   <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                    {agent.role} &middot; ID: {agent.id} &middot; Last seen {timeAgo(agent.last_seen_at)}
+                    {agent.role} &middot; ID: {agent.id} &middot; Last seen {timeAgo(agent.last_seen_at, now)}
                   </p>
                 </div>
               </div>

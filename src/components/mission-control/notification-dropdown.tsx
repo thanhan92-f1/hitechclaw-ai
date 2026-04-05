@@ -106,16 +106,24 @@ export function NotificationDropdown() {
 
   // Poll unread count every 30s
   useEffect(() => {
-    fetchNotifications();
+    const kickoff = window.setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
     const timer = window.setInterval(fetchNotifications, 30000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(kickoff);
+      window.clearInterval(timer);
+    };
   }, [fetchNotifications]);
 
   // Refresh when opened
   useEffect(() => {
     if (open) {
-      setLoading(true);
-      fetchNotifications().finally(() => setLoading(false));
+      const kickoff = window.setTimeout(() => {
+        setLoading(true);
+        void fetchNotifications().finally(() => setLoading(false));
+      }, 0);
+      return () => window.clearTimeout(kickoff);
     }
   }, [open, fetchNotifications]);
 
