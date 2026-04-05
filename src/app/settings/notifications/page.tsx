@@ -160,6 +160,31 @@ function formatVerificationTime(value: unknown): string | null {
   }).format(date);
 }
 
+function getEmailVerificationBadgeHelp(
+  status: string,
+  verifiedAt: string | null,
+  message: string,
+  needsRecheck: boolean,
+): string {
+  if (status === "success") {
+    return verifiedAt
+      ? `SMTP verification passed at ${verifiedAt}.${message ? ` ${message}` : ""}`
+      : `SMTP verification passed.${message ? ` ${message}` : ""}`;
+  }
+
+  if (status === "failed") {
+    return verifiedAt
+      ? `SMTP verification failed at ${verifiedAt}.${message ? ` ${message}` : ""}`
+      : `SMTP verification failed.${message ? ` ${message}` : ""}`;
+  }
+
+  if (needsRecheck) {
+    return "SMTP settings are enabled but have not been verified with the current configuration yet. Use Save & Verify SMTP to confirm delivery.";
+  }
+
+  return "";
+}
+
 /* ── Component ── */
 
 export default function NotificationPreferencesPage() {
@@ -496,6 +521,9 @@ export default function NotificationPreferencesPage() {
         const emailVerifyStatus = ch.key === "email" ? String(state.config.smtp_last_verify_status ?? "").trim() : "";
         const emailVerifyMessage = ch.key === "email" ? String(state.config.smtp_last_verify_message ?? "").trim() : "";
         const emailNeedsRecheck = ch.key === "email" && state.enabled && !emailVerifyStatus;
+        const emailVerifyBadgeHelp = ch.key === "email"
+          ? getEmailVerificationBadgeHelp(emailVerifyStatus, emailVerifiedAt, emailVerifyMessage, emailNeedsRecheck)
+          : "";
 
         return (
           <div
@@ -524,17 +552,29 @@ export default function NotificationPreferencesPage() {
               </div>
               <div className="flex items-center gap-2">
                 {ch.key === "email" && state.enabled && emailVerifyStatus === "success" ? (
-                  <span className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
+                  <span
+                    title={emailVerifyBadgeHelp}
+                    aria-label={emailVerifyBadgeHelp}
+                    className="rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]"
+                  >
                     Verified
                   </span>
                 ) : null}
                 {ch.key === "email" && state.enabled && emailVerifyStatus === "failed" ? (
-                  <span className="rounded-full bg-[var(--danger)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--danger)]">
+                  <span
+                    title={emailVerifyBadgeHelp}
+                    aria-label={emailVerifyBadgeHelp}
+                    className="rounded-full bg-[var(--danger)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--danger)]"
+                  >
                     Verify failed
                   </span>
                 ) : null}
                 {emailNeedsRecheck ? (
-                  <span className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]">
+                  <span
+                    title={emailVerifyBadgeHelp}
+                    aria-label={emailVerifyBadgeHelp}
+                    className="rounded-full bg-[var(--warning)]/10 px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+                  >
                     Needs re-check
                   </span>
                 ) : null}
