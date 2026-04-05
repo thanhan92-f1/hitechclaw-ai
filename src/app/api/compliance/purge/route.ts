@@ -82,12 +82,18 @@ export async function POST(req: NextRequest) {
           // Log the purge itself
           await query(
             `INSERT INTO audit_log (actor, action, resource_type, resource_id, detail, tenant_id)
-             VALUES ('system', 'gdpr_purge', 'tenant', $1, $2, 'transformate')`,
+             VALUES ('system', 'gdpr_purge', 'tenant', $1, $2, $1)`,
             [body.scope_id, JSON.stringify({ rows_deleted: results })]
           );
         }
       }
     } else if (body.scope === "agent") {
+      const agentTenantResult = await query(
+        `SELECT tenant_id FROM agents WHERE id = $1 LIMIT 1`,
+        [body.scope_id]
+      );
+      const agentTenantId = agentTenantResult.rows[0]?.tenant_id ?? "default";
+
       const eventCount = await query(
         `SELECT COUNT(*)::int as c FROM events WHERE agent_id = $1`, [body.scope_id]
       );
@@ -117,8 +123,8 @@ export async function POST(req: NextRequest) {
 
         await query(
           `INSERT INTO audit_log (actor, action, resource_type, resource_id, detail, tenant_id)
-           VALUES ('system', 'gdpr_purge', 'agent', $1, $2, 'transformate')`,
-          [body.scope_id, JSON.stringify({ rows_deleted: results })]
+           VALUES ('system', 'gdpr_purge', 'agent', $1, $2, $3)`,
+          [body.scope_id, JSON.stringify({ rows_deleted: results }), agentTenantId]
         );
       }
     }

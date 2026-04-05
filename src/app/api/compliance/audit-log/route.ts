@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
         body.resource_id ?? null,
         JSON.stringify(body.detail ?? {}),
         body.ip_address ?? req.headers.get("x-forwarded-for") ?? null,
-        body.tenant_id ?? "transformate",
+        body.tenant_id ?? "default",
       ]
     );
 

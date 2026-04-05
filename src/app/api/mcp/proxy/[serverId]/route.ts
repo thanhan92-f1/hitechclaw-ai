@@ -174,7 +174,7 @@ export async function POST(
 
     await logProxy(
       parseInt(serverId) || 0, "", null, "POST", mcpMethod,
-      Buffer.byteLength(requestBody, "utf8"), 0, 502, duration, errorMsg, "transformate"
+      Buffer.byteLength(requestBody, "utf8"), 0, 502, duration, errorMsg, "default"
     );
 
     return NextResponse.json(

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         monthly_limit_usd || null,
         alert_threshold_pct || 80,
         action_on_exceed || "alert",
-        tenant_id || "transformate",
+        tenant_id || "default",
       ]
     );
 

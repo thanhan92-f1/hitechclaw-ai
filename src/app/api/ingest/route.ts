@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     if (body.session_key) {
       // Look up tenant_id for this agent
       const agentRow = await query("SELECT tenant_id FROM agents WHERE id = $1 LIMIT 1", [agentId]);
-      const tenantId = agentRow.rows[0]?.tenant_id ?? "transformate";
+      const tenantId = agentRow.rows[0]?.tenant_id ?? "default";
 
       await query(
         `INSERT INTO sessions (agent_id, session_key, channel_id, last_active, message_count, tenant_id)
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     // 10. Resolve tenant for budget tracking
     const tenantRow2 = await query("SELECT tenant_id FROM agents WHERE id = $1 LIMIT 1", [agentId]);
-    const resolvedTenantId = tenantRow2.rows[0]?.tenant_id ?? "transformate";
+    const resolvedTenantId = tenantRow2.rows[0]?.tenant_id ?? "default";
 
     // 10. Calculate cost (lightweight — uses in-memory pricing cache)
     const costUsd = await estimateCost(body.token_estimate || 0, body.metadata);
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     if (statField) {
       const agentRow = await query("SELECT tenant_id FROM agents WHERE id = $1 LIMIT 1", [agentId]);
-      const tenantId = agentRow.rows[0]?.tenant_id ?? "transformate";
+      const tenantId = agentRow.rows[0]?.tenant_id ?? "default";
 
       await query(
         `INSERT INTO daily_stats (agent_id, day, ${statField}, estimated_tokens, estimated_cost_usd, tenant_id)

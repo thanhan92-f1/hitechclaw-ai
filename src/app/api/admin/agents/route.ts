@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (!role) return unauthorized();
   if (role !== "owner") return forbidden("Owner only");
 
-  const { id, name, agentRole = "agent", tenant_id = "transformate" } = body;
+  const { id, name, agentRole = "agent", tenant_id = "default" } = body;
   if (!id || !name) {
     return NextResponse.json({ error: "id and name required" }, { status: 400 });
   }

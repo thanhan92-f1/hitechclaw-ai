@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     `INSERT INTO budget_limits (scope_type, scope_id, daily_limit_usd, monthly_limit_usd, alert_threshold_pct, action_on_exceed, tenant_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [scope_type, scope_id, daily_limit_usd || null, monthly_limit_usd || null, alert_threshold_pct || 80, action_on_exceed || "alert", tenant_id || "transformate"]
+    [scope_type, scope_id, daily_limit_usd || null, monthly_limit_usd || null, alert_threshold_pct || 80, action_on_exceed || "alert", tenant_id || "default"]
   );
   return NextResponse.json({ budget: result.rows[0] }, { status: 201 });
 }

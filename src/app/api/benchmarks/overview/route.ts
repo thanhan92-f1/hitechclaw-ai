@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
         body.cost_usd ?? 0,
         body.quality_score ?? null,
         body.agent_id ?? null,
-        body.tenant_id ?? "transformate",
+        body.tenant_id ?? "default",
         JSON.stringify(body.metadata ?? {}),
       ]
     );

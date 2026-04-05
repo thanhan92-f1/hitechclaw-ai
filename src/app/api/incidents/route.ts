@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const sp = req.nextUrl.searchParams;
     const status = sp.get("status");
     const severity = sp.get("severity");
-    const tenantId = sp.get("tenant_id") ?? "transformate";
+    const tenantId = sp.get("tenant_id") ?? "default";
     const limit = Math.min(parseInt(sp.get("limit") ?? "50", 10), 200);
     const offset = parseInt(sp.get("offset") ?? "0", 10);
 
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     const severity = body.severity && ["P1", "P2", "P3", "P4"].includes(body.severity) ? body.severity : "P3";
-    const tenantId = body.tenant_id ?? "transformate";
+    const tenantId = body.tenant_id ?? "default";
     const slaHours = SLA_HOURS[severity] ?? 24;
     const status = body.assigned_to ? "assigned" : "created";
 
