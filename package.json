@@ -2,6 +2,16 @@
   "name": "mission-control",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Nguyen Thanh An by Pho Tue SoftWare Solutions JSC",
+  "homepage": "https://github.com/thanhan92-f1/hitechclaw-ai#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thanhan92-f1/hitechclaw-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thanhan92-f1/hitechclaw-ai/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
