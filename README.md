@@ -251,11 +251,11 @@ Repository operations and automation are documented in [docs/github-governance.m
 
 ## Community
 
-- [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai.git/discussions) — questions, ideas, show & tell
-- [Issues](https://github.com/thanhan92-f1/hitechclaw-ai.git/issues) — bug reports and feature requests
+- [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai/discussions) — questions, ideas, show & tell
+- [Issues](https://github.com/thanhan92-f1/hitechclaw-ai/issues) — bug reports and feature requests
 - [Support Guide](SUPPORT.md) — where to ask questions, report bugs, and route licensing or security topics
 - [Security Policy](SECURITY.md) — private vulnerability reporting and security expectations
-- [ai.hitehclaw.com](https://ai.hitechclaw.com) — website and cloud platform
+- [ai.hitechclaw.com](https://ai.hitechclaw.com) — website and cloud platform
 ---
 
 ## License
