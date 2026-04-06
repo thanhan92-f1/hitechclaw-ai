@@ -36,7 +36,9 @@ import {
   Brain,
   MessageSquare,
   Puzzle,
+  RefreshCcw,
   Smartphone,
+  TerminalSquare,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -114,6 +116,7 @@ type OpenClawNavItem = {
     | "runtime"
     | "mcp"
     | "gateway"
+    | "bindings"
     | "auth"
     | "provider"
     | "credentials"
@@ -131,6 +134,9 @@ type OpenClawNavItem = {
     | "directory"
     | "models"
     | "system"
+    | "environment"
+    | "cli-proxy"
+    | "self-update"
     | "sessions";
   label: string;
   subtitle: string;
@@ -159,6 +165,7 @@ const openClawNavItems: OpenClawNavItem[] = [
   { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
   { key: "mcp", label: "MCP", icon: Plug, subtitle: "MCP server inventory" },
   { key: "gateway", label: "Gateway", icon: Network, subtitle: "Gateway discovery & nodes" },
+  { key: "bindings", label: "Bindings", icon: Wrench, subtitle: "Routing bindings and agent match rules" },
   { key: "auth", label: "Auth", icon: Lock, subtitle: "Management login control" },
   { key: "provider", label: "Provider", icon: Bot, subtitle: "Provider and model control" },
   { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
@@ -176,6 +183,9 @@ const openClawNavItems: OpenClawNavItem[] = [
   { key: "directory", label: "Directory", icon: Database, subtitle: "Peers and groups" },
   { key: "models", label: "Models", icon: Settings, subtitle: "Aliases and fallbacks" },
   { key: "system", label: "System", icon: Shield, subtitle: "Presence and heartbeat" },
+  { key: "environment", label: "Environment", icon: Globe, subtitle: "Masked .env management" },
+  { key: "cli-proxy", label: "CLI Proxy", icon: TerminalSquare, subtitle: "Execute safe OpenClaw CLI commands" },
+  { key: "self-update", label: "Self Update", icon: RefreshCcw, subtitle: "Update management API assets" },
   { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
 ];
 

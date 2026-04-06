@@ -239,6 +239,43 @@ interface ChatGptOAuthStartInfo {
   [key: string]: unknown;
 }
 
+interface BindingRecord {
+  agentId?: string;
+  match?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface BindingsInfo {
+  ok?: boolean;
+  count?: number;
+  bindings?: BindingRecord[];
+}
+
+interface EnvironmentInfo {
+  ok?: boolean;
+  env?: Record<string, string | null>;
+}
+
+interface CliProxyResult {
+  ok?: boolean;
+  output?: string;
+  command?: string;
+  [key: string]: unknown;
+}
+
+interface SelfUpdateFileResult {
+  file?: string;
+  ok?: boolean;
+  [key: string]: unknown;
+}
+
+interface SelfUpdateResult {
+  ok?: boolean;
+  message?: string;
+  files?: SelfUpdateFileResult[];
+  [key: string]: unknown;
+}
+
 interface ChannelRecord {
   configured?: boolean;
   token?: string | null;
@@ -1080,6 +1117,10 @@ export function OpenClawManagement() {
   const isAuthSection = openClawSection === "auth";
   const isCronSection = openClawSection === "cron";
   const isConfigAdvancedSection = openClawSection === "config-advanced";
+  const isBindingsSection = openClawSection === "bindings";
+  const isEnvironmentSection = openClawSection === "environment";
+  const isCliProxySection = openClawSection === "cli-proxy";
+  const isSelfUpdateSection = openClawSection === "self-update";
   const isMemorySection = openClawSection === "memory";
   const isDevicesSection = openClawSection === "devices";
   const isAgentsSection = openClawSection === "agents";
@@ -1139,6 +1180,8 @@ export function OpenClawManagement() {
   const cronJobs = useOpenClawFetch<CronJobsInfo>(`/cron/jobs?all=${cronIncludeDisabled ? "true" : "false"}`, OPENCLAW_SYNC_PASSIVE_MS, isCronSection);
   const configSchema = useOpenClawFetch<ConfigSchemaInfo>("/config/schema", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
   const configFile = useOpenClawFetch<ConfigFileInfo>("/config/file", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
+  const bindings = useOpenClawFetch<BindingsInfo>("/bindings", OPENCLAW_SYNC_PASSIVE_MS, isBindingsSection);
+  const environmentVariables = useOpenClawFetch<EnvironmentInfo>("/env", OPENCLAW_SYNC_PASSIVE_MS, isEnvironmentSection);
   const [memoryAgentId, setMemoryAgentId] = useState("main");
   const [memorySearchQuery, setMemorySearchQuery] = useState("deployment");
   const [memorySearchMaxResults, setMemorySearchMaxResults] = useState(5);
@@ -1274,6 +1317,25 @@ export function OpenClawManagement() {
   const [configRawValueText, setConfigRawValueText] = useState("12");
   const [configRawRemove, setConfigRawRemove] = useState(false);
   const [configApplyTarget, setConfigApplyTarget] = useState<"openclaw" | "caddy" | "all" | "none">("openclaw");
+  const [bindingsBusy, setBindingsBusy] = useState<string | null>(null);
+  const [selectedBindingIndex, setSelectedBindingIndex] = useState("");
+  const [bindingPayloadText, setBindingPayloadText] = useState(`{
+  "agentId": "main",
+  "match": {
+    "channel": "telegram",
+    "accountId": "ops-bot"
+  }
+}`);
+  const [bindingActionResult, setBindingActionResult] = useState<Record<string, unknown> | null>(null);
+  const [environmentBusy, setEnvironmentBusy] = useState<string | null>(null);
+  const [envKeyDraft, setEnvKeyDraft] = useState("CUSTOM_ENV_VAR");
+  const [envValueDraft, setEnvValueDraft] = useState("your_value_here");
+  const [environmentActionResult, setEnvironmentActionResult] = useState<Record<string, unknown> | null>(null);
+  const [cliCommand, setCliCommand] = useState("models scan");
+  const [cliBusy, setCliBusy] = useState(false);
+  const [cliResult, setCliResult] = useState<CliProxyResult | null>(null);
+  const [selfUpdateBusy, setSelfUpdateBusy] = useState(false);
+  const [selfUpdateResult, setSelfUpdateResult] = useState<SelfUpdateResult | null>(null);
 
   const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, OPENCLAW_SYNC_PASSIVE_MS, isHooksSection && Boolean(selectedHook));
   const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
@@ -1527,6 +1589,29 @@ export function OpenClawManagement() {
     setAuthOrderText((modelAuthOrder.data?.order ?? []).join("\n"));
   }, [modelAuthOrder.data?.order]);
 
+  const bindingItems = useMemo(
+    () => (bindings.data?.bindings ?? []).map((binding, index) => ({ ...binding, bindingIndex: index })),
+    [bindings.data?.bindings],
+  );
+
+  useEffect(() => {
+    if (!bindingItems.some((item) => String(item.bindingIndex) === selectedBindingIndex)) {
+      setSelectedBindingIndex(bindingItems.length > 0 ? String(bindingItems[0]?.bindingIndex ?? "") : "");
+    }
+  }, [bindingItems, selectedBindingIndex]);
+
+  useEffect(() => {
+    const selectedBinding = bindingItems.find((item) => String(item.bindingIndex) === selectedBindingIndex) ?? null;
+    if (selectedBinding) {
+      setBindingPayloadText(JSON.stringify({ agentId: selectedBinding.agentId ?? "", match: selectedBinding.match ?? {} }, null, 2));
+    }
+  }, [bindingItems, selectedBindingIndex]);
+
+  const environmentEntries = useMemo(
+    () => Object.entries(environmentVariables.data?.env ?? {}),
+    [environmentVariables.data?.env],
+  );
+
   useEffect(() => {
     const listSkill = (skills.data?.skills ?? []).find((entry) => entry.skillKey === selectedSkill);
     const detailSkill = skillDetail.data?.skill;
@@ -1594,6 +1679,8 @@ export function OpenClawManagement() {
       cronJobs.refresh({ refresh: forceFresh }),
       configSchema.refresh({ refresh: forceFresh }),
       configFile.refresh({ refresh: forceFresh }),
+      bindings.refresh({ refresh: forceFresh }),
+      environmentVariables.refresh({ refresh: forceFresh }),
       memoryStatus.refresh({ refresh: forceFresh }),
       doctorMemoryStatus.refresh({ refresh: forceFresh }),
       devicesLegacy.refresh({ refresh: forceFresh }),
@@ -1604,7 +1691,7 @@ export function OpenClawManagement() {
       agentFiles.refresh({ refresh: forceFresh }),
       agentFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1661,6 +1748,8 @@ export function OpenClawManagement() {
       cronJobs.fetchedAt,
       configSchema.fetchedAt,
       configFile.fetchedAt,
+      bindings.fetchedAt,
+      environmentVariables.fetchedAt,
       memoryStatus.fetchedAt,
       doctorMemoryStatus.fetchedAt,
       devicesLegacy.fetchedAt,
@@ -1800,6 +1889,8 @@ export function OpenClawManagement() {
       cronJobs.cacheStatus,
       configSchema.cacheStatus,
       configFile.cacheStatus,
+      bindings.cacheStatus,
+      environmentVariables.cacheStatus,
       memoryStatus.cacheStatus,
       doctorMemoryStatus.cacheStatus,
       devicesLegacy.cacheStatus,
@@ -1863,10 +1954,12 @@ export function OpenClawManagement() {
     secretsAudit.cacheStatus,
     securityAudit.cacheStatus,
     authUser.cacheStatus,
+    bindings.cacheStatus,
     cronStatus.cacheStatus,
     cronJobs.cacheStatus,
     configSchema.cacheStatus,
     configFile.cacheStatus,
+    environmentVariables.cacheStatus,
     memoryStatus.cacheStatus,
     doctorMemoryStatus.cacheStatus,
     devicesLegacy.cacheStatus,
@@ -2841,6 +2934,163 @@ export function OpenClawManagement() {
     }
   }, [configApplyTarget, refreshAll]);
 
+  const handleCreateBinding = useCallback(async () => {
+    setBindingsBusy("create");
+    try {
+      const payload = parseJsonObjectInput(bindingPayloadText, "Binding payload");
+      const result = await requestOpenClaw<Record<string, unknown>>("/bindings", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setBindingActionResult(result);
+      toast.success("Binding created");
+      await bindings.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create binding");
+    } finally {
+      setBindingsBusy(null);
+    }
+  }, [bindingPayloadText, bindings]);
+
+  const handleUpdateBinding = useCallback(async () => {
+    if (!selectedBindingIndex.trim()) {
+      toast.error("Choose a binding first");
+      return;
+    }
+
+    setBindingsBusy("update");
+    try {
+      const payload = parseJsonObjectInput(bindingPayloadText, "Binding payload");
+      const result = await requestOpenClaw<Record<string, unknown>>(`/bindings/${encodeURIComponent(selectedBindingIndex.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      setBindingActionResult(result);
+      toast.success(`Binding ${selectedBindingIndex.trim()} updated`);
+      await bindings.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update binding");
+    } finally {
+      setBindingsBusy(null);
+    }
+  }, [bindingPayloadText, bindings, selectedBindingIndex]);
+
+  const handleDeleteBinding = useCallback(async () => {
+    if (!selectedBindingIndex.trim()) {
+      toast.error("Choose a binding first");
+      return;
+    }
+    if (!window.confirm(`Delete binding ${selectedBindingIndex.trim()}?`)) {
+      return;
+    }
+
+    setBindingsBusy("delete");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/bindings/${encodeURIComponent(selectedBindingIndex.trim())}`, {
+        method: "DELETE",
+      });
+      setBindingActionResult(result);
+      toast.success(`Binding ${selectedBindingIndex.trim()} deleted`);
+      await bindings.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete binding");
+    } finally {
+      setBindingsBusy(null);
+    }
+  }, [bindings, selectedBindingIndex]);
+
+  const handleSetEnvironmentVariable = useCallback(async () => {
+    if (!envKeyDraft.trim()) {
+      toast.error("Enter an environment variable key first");
+      return;
+    }
+
+    setEnvironmentBusy("set");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/env/${encodeURIComponent(envKeyDraft.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify({ value: envValueDraft }),
+      });
+      setEnvironmentActionResult(result);
+      toast.success(`Environment variable ${envKeyDraft.trim()} saved`);
+      await environmentVariables.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save environment variable");
+    } finally {
+      setEnvironmentBusy(null);
+    }
+  }, [envKeyDraft, envValueDraft, environmentVariables]);
+
+  const handleDeleteEnvironmentVariable = useCallback(async (key?: string) => {
+    const targetKey = (key ?? envKeyDraft).trim();
+    if (!targetKey) {
+      toast.error("Choose an environment variable first");
+      return;
+    }
+    if (!window.confirm(`Delete environment variable ${targetKey}?`)) {
+      return;
+    }
+
+    setEnvironmentBusy("delete");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/env/${encodeURIComponent(targetKey)}`, {
+        method: "DELETE",
+      });
+      setEnvironmentActionResult(result);
+      toast.success(`Environment variable ${targetKey} deleted`);
+      await environmentVariables.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete environment variable");
+    } finally {
+      setEnvironmentBusy(null);
+    }
+  }, [envKeyDraft, environmentVariables]);
+
+  const handleRunCliCommand = useCallback(async () => {
+    if (!cliCommand.trim()) {
+      toast.error("Enter a CLI command first");
+      return;
+    }
+
+    setCliBusy(true);
+    try {
+      const result = await requestOpenClaw<CliProxyResult>("/cli", {
+        method: "POST",
+        body: JSON.stringify({ command: cliCommand.trim() }),
+      });
+      setCliResult(result);
+      if (result.ok === false) {
+        toast.error("CLI command returned an error result");
+      } else {
+        toast.success("CLI command completed");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to run CLI command");
+    } finally {
+      setCliBusy(false);
+    }
+  }, [cliCommand]);
+
+  const handleSelfUpdate = useCallback(async () => {
+    if (!window.confirm("Run OpenClaw self update? The management API may restart during this operation.")) {
+      return;
+    }
+
+    setSelfUpdateBusy(true);
+    try {
+      const result = await requestOpenClaw<SelfUpdateResult>("/self-update", {
+        method: "POST",
+      });
+      setSelfUpdateResult(result);
+      toast.success(result.message ?? "Self update started");
+      await refreshAll(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to run self update");
+    } finally {
+      setSelfUpdateBusy(false);
+    }
+  }, [refreshAll]);
+
   const handleReindexMemory = useCallback(async () => {
     setMemoryBusy("index");
     try {
@@ -3615,6 +3865,8 @@ export function OpenClawManagement() {
     cronJobs.error,
     configSchema.error,
     configFile.error,
+    bindings.error,
+    environmentVariables.error,
     memoryStatus.error,
     doctorMemoryStatus.error,
     devicesLegacy.error,
@@ -3667,6 +3919,285 @@ export function OpenClawManagement() {
         <div className="flex items-center justify-center py-16 text-[var(--text-secondary)]">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Syncing OpenClaw management data…
+        </div>
+      ) : null}
+
+      {isBindingsSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Bindings" value={String(bindingItems.length)} subtitle="Routing rules" icon={Wrench} />
+            <StatCard label="Selected" value={selectedBindingIndex || "—"} subtitle="Binding index" icon={Bot} />
+            <StatCard label="Agents" value={String(agentItems.length)} subtitle="Available managed agents" icon={FileText} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+            <ListCard title="Current Bindings" icon={Wrench}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {bindingItems.length === 0 ? (
+                  <p>No bindings returned.</p>
+                ) : (
+                  bindingItems.map((item) => {
+                    const index = String(item.bindingIndex ?? "");
+                    const active = index === selectedBindingIndex;
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => setSelectedBindingIndex(index)}
+                        className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                          active
+                            ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                            : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                        }`}
+                      >
+                        <p className="font-medium text-[var(--text-primary)]">#{index} → {String(item.agentId ?? "unknown-agent")}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{JSON.stringify(item.match ?? {})}</p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </ListCard>
+
+            <DetailCard title="Manage Binding" icon={Bot}>
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Binding payload (JSON object)</span>
+                <textarea
+                  value={bindingPayloadText}
+                  onChange={(event) => setBindingPayloadText(event.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                />
+              </label>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateBinding()}
+                  disabled={bindingsBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {bindingsBusy === "create" ? "Creating…" : "Create Binding"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleUpdateBinding()}
+                  disabled={bindingsBusy != null || !selectedBindingIndex}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {bindingsBusy === "update" ? "Saving…" : "Update Selected"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteBinding()}
+                  disabled={bindingsBusy != null || !selectedBindingIndex}
+                  className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+                >
+                  {bindingsBusy === "delete" ? "Deleting…" : "Delete Selected"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void bindings.refresh({ refresh: true })}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                >
+                  Refresh Bindings
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Binding Action</p>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(bindingActionResult ?? bindings.data ?? { message: "No binding action executed yet." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
+        </div>
+      ) : null}
+
+      {isEnvironmentSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Variables" value={String(environmentEntries.length)} subtitle=".env entries" icon={Globe} />
+            <StatCard label="Editing Key" value={envKeyDraft || "—"} subtitle="UPPER_SNAKE_CASE" icon={FileText} />
+            <StatCard label="Protected" value="Mgmt/API keys" subtitle="Removal may be blocked" icon={ShieldCheck} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <ListCard title="Environment Variables" icon={Globe}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {environmentEntries.length === 0 ? (
+                  <p>No environment variables returned.</p>
+                ) : (
+                  environmentEntries.map(([key, value]) => (
+                    <div key={key} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <button type="button" onClick={() => { setEnvKeyDraft(key); setEnvValueDraft(String(value ?? "")); }} className="text-left">
+                          <p className="font-medium text-[var(--text-primary)]">{key}</p>
+                          <p className="mt-1 break-all text-xs text-[var(--text-tertiary)]">{String(value ?? "") || "—"}</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteEnvironmentVariable(key)}
+                          disabled={environmentBusy != null}
+                          className="text-xs font-medium text-[var(--danger)] disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ListCard>
+
+            <DetailCard title="Set Environment Variable" icon={FileText}>
+              <div className="grid grid-cols-1 gap-4">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Key</span>
+                  <input
+                    value={envKeyDraft}
+                    onChange={(event) => setEnvKeyDraft(event.target.value.toUpperCase())}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="CUSTOM_ENV_VAR"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Value</span>
+                  <textarea
+                    value={envValueDraft}
+                    onChange={(event) => setEnvValueDraft(event.target.value)}
+                    rows={6}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSetEnvironmentVariable()}
+                  disabled={environmentBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {environmentBusy === "set" ? "Saving…" : "Save Variable"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteEnvironmentVariable()}
+                  disabled={environmentBusy != null || !envKeyDraft}
+                  className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+                >
+                  {environmentBusy === "delete" ? "Deleting…" : "Delete Variable"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void environmentVariables.refresh({ refresh: true })}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                >
+                  Refresh Environment
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Environment Action</p>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(environmentActionResult ?? environmentVariables.data ?? { message: "No environment action executed yet." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
+        </div>
+      ) : null}
+
+      {isCliProxySection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="CLI Command" value={cliCommand || "—"} subtitle="Executed as openclaw <command>" icon={TerminalSquare} />
+            <StatCard label="Last Result" value={cliResult?.ok === false ? "error" : cliResult?.ok === true ? "ok" : "idle"} subtitle="Proxy execution state" icon={Activity} />
+            <StatCard label="Security" value="Filtered" subtitle="Shell metacharacters blocked" icon={ShieldCheck} />
+          </div>
+
+          <DetailCard title="CLI Proxy" icon={TerminalSquare}>
+            <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <span>Command</span>
+              <input
+                value={cliCommand}
+                onChange={(event) => setCliCommand(event.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                placeholder="models scan"
+              />
+            </label>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleRunCliCommand()}
+                disabled={cliBusy}
+                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+              >
+                {cliBusy ? "Running…" : "Run Command"}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">CLI Result</p>
+              <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                {cliResult?.output ?? JSON.stringify(cliResult ?? { message: "No CLI command executed yet." }, null, 2)}
+              </pre>
+            </div>
+          </DetailCard>
+        </div>
+      ) : null}
+
+      {isSelfUpdateSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Update Action" value={selfUpdateBusy ? "running" : "ready"} subtitle="Management API asset sync" icon={RefreshCcw} />
+            <StatCard label="Updated Files" value={String(selfUpdateResult?.files?.length ?? 0)} subtitle="Last self-update run" icon={Archive} />
+            <StatCard label="Impact" value="API restart" subtitle="Service may briefly restart" icon={AlertTriangle} />
+          </div>
+
+          <DetailCard title="Self Update Management API" icon={RefreshCcw}>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Download the latest management assets and provider templates from the upstream source. This may restart the management API.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSelfUpdate()}
+                disabled={selfUpdateBusy}
+                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+              >
+                {selfUpdateBusy ? "Updating…" : "Run Self Update"}
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Update Result</p>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(selfUpdateResult ?? { message: "No self update executed yet." }, null, 2)}
+                </pre>
+              </div>
+              <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Updated Files</p>
+                <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                  {(selfUpdateResult?.files ?? []).length === 0 ? (
+                    <p>No files updated yet.</p>
+                  ) : (
+                    (selfUpdateResult?.files ?? []).map((entry, index) => (
+                      <div key={`${entry.file ?? index}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                        <p className="font-medium text-[var(--text-primary)]">{entry.file ?? `file-${index + 1}`}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{entry.ok ? "Updated" : "Failed"}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </DetailCard>
         </div>
       ) : null}
 

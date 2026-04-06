@@ -13,6 +13,7 @@ export type OpenClawSection =
   | "runtime"
   | "mcp"
   | "gateway"
+  | "bindings"
   | "auth"
   | "provider"
   | "credentials"
@@ -30,6 +31,9 @@ export type OpenClawSection =
   | "directory"
   | "models"
   | "system"
+  | "environment"
+  | "cli-proxy"
+  | "self-update"
   | "sessions";
 
 interface TenantContextValue {
@@ -77,6 +81,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           storedSection === "runtime" ||
           storedSection === "mcp" ||
           storedSection === "gateway" ||
+          storedSection === "bindings" ||
           storedSection === "auth" ||
           storedSection === "provider" ||
           storedSection === "credentials" ||
@@ -94,6 +99,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           storedSection === "directory" ||
           storedSection === "models" ||
           storedSection === "system" ||
+          storedSection === "environment" ||
+          storedSection === "cli-proxy" ||
+          storedSection === "self-update" ||
           storedSection === "sessions"
         ) {
           setOpenClawSectionRaw(storedSection);
