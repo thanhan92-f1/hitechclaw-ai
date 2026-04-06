@@ -786,29 +786,20 @@ When HiTechClaw AI sends notifications to webhook channels, the payload format i
 ### Node.js
 
 ```javascript
-const HITECHCLAW_AI_URL = "https://your-hitechclaw-ai-url";
-const TOKEN = "default:your-agent-token";
+import { HiTechClawAI } from "@hitechclaw-ai/sdk";
 
-async function sendEvent(eventType, content, metadata = {}) {
-  const res = await fetch(`${HITECHCLAW_AI_URL}/api/ingest`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${TOKEN}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      event_type: eventType,
-      content,
-      metadata,
-    }),
-  });
-  return res.json();
-}
+const client = new HiTechClawAI({
+  baseUrl: "https://your-hitechclaw-ai-url",
+  token: "YOUR_AGENT_TOKEN",
+});
 
-// Usage
-await sendEvent("message_sent", "Hello from my agent!", {
-  model: "claude-sonnet-4-6",
-  tokens: 150,
+await client.track("message_sent", {
+  agent_id: "my-agent",
+  content: "Hello from my agent!",
+  metadata: {
+    model: "claude-sonnet-4-6",
+    tokens: 150,
+  },
 });
 ```
 

@@ -1258,6 +1258,7 @@ const hitechclaw = new HiTechClawAI({
 });
 
 await hitechclaw.track("message_sent", {
+  agent_id: "your-agent",
   content: "Hello from my agent!",
 });`,
     },

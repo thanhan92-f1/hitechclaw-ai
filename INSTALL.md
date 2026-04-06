@@ -19,6 +19,27 @@ No Node.js, PostgreSQL, or other dependencies needed — Docker handles everythi
 
 For local host-based development where only the database runs in Docker, see [docs/development.md](docs/development.md).
 
+If you only need the JavaScript client library, install the published SDK instead of the full application:
+
+```bash
+npm install @hitechclaw-ai/sdk
+```
+
+Repository maintainers can build the SDK package locally with:
+
+```bash
+npm run build:sdk
+npm run pack:sdk
+```
+
+To publish it from GitHub Actions, add an `NPM_TOKEN` repository secret, confirm the version in `packages/sdk/package.json`, and create a tag such as `sdk-v0.1.0`, or run `.github/workflows/npm-publish.yml` manually.
+
+```bash
+npm run check:sdk-version -- 0.1.0
+git tag sdk-v0.1.0
+git push origin sdk-v0.1.0
+```
+
 ---
 
 ## Step 1: Clone the Repository

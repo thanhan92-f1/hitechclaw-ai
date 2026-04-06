@@ -81,6 +81,7 @@ jobs:
           filters: |
             app_runtime:
               - 'src/**'
+              - 'packages/sdk/**'
               - 'tests/**'
               - 'migrations/**'
               - 'public/**'
@@ -227,6 +228,12 @@ jobs:
 
       - name: Run ESLint across the Next.js workspace
         run: npm run lint
+
+      - name: Build publishable packages
+        run: npm run build:packages
+
+      - name: Validate SDK package tests
+        run: npm run test:sdk
 
       - name: Produce a standalone production build
         run: npm run build

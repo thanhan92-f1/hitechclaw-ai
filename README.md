@@ -265,7 +265,7 @@ HiTechClaw AI was built on OpenClaw and has first-class integration with the Ope
 | **OpenClaw / NemoClaw** | Native — built-in gateway integration, agent control, health checks |
 | **CrewAI** | SDK — `pip install hitechclaw-sdk` (coming soon) |
 | **AutoGen** | SDK — `pip install hitechclaw-sdk` (coming soon) |
-| **LangChain / LangGraph** | SDK — `npm install @hitechclaw/sdk` (coming soon) |
+| **LangChain / LangGraph** | SDK — `npm install @hitechclaw-ai/sdk` |
 | **Custom agents** | REST API — `POST /api/ingest` with any HTTP client |
 | **n8n / Make / Zapier** | Webhook triggers — send events via HTTP node |
 
@@ -352,6 +352,22 @@ Repository operations and automation are documented in [docs/github-governance.m
 - Workflow node types
 - Documentation and tutorials
 - Bug reports and testing across environments
+
+### JavaScript SDK
+
+The repository now includes the publishable JavaScript package `@hitechclaw-ai/sdk` under `packages/sdk`.
+
+```bash
+npm run build:sdk
+npm run test:sdk
+npm run pack:sdk
+```
+
+Install from npm:
+
+```bash
+npm install @hitechclaw-ai/sdk
+```
 
 **Where we maintain control:**
 - Core governance engine

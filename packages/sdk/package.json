@@ -1,0 +1,49 @@
+{
+  "name": "@hitechclaw-ai/sdk",
+  "version": "0.1.0",
+  "description": "Official JavaScript SDK for sending agent events to HiTechClaw AI.",
+  "type": "module",
+  "license": "SEE LICENSE IN ../../LICENSE",
+  "author": "Nguyen Thanh An by Pho Tue SoftWare Solutions JSC",
+  "homepage": "https://github.com/thanhan92-f1/hitechclaw-ai#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thanhan92-f1/hitechclaw-ai.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/thanhan92-f1/hitechclaw-ai/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "COMMERCIAL-LICENSE.md"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ./scripts/write-cjs.mjs",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

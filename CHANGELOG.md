@@ -2,6 +2,8 @@
 
 All notable changes to HiTechClaw AI are documented in this file.
 
+For SDK npm releases, keep the `sdk-vX.Y.Z` tag aligned with `packages/sdk/package.json` and record the published version in the relevant release notes entry.
+
 ---
 
 ## [0.1.1] — 2026-03-18

@@ -89,6 +89,18 @@ Use conventional commits:
 - `refactor:` — code changes that don't fix bugs or add features
 - `chore:` — maintenance, dependencies, tooling
 
+### SDK release checklist
+
+When preparing an npm release for `@hitechclaw-ai/sdk`:
+
+1. Update `packages/sdk/package.json` to the target version.
+2. Run `npm run check:sdk-version -- <version>`.
+3. Run `npm run test:sdk`.
+4. Run `npm run smoke:sdk`.
+5. Run `npm run pack:sdk`.
+6. Create and push the matching tag: `sdk-v<version>`.
+7. Confirm `.github/workflows/npm-publish.yml` completes successfully.
+
 ### Code style
 
 - TypeScript for all new code

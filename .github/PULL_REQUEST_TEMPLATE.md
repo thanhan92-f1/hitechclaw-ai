@@ -32,6 +32,8 @@
 - [ ] Related docs updated
 - [ ] Change remains consistent with the repository's non-commercial license model
 - [ ] Local build, workflow, or test impact reviewed
+- [ ] If publishing `@hitechclaw-ai/sdk`, `packages/sdk/package.json` version matches the intended `sdk-v*.*.*` tag
+- [ ] If publishing `@hitechclaw-ai/sdk`, ran `npm run check:sdk-version -- <version>` and `npm run test:sdk`
 
 ## Risk Assessment
 
