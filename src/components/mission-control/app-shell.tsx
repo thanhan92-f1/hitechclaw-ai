@@ -114,11 +114,13 @@ type OpenClawNavItem = {
   key:
     | "overview"
     | "runtime"
+    | "update"
     | "mcp"
     | "gateway"
     | "bindings"
     | "auth"
     | "provider"
+    | "chatgpt"
     | "credentials"
     | "cron"
     | "config-advanced"
@@ -169,6 +171,7 @@ const openClawNavItems: OpenClawNavItem[] = [
   { key: "bindings", label: "Bindings", icon: Wrench, subtitle: "Routing bindings and agent match rules" },
   { key: "auth", label: "Auth", icon: Lock, subtitle: "Management login control" },
   { key: "provider", label: "Provider", icon: Bot, subtitle: "Provider and model control" },
+  { key: "chatgpt", label: "ChatGPT", icon: MessageSquare, subtitle: "OAuth flow and token status" },
   { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
   { key: "cron", label: "Cron", icon: Workflow, subtitle: "Scheduler jobs and runs" },
   { key: "config-advanced", label: "Config Advanced", icon: Settings, subtitle: "Schema, patch, and raw file" },

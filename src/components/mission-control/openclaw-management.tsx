@@ -247,6 +247,15 @@ interface CustomProvidersInfo {
 
 interface ChatGptOAuthStatusInfo {
   ok?: boolean;
+  exists?: boolean;
+  configured?: boolean;
+  hasToken?: boolean;
+  hasRefreshToken?: boolean;
+  provider?: string;
+  model?: string;
+  agentId?: string;
+  expiresAt?: string;
+  tokenExpiresAt?: string;
   [key: string]: unknown;
 }
 
@@ -1148,6 +1157,7 @@ export function OpenClawManagement() {
     "mcp",
     "gateway",
     "provider",
+    "chatgpt",
     "credentials",
     "domain",
     "backup",
@@ -1164,6 +1174,7 @@ export function OpenClawManagement() {
   const isGatewaySection = openClawSection === "gateway";
   const isUpdateSection = openClawSection === "update";
   const isProviderSection = openClawSection === "provider";
+  const isChatGptSection = openClawSection === "chatgpt";
   const isCredentialsSection = openClawSection === "credentials";
   const isDomainSection = openClawSection === "domain";
   const isBackupSection = openClawSection === "backup";
@@ -1270,7 +1281,7 @@ export function OpenClawManagement() {
   const agentFiles = useOpenClawFetch<AgentFilesInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
   const [selectedAgentFileName, setSelectedAgentFileName] = useState("");
   const agentFile = useOpenClawFetch<AgentFileInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files/${encodeURIComponent(selectedAgentFileName)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId) && Boolean(selectedAgentFileName));
-  const chatGptOAuthStatus = useOpenClawFetch<ChatGptOAuthStatusInfo>(`/config/chatgpt-oauth/status?agentId=${encodeURIComponent(chatGptOAuthAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isCredentialsSection && Boolean(chatGptOAuthAgentId));
+  const chatGptOAuthStatus = useOpenClawFetch<ChatGptOAuthStatusInfo>(`/config/chatgpt-oauth/status?agentId=${encodeURIComponent(chatGptOAuthAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isChatGptSection && Boolean(chatGptOAuthAgentId));
   const [agentsBusy, setAgentsBusy] = useState<string | null>(null);
   const [agentCreateId, setAgentCreateId] = useState("ops");
   const [agentCreateName, setAgentCreateName] = useState("Operations Agent");
@@ -1481,26 +1492,6 @@ export function OpenClawManagement() {
       setModel(config.data.model);
     }
   }, [config.data?.model, config.data?.provider]);
-
-  useEffect(() => {
-    if (!customProviderItems.some((item) => String(item.name ?? item.id ?? item.provider ?? "") === selectedCustomProvider)) {
-      const firstProvider = customProviderItems[0];
-      setSelectedCustomProvider(String(firstProvider?.name ?? firstProvider?.id ?? firstProvider?.provider ?? ""));
-    }
-  }, [customProviderItems, selectedCustomProvider]);
-
-  useEffect(() => {
-    if (!selectedCustomProviderData) {
-      return;
-    }
-
-    setCustomProviderBaseUrl(String(selectedCustomProviderData.baseUrl ?? selectedCustomProviderData.url ?? ""));
-    setCustomProviderApi(String(selectedCustomProviderData.api ?? "openai-completions"));
-    setCustomProviderModel(String(selectedCustomProviderData.model ?? selectedCustomProviderData.defaultModel ?? ""));
-    setCustomProviderModelName(String(selectedCustomProviderData.modelName ?? selectedCustomProviderData.label ?? ""));
-    setCustomProviderApiKey("");
-    setCustomProviderClearApiKey(false);
-  }, [selectedCustomProviderData]);
 
   useEffect(() => {
     if (!domainDraft && domain.data?.domain) {
@@ -1758,6 +1749,7 @@ export function OpenClawManagement() {
       domainIssuer.refresh({ refresh: forceFresh }),
       providers.refresh({ refresh: forceFresh }),
       providerModels.refresh({ refresh: forceFresh }),
+      chatGptOAuthStatus.refresh({ refresh: forceFresh }),
       customProviders.refresh({ refresh: forceFresh }),
       channels.refresh({ refresh: forceFresh }),
       channelsStatus.refresh({ refresh: forceFresh }),
@@ -1808,7 +1800,7 @@ export function OpenClawManagement() {
       agentFiles.refresh({ refresh: forceFresh }),
       agentFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, customSkillDetail, customSkills, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, pluginInspectDetail, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsCheck, skillsStatus, status, system, systemHeartbeatLast, systemPresence, updateStatus, upstream, version]);
+  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, chatGptOAuthStatus, config, configFile, configSchema, cronJobs, cronStatus, customProviders, customSkillDetail, customSkills, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, pluginInspectDetail, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsCheck, skillsStatus, status, system, systemHeartbeatLast, systemPresence, updateStatus, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1832,6 +1824,7 @@ export function OpenClawManagement() {
       domainIssuer.fetchedAt,
       providers.fetchedAt,
       providerModels.fetchedAt,
+      chatGptOAuthStatus.fetchedAt,
       customProviders.fetchedAt,
       channels.fetchedAt,
       channelsStatus.fetchedAt,
@@ -1907,6 +1900,7 @@ export function OpenClawManagement() {
     domainIssuer.fetchedAt,
     gatewayDiscover.fetchedAt,
     gatewayUsage.fetchedAt,
+    chatGptOAuthStatus.fetchedAt,
     hookCheck.fetchedAt,
     hookDetail.fetchedAt,
     hooks.fetchedAt,
@@ -1983,6 +1977,7 @@ export function OpenClawManagement() {
       domainIssuer.cacheStatus,
       providers.cacheStatus,
       providerModels.cacheStatus,
+      chatGptOAuthStatus.cacheStatus,
       customProviders.cacheStatus,
       channels.cacheStatus,
       channelsStatus.cacheStatus,
@@ -2054,6 +2049,7 @@ export function OpenClawManagement() {
     domainIssuer.cacheStatus,
     gatewayDiscover.cacheStatus,
     gatewayUsage.cacheStatus,
+    chatGptOAuthStatus.cacheStatus,
     hookCheck.cacheStatus,
     hookDetail.cacheStatus,
     hooks.cacheStatus,
@@ -3979,6 +3975,26 @@ export function OpenClawManagement() {
     [customProviderItems, selectedCustomProvider],
   );
 
+  useEffect(() => {
+    if (!customProviderItems.some((item) => String(item.name ?? item.id ?? item.provider ?? "") === selectedCustomProvider)) {
+      const firstProvider = customProviderItems[0];
+      setSelectedCustomProvider(String(firstProvider?.name ?? firstProvider?.id ?? firstProvider?.provider ?? ""));
+    }
+  }, [customProviderItems, selectedCustomProvider]);
+
+  useEffect(() => {
+    if (!selectedCustomProviderData) {
+      return;
+    }
+
+    setCustomProviderBaseUrl(String(selectedCustomProviderData.baseUrl ?? selectedCustomProviderData.url ?? ""));
+    setCustomProviderApi(String(selectedCustomProviderData.api ?? "openai-completions"));
+    setCustomProviderModel(String(selectedCustomProviderData.model ?? selectedCustomProviderData.defaultModel ?? ""));
+    setCustomProviderModelName(String(selectedCustomProviderData.modelName ?? selectedCustomProviderData.label ?? ""));
+    setCustomProviderApiKey("");
+    setCustomProviderClearApiKey(false);
+  }, [selectedCustomProviderData]);
+
   const channelEntries = useMemo(
     () => Object.entries(channels.data?.channels ?? {}),
     [channels.data?.channels],
@@ -4175,6 +4191,7 @@ export function OpenClawManagement() {
     domainIssuer.error,
     providers.error,
     providerModels.error,
+    chatGptOAuthStatus.error,
     channels.error,
     channelsStatus.error,
     channelsUpstream.error,
@@ -4224,6 +4241,38 @@ export function OpenClawManagement() {
     agentFiles.error,
     agentFile.error,
   ].filter((message): message is string => Boolean(message) && !shouldHideOpenClawErrorMessage(message));
+
+  const chatGptOAuthUrl = useMemo(
+    () => String(chatGptOAuthStartResult?.oauthUrl ?? chatGptOAuthStartResult?.url ?? "").trim(),
+    [chatGptOAuthStartResult?.oauthUrl, chatGptOAuthStartResult?.url],
+  );
+
+  const chatGptOAuthProvider = useMemo(
+    () => String(chatGptOAuthStatus.data?.provider ?? (chatGptOAuthSwitchProvider ? "openai-codex" : "unchanged")),
+    [chatGptOAuthStatus.data?.provider, chatGptOAuthSwitchProvider],
+  );
+
+  const chatGptOAuthStatusLabel = useMemo(() => {
+    const statusData = chatGptOAuthStatus.data;
+    if (!statusData) {
+      return "unknown";
+    }
+
+    if (statusData.exists === false || statusData.configured === false || statusData.hasToken === false) {
+      return "not connected";
+    }
+
+    if (statusData.exists || statusData.configured || statusData.hasToken || statusData.hasRefreshToken) {
+      return "connected";
+    }
+
+    return statusData.ok ? "ready" : "unknown";
+  }, [chatGptOAuthStatus.data]);
+
+  const chatGptOAuthExpiry = useMemo(
+    () => String(chatGptOAuthStatus.data?.expiresAt ?? chatGptOAuthStatus.data?.tokenExpiresAt ?? "—"),
+    [chatGptOAuthStatus.data?.expiresAt, chatGptOAuthStatus.data?.tokenExpiresAt],
+  );
 
   return (
     <div className="space-y-5 pb-24">
@@ -5392,7 +5441,7 @@ export function OpenClawManagement() {
                         <option value="">Create new provider</option>
                         {customProviderItems.map((item) => {
                           const providerName = String(item.name ?? item.id ?? item.provider ?? "");
-                          const providerLabel = String(item.label ?? item.modelName ?? providerName || "Unnamed provider");
+                          const providerLabel = String(item.label ?? item.modelName ?? providerName ?? "Unnamed provider");
                           return (
                             <option key={providerName} value={providerName}>
                               {providerName} — {providerLabel}
@@ -5627,113 +5676,6 @@ export function OpenClawManagement() {
                     <span className="font-mono text-[var(--text-primary)]">{masked ?? "not set"}</span>
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-5 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">ChatGPT OAuth</p>
-                    <p className="mt-1 text-xs text-[var(--text-secondary)]">Start, complete, and refresh the ChatGPT OAuth flow for an agent.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void chatGptOAuthStatus.refresh({ refresh: true })}
-                    className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
-                  >
-                    Refresh Status
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
-                    <span>Agent ID</span>
-                    <input
-                      value={chatGptOAuthAgentId}
-                      onChange={(event) => setChatGptOAuthAgentId(event.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                      placeholder="main"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
-                    <span>Preferred model</span>
-                    <input
-                      value={chatGptOAuthModel}
-                      onChange={(event) => setChatGptOAuthModel(event.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                      placeholder="chatgpt-4o-latest"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
-                    <span>Session ID</span>
-                    <input
-                      value={chatGptOAuthSessionId}
-                      onChange={(event) => setChatGptOAuthSessionId(event.target.value)}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                      placeholder="Returned by OAuth start"
-                    />
-                  </label>
-                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
-                    <span>Redirect URL</span>
-                    <textarea
-                      value={chatGptOAuthRedirectUrl}
-                      onChange={(event) => setChatGptOAuthRedirectUrl(event.target.value)}
-                      rows={3}
-                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                      placeholder="Paste the full callback URL after approving OAuth"
-                    />
-                  </label>
-                </div>
-
-                <label className="mt-3 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={chatGptOAuthSwitchProvider}
-                    onChange={(event) => setChatGptOAuthSwitchProvider(event.target.checked)}
-                  />
-                  Switch active provider after OAuth completion
-                </label>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleStartChatGptOAuth()}
-                    disabled={chatGptOAuthBusy != null}
-                    className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
-                  >
-                    {chatGptOAuthBusy === "start" ? "Starting…" : "Start OAuth"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleCompleteChatGptOAuth()}
-                    disabled={chatGptOAuthBusy != null}
-                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
-                  >
-                    {chatGptOAuthBusy === "complete" ? "Completing…" : "Complete OAuth"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshChatGptOAuth()}
-                    disabled={chatGptOAuthBusy != null}
-                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
-                  >
-                    {chatGptOAuthBusy === "refresh" ? "Refreshing…" : "Refresh Token"}
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div className="rounded-xl border border-[var(--border)]/60 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Start Result</p>
-                    <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                      {JSON.stringify(chatGptOAuthStartResult ?? { message: "No OAuth session started yet." }, null, 2)}
-                    </pre>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)]/60 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">OAuth Status</p>
-                    <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                      {JSON.stringify(chatGptOAuthStatus.data ?? { message: "No OAuth status returned." }, null, 2)}
-                    </pre>
-                  </div>
-                </div>
               </div>
 
               <div className="mt-5 border-t border-[var(--border)]/60 pt-4">
@@ -6634,7 +6576,7 @@ export function OpenClawManagement() {
                                 : "border-[var(--border)]/60 bg-[var(--bg-surface)] hover:border-[var(--accent)]/30"
                             }`}
                           >
-                            <p className="font-medium text-[var(--text-primary)]">{item.title ?? key}</p>
+                            <p className="font-medium text-[var(--text-primary)]">{String(item.title ?? key)}</p>
                             <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.description ?? item.summary ?? item.path ?? "No custom skill summary")}</p>
                           </button>
                         );
@@ -7197,6 +7139,140 @@ export function OpenClawManagement() {
             ) : null}
           </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {isChatGptSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <StatCard label="Agent" value={chatGptOAuthAgentId || "main"} subtitle="OAuth target agent" icon={Bot} />
+            <StatCard label="Status" value={chatGptOAuthStatusLabel} subtitle={`Provider: ${chatGptOAuthProvider}`} icon={KeyRound} />
+            <StatCard label="Model" value={chatGptOAuthModel || "—"} subtitle="Preferred model override" icon={MessageSquare} />
+            <StatCard label="Expiry" value={chatGptOAuthExpiry} subtitle={`Refresh token: ${boolLabel(chatGptOAuthStatus.data?.hasRefreshToken)}`} icon={RefreshCcw} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <DetailCard title="ChatGPT OAuth" icon={MessageSquare}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Agent ID</span>
+                  <input
+                    value={chatGptOAuthAgentId}
+                    onChange={(event) => setChatGptOAuthAgentId(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="main"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Preferred model</span>
+                  <input
+                    value={chatGptOAuthModel}
+                    onChange={(event) => setChatGptOAuthModel(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="openai-codex/gpt-5.4"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Session ID</span>
+                  <input
+                    value={chatGptOAuthSessionId}
+                    onChange={(event) => setChatGptOAuthSessionId(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="Returned by OAuth start"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Redirect URL</span>
+                  <textarea
+                    value={chatGptOAuthRedirectUrl}
+                    onChange={(event) => setChatGptOAuthRedirectUrl(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="Paste the full callback URL or compact code#state payload"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                <input
+                  type="checkbox"
+                  checked={chatGptOAuthSwitchProvider}
+                  onChange={(event) => setChatGptOAuthSwitchProvider(event.target.checked)}
+                />
+                Switch active provider to <span className="font-mono text-[var(--text-primary)]">openai-codex</span> after completion
+              </label>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleStartChatGptOAuth()}
+                  disabled={chatGptOAuthBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {chatGptOAuthBusy === "start" ? "Starting…" : "Start OAuth"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCompleteChatGptOAuth()}
+                  disabled={chatGptOAuthBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {chatGptOAuthBusy === "complete" ? "Completing…" : "Complete OAuth"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRefreshChatGptOAuth()}
+                  disabled={chatGptOAuthBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {chatGptOAuthBusy === "refresh" ? "Refreshing…" : "Refresh Token"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void chatGptOAuthStatus.refresh({ refresh: true })}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                >
+                  Refresh Status
+                </button>
+                {chatGptOAuthUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => window.open(chatGptOAuthUrl, "_blank", "noopener,noreferrer")}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                  >
+                    Open OAuth URL
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-xs text-[var(--text-secondary)]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Flow</p>
+                <ol className="mt-3 list-decimal space-y-2 pl-4">
+                  <li>Start OAuth to get a <span className="font-mono text-[var(--text-primary)]">sessionId</span> and browser URL.</li>
+                  <li>Open the returned OAuth URL and approve access in ChatGPT.</li>
+                  <li>Paste the final redirect URL here, then complete the flow.</li>
+                  <li>Refresh token later without re-running the browser step.</li>
+                </ol>
+              </div>
+            </DetailCard>
+
+            <ListCard title="OAuth Payloads" icon={KeyRound}>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-xl border border-[var(--border)]/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Start Result</p>
+                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(chatGptOAuthStartResult ?? { message: "No OAuth session started yet." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">OAuth Status</p>
+                  <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(chatGptOAuthStatus.data ?? { message: "No OAuth status returned." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </ListCard>
+          </div>
         </div>
       ) : null}
 

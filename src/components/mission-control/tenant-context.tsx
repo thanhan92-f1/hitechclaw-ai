@@ -17,6 +17,7 @@ export type OpenClawSection =
   | "bindings"
   | "auth"
   | "provider"
+  | "chatgpt"
   | "credentials"
   | "cron"
   | "config-advanced"
@@ -86,6 +87,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           storedSection === "bindings" ||
           storedSection === "auth" ||
           storedSection === "provider" ||
+          storedSection === "chatgpt" ||
           storedSection === "credentials" ||
           storedSection === "cron" ||
           storedSection === "config-advanced" ||
