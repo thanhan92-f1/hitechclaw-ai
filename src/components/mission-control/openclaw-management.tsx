@@ -528,6 +528,56 @@ interface SecurityAuditInfo {
   [key: string]: unknown;
 }
 
+interface AuthUserInfo {
+  ok?: boolean;
+  exists?: boolean;
+  configured?: boolean;
+  username?: string;
+  user?: {
+    username?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface CronStatusInfo {
+  ok?: boolean;
+  enabled?: boolean;
+  running?: boolean;
+  status?: string;
+  jobs?: number;
+  totalJobs?: number;
+  [key: string]: unknown;
+}
+
+interface CronJobsInfo {
+  ok?: boolean;
+  jobs?: Array<Record<string, unknown>> | Record<string, unknown>;
+  items?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ConfigSchemaInfo {
+  ok?: boolean;
+  count?: number;
+  roots?: string[];
+  schema?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ConfigFileInfo {
+  ok?: boolean;
+  path?: string;
+  file?: string;
+  content?: string;
+  raw?: string;
+  size?: number;
+  mtime?: string;
+  [key: string]: unknown;
+}
+
 interface OpenClawEnvironmentOption {
   id: string;
   name: string;
@@ -610,6 +660,19 @@ function parseJsonObjectInput(value: string, label: string) {
   }
 
   return parsed as Record<string, unknown>;
+}
+
+function parseJsonValueInput(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${label} is required`);
+  }
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return trimmed;
+  }
 }
 
 function normalizeHookEntries(value?: HookEntry[] | Record<string, HookEntry> | null) {
@@ -844,6 +907,9 @@ export function OpenClawManagement() {
   const isDirectorySection = openClawSection === "directory";
   const isModelsSection = openClawSection === "models";
   const isSystemSection = openClawSection === "system";
+  const isAuthSection = openClawSection === "auth";
+  const isCronSection = openClawSection === "cron";
+  const isConfigAdvancedSection = openClawSection === "config-advanced";
 
   const info = useOpenClawFetch<ServiceInfo>("/info", OPENCLAW_SYNC_PASSIVE_MS);
   const status = useOpenClawFetch<ServiceStatus>("/status", OPENCLAW_SYNC_ACTIVE_MS);
@@ -854,7 +920,7 @@ export function OpenClawManagement() {
   const gatewayDiscover = useOpenClawFetch<GatewayDiscoverInfo>("/gateway/discover?timeoutMs=2000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
   const nodesStatus = useOpenClawFetch<NodesInfo>("/nodes/status?connected=true&lastConnected=24h&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
   const nodesList = useOpenClawFetch<NodesInfo>("/nodes?connected=false&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
-  const config = useOpenClawFetch<ConfigInfo>("/config", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isConfigSection);
+  const config = useOpenClawFetch<ConfigInfo>("/config", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isConfigSection || isConfigAdvancedSection);
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "runtime");
   const version = useOpenClawFetch<VersionInfo>("/version", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || openClawSection === "runtime");
@@ -893,6 +959,12 @@ export function OpenClawManagement() {
   const imageFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/image-fallbacks", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
   const systemHeartbeatLast = useOpenClawFetch<SystemHeartbeatInfo>("/system/heartbeat/last?timeoutMs=30000", OPENCLAW_SYNC_PASSIVE_MS, isSystemSection);
   const systemPresence = useOpenClawFetch<SystemPresenceInfo>("/system/presence?timeoutMs=30000", OPENCLAW_SYNC_PASSIVE_MS, isSystemSection);
+  const authUser = useOpenClawFetch<AuthUserInfo>("/auth/user", OPENCLAW_SYNC_PASSIVE_MS, isAuthSection);
+  const [cronIncludeDisabled, setCronIncludeDisabled] = useState(true);
+  const cronStatus = useOpenClawFetch<CronStatusInfo>("/cron/status", OPENCLAW_SYNC_PASSIVE_MS, isCronSection);
+  const cronJobs = useOpenClawFetch<CronJobsInfo>(`/cron/jobs?all=${cronIncludeDisabled ? "true" : "false"}`, OPENCLAW_SYNC_PASSIVE_MS, isCronSection);
+  const configSchema = useOpenClawFetch<ConfigSchemaInfo>("/config/schema", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
+  const configFile = useOpenClawFetch<ConfigFileInfo>("/config/file", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainEmail, setDomainEmail] = useState("");
@@ -948,6 +1020,49 @@ export function OpenClawManagement() {
   const [aliasModel, setAliasModel] = useState("");
   const [fallbackModel, setFallbackModel] = useState("");
   const [imageFallbackModel, setImageFallbackModel] = useState("");
+  const [authBusy, setAuthBusy] = useState<string | null>(null);
+  const [authUsername, setAuthUsername] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authNewPassword, setAuthNewPassword] = useState("");
+  const [cronBusy, setCronBusy] = useState<string | null>(null);
+  const [selectedCronJob, setSelectedCronJob] = useState("");
+  const [cronCreateText, setCronCreateText] = useState(`{
+  "name": "heartbeat-reminder",
+  "schedule": {
+    "kind": "interval",
+    "everyMs": 3600000
+  },
+  "sessionTarget": "main",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "systemEvent",
+    "text": "hourly-health-check"
+  }
+}`);
+  const [cronPatchText, setCronPatchText] = useState(`{
+  "patch": {
+    "enabled": false
+  }
+}`);
+  const [cronRunMode, setCronRunMode] = useState<"force" | "due">("force");
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [configAdvancedBusy, setConfigAdvancedBusy] = useState<string | null>(null);
+  const [configLookupPath, setConfigLookupPath] = useState("gateway.auth.token");
+  const [configLookupResult, setConfigLookupResult] = useState<Record<string, unknown> | null>(null);
+  const [configValidationResult, setConfigValidationResult] = useState<Record<string, unknown> | null>(null);
+  const [configPatchText, setConfigPatchText] = useState(`{
+  "skills": {
+    "load": {
+      "watch": true,
+      "watchDebounceMs": 500
+    }
+  }
+}`);
+  const [configPatchRestart, setConfigPatchRestart] = useState(false);
+  const [configRawPath, setConfigRawPath] = useState("agents.defaults.subagents.maxConcurrent");
+  const [configRawValueText, setConfigRawValueText] = useState("12");
+  const [configRawRemove, setConfigRawRemove] = useState(false);
+  const [configApplyTarget, setConfigApplyTarget] = useState<"openclaw" | "caddy" | "all" | "none">("openclaw");
 
   const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, OPENCLAW_SYNC_PASSIVE_MS, isHooksSection && Boolean(selectedHook));
   const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
@@ -1125,6 +1240,12 @@ export function OpenClawManagement() {
   }, [provider, authProvider]);
 
   useEffect(() => {
+    if (!authUsername) {
+      setAuthUsername(authUser.data?.username ?? authUser.data?.user?.username ?? "");
+    }
+  }, [authUser.data?.user?.username, authUser.data?.username, authUsername]);
+
+  useEffect(() => {
     setAuthOrderText((modelAuthOrder.data?.order ?? []).join("\n"));
   }, [modelAuthOrder.data?.order]);
 
@@ -1189,8 +1310,13 @@ export function OpenClawManagement() {
       systemPresence.refresh({ refresh: forceFresh }),
       secretsAudit.refresh({ refresh: forceFresh }),
       securityAudit.refresh({ refresh: forceFresh }),
+      authUser.refresh({ refresh: forceFresh }),
+      cronStatus.refresh({ refresh: forceFresh }),
+      cronJobs.refresh({ refresh: forceFresh }),
+      configSchema.refresh({ refresh: forceFresh }),
+      configFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1241,6 +1367,11 @@ export function OpenClawManagement() {
       systemPresence.fetchedAt,
       secretsAudit.fetchedAt,
       securityAudit.fetchedAt,
+      authUser.fetchedAt,
+      cronStatus.fetchedAt,
+      cronJobs.fetchedAt,
+      configSchema.fetchedAt,
+      configFile.fetchedAt,
     ]
       .filter((value): value is string => Boolean(value))
       .map((value) => new Date(value).getTime())
@@ -1297,6 +1428,11 @@ export function OpenClawManagement() {
     systemPresence.fetchedAt,
     secretsAudit.fetchedAt,
     securityAudit.fetchedAt,
+    authUser.fetchedAt,
+    cronStatus.fetchedAt,
+    cronJobs.fetchedAt,
+    configSchema.fetchedAt,
+    configFile.fetchedAt,
     upstream.fetchedAt,
     version.fetchedAt,
   ]);
@@ -1350,6 +1486,11 @@ export function OpenClawManagement() {
       systemPresence.cacheStatus,
       secretsAudit.cacheStatus,
       securityAudit.cacheStatus,
+      authUser.cacheStatus,
+      cronStatus.cacheStatus,
+      cronJobs.cacheStatus,
+      configSchema.cacheStatus,
+      configFile.cacheStatus,
     ].filter((value): value is string => Boolean(value));
 
     if (statuses.includes("stale-if-error")) return "Showing cached fallback data";
@@ -1402,6 +1543,11 @@ export function OpenClawManagement() {
     systemPresence.cacheStatus,
     secretsAudit.cacheStatus,
     securityAudit.cacheStatus,
+    authUser.cacheStatus,
+    cronStatus.cacheStatus,
+    cronJobs.cacheStatus,
+    configSchema.cacheStatus,
+    configFile.cacheStatus,
     upstream.cacheStatus,
     version.cacheStatus,
   ]);
@@ -1487,6 +1633,31 @@ export function OpenClawManagement() {
       setConfigBusy(false);
     }
   }, [apiKey, config, provider]);
+
+  const handleDeleteApiKey = useCallback(async () => {
+    if (!provider.trim()) {
+      toast.error("Enter a provider first");
+      return;
+    }
+
+    if (!window.confirm(`Delete API key for ${provider.trim()} in the active environment?`)) {
+      return;
+    }
+
+    setConfigBusy(true);
+    try {
+      await requestOpenClaw("/config/api-key", {
+        method: "DELETE",
+        body: JSON.stringify({ provider: provider.trim(), agentId: "main" }),
+      });
+      toast.success(`API key removed for ${provider.trim()}`);
+      await config.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove API key");
+    } finally {
+      setConfigBusy(false);
+    }
+  }, [config, provider]);
 
   const handleCleanup = useCallback(async () => {
     setCleanupBusy(true);
@@ -1805,6 +1976,248 @@ export function OpenClawManagement() {
       setSystemBusy(null);
     }
   }, [securityAudit]);
+
+  const handleReset = useCallback(async () => {
+    if (resetConfirmText.trim() !== "RESET") {
+      toast.error('Type RESET to confirm destructive reset');
+      return;
+    }
+
+    setRuntimeBusy("reset");
+    try {
+      const result = await requestOpenClaw<{ message?: string }>("/reset", {
+        method: "POST",
+        body: JSON.stringify({ confirm: "RESET" }),
+      });
+      toast.success(result.message ?? "Reset dispatched");
+      setResetConfirmText("");
+      await refreshAll(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reset service");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  }, [refreshAll, resetConfirmText]);
+
+  const handleCreateAuthUser = useCallback(async () => {
+    if (!authUsername.trim() || !authPassword.trim()) {
+      toast.error("Enter both username and password");
+      return;
+    }
+
+    setAuthBusy("create");
+    try {
+      await requestOpenClaw("/auth/create-user", {
+        method: "POST",
+        body: JSON.stringify({ username: authUsername.trim(), password: authPassword }),
+      });
+      toast.success(`Login user ${authUsername.trim()} created`);
+      setAuthPassword("");
+      await authUser.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create login user");
+    } finally {
+      setAuthBusy(null);
+    }
+  }, [authPassword, authUser, authUsername]);
+
+  const handleChangeAuthPassword = useCallback(async () => {
+    if (!authNewPassword.trim()) {
+      toast.error("Enter a new password first");
+      return;
+    }
+
+    setAuthBusy("password");
+    try {
+      await requestOpenClaw("/auth/change-password", {
+        method: "PUT",
+        body: JSON.stringify({ password: authNewPassword }),
+      });
+      toast.success("Login password updated");
+      setAuthNewPassword("");
+      await authUser.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update password");
+    } finally {
+      setAuthBusy(null);
+    }
+  }, [authNewPassword, authUser]);
+
+  const handleDeleteAuthUser = useCallback(async () => {
+    const username = authUser.data?.username ?? authUser.data?.user?.username ?? authUsername;
+    if (!window.confirm(`Delete login user ${username || "configured user"}?`)) {
+      return;
+    }
+
+    setAuthBusy("delete");
+    try {
+      await requestOpenClaw("/auth/user", { method: "DELETE" });
+      toast.success("Login user removed");
+      setAuthNewPassword("");
+      setAuthPassword("");
+      await authUser.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete login user");
+    } finally {
+      setAuthBusy(null);
+    }
+  }, [authUser, authUsername]);
+
+  const handleCreateCronJob = useCallback(async () => {
+    setCronBusy("create");
+    try {
+      const payload = parseJsonObjectInput(cronCreateText, "Cron job payload");
+      await requestOpenClaw("/cron/jobs", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      toast.success("Cron job created");
+      await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create cron job");
+    } finally {
+      setCronBusy(null);
+    }
+  }, [cronCreateText, cronJobs, cronStatus]);
+
+  const handlePatchCronJob = useCallback(async () => {
+    if (!selectedCronJob.trim()) {
+      toast.error("Choose a cron job first");
+      return;
+    }
+
+    setCronBusy("patch");
+    try {
+      const payload = parseJsonObjectInput(cronPatchText, "Cron patch payload");
+      await requestOpenClaw(`/cron/jobs/${encodeURIComponent(selectedCronJob.trim())}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      toast.success(`Cron job ${selectedCronJob.trim()} updated`);
+      await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to patch cron job");
+    } finally {
+      setCronBusy(null);
+    }
+  }, [cronJobs, cronPatchText, cronStatus, selectedCronJob]);
+
+  const handleRunCronJob = useCallback(async () => {
+    if (!selectedCronJob.trim()) {
+      toast.error("Choose a cron job first");
+      return;
+    }
+
+    setCronBusy("run");
+    try {
+      await requestOpenClaw(`/cron/jobs/${encodeURIComponent(selectedCronJob.trim())}/run`, {
+        method: "POST",
+        body: JSON.stringify({ mode: cronRunMode }),
+      });
+      toast.success(`Cron job ${selectedCronJob.trim()} executed`);
+      await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to run cron job");
+    } finally {
+      setCronBusy(null);
+    }
+  }, [cronJobs, cronRunMode, cronStatus, selectedCronJob]);
+
+  const handleLookupConfig = useCallback(async () => {
+    if (!configLookupPath.trim()) {
+      toast.error("Enter a config path first");
+      return;
+    }
+
+    setConfigAdvancedBusy("lookup");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/config/schema/lookup?path=${encodeURIComponent(configLookupPath.trim())}`);
+      setConfigLookupResult(result);
+      toast.success("Config path loaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to lookup config path");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [configLookupPath]);
+
+  const handleValidateConfig = useCallback(async () => {
+    setConfigAdvancedBusy("validate");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>("/config/validate");
+      setConfigValidationResult(result);
+      toast.success("Config validation completed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Config validation failed");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, []);
+
+  const handlePatchConfig = useCallback(async () => {
+    setConfigAdvancedBusy("patch");
+    try {
+      const patch = parseJsonObjectInput(configPatchText, "Config patch");
+      await requestOpenClaw("/config", {
+        method: "PATCH",
+        body: JSON.stringify({ patch, restart: configPatchRestart }),
+      });
+      toast.success("Config patch applied");
+      await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to patch config");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [config, configFile, configPatchRestart, configPatchText, configSchema]);
+
+  const handleSetRawConfigPath = useCallback(async () => {
+    if (!configRawPath.trim()) {
+      toast.error("Enter a config path first");
+      return;
+    }
+
+    setConfigAdvancedBusy("raw");
+    try {
+      const body: Record<string, unknown> = {
+        path: configRawPath.trim(),
+        restart: false,
+      };
+
+      if (configRawRemove) {
+        body.remove = true;
+      } else {
+        body.value = parseJsonValueInput(configRawValueText, "Config raw value");
+      }
+
+      await requestOpenClaw("/config/raw", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      toast.success(`Config path ${configRawPath.trim()} updated`);
+      await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update raw config path");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [config, configFile, configRawPath, configRawRemove, configRawValueText, configSchema]);
+
+  const handleApplyConfig = useCallback(async () => {
+    setConfigAdvancedBusy("apply");
+    try {
+      await requestOpenClaw("/config/apply", {
+        method: "POST",
+        body: JSON.stringify({ restartTarget: configApplyTarget }),
+      });
+      toast.success(`Configuration applied (${configApplyTarget})`);
+      await refreshAll(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to apply config");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [configApplyTarget, refreshAll]);
 
   const handleToggleHook = useCallback(async (enabled: boolean) => {
     if (!selectedHook) {
@@ -2179,6 +2592,23 @@ export function OpenClawManagement() {
     [imageFallbacks.data?.fallbacks, imageFallbacks.data?.items, imageFallbacks.data?.models],
   );
 
+  const cronJobItems = useMemo(
+    () => normalizeRecordItems(cronJobs.data?.jobs ?? cronJobs.data?.items ?? cronJobs.data?.results ?? null, "jobId"),
+    [cronJobs.data?.items, cronJobs.data?.jobs, cronJobs.data?.results],
+  );
+
+  useEffect(() => {
+    if (!cronJobItems.some((item) => String(item.jobId ?? item.id ?? item.name ?? "") === selectedCronJob)) {
+      const firstJob = cronJobItems[0];
+      setSelectedCronJob(String(firstJob?.jobId ?? firstJob?.id ?? firstJob?.name ?? ""));
+    }
+  }, [cronJobItems, selectedCronJob]);
+
+  const selectedCronJobData = useMemo(
+    () => cronJobItems.find((item) => String(item.jobId ?? item.id ?? item.name ?? "") === selectedCronJob) ?? null,
+    [cronJobItems, selectedCronJob],
+  );
+
   const errors = [
     info.error,
     status.error,
@@ -2227,6 +2657,11 @@ export function OpenClawManagement() {
     systemPresence.error,
     secretsAudit.error,
     securityAudit.error,
+    authUser.error,
+    cronStatus.error,
+    cronJobs.error,
+    configSchema.error,
+    configFile.error,
   ].filter(Boolean);
 
   return (
@@ -2364,6 +2799,30 @@ export function OpenClawManagement() {
               {runtimeBusy === "upgrade" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
               Upgrade OpenClaw
             </button>
+
+            <div className="mt-5 rounded-xl border border-[var(--danger)]/30 bg-[rgba(239,68,68,0.05)] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--danger)]">Danger Zone</p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">Factory reset the managed OpenClaw service and wipe its state. This action is destructive.</p>
+              <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+                <label className="flex-1 space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Type RESET to confirm</span>
+                  <input
+                    value={resetConfirmText}
+                    onChange={(event) => setResetConfirmText(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="RESET"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleReset()}
+                  disabled={runtimeBusy != null || resetConfirmText.trim() !== "RESET"}
+                  className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+                >
+                  {runtimeBusy === "reset" ? "Resetting…" : "Reset OpenClaw"}
+                </button>
+              </div>
+            </div>
           </ListCard>
 
           <DetailCard title="Live Logs" icon={TerminalSquare}>
@@ -2477,6 +2936,376 @@ export function OpenClawManagement() {
               </pre>
             </div>
           </DetailCard>
+        </div>
+      ) : null}
+
+      {isAuthSection ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <ListCard title="Login User" icon={KeyRound}>
+            <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Current State</p>
+              <p className="mt-2 text-[var(--text-primary)]">Configured: {boolLabel(Boolean(authUser.data?.exists ?? authUser.data?.configured ?? authUser.data?.username ?? authUser.data?.user?.username))}</p>
+              <p className="mt-1 text-[var(--text-primary)]">Username: {authUser.data?.username ?? authUser.data?.user?.username ?? "—"}</p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4">
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Username</span>
+                <input
+                  value={authUsername}
+                  onChange={(event) => setAuthUsername(event.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  placeholder="admin"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Create password</span>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  placeholder="change-me-now"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleCreateAuthUser()}
+                disabled={authBusy != null}
+                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+              >
+                {authBusy === "create" ? "Saving…" : "Create / Replace User"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void authUser.refresh({ refresh: true })}
+                className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+              >
+                Refresh User
+              </button>
+            </div>
+          </ListCard>
+
+          <DetailCard title="Password Rotation" icon={ShieldCheck}>
+            <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <span>New password</span>
+              <input
+                type="password"
+                value={authNewPassword}
+                onChange={(event) => setAuthNewPassword(event.target.value)}
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                placeholder="new-secret-password"
+              />
+            </label>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleChangeAuthPassword()}
+                disabled={authBusy != null}
+                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+              >
+                {authBusy === "password" ? "Updating…" : "Change Password"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteAuthUser()}
+                disabled={authBusy != null}
+                className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+              >
+                {authBusy === "delete" ? "Removing…" : "Delete Login User"}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Auth Payload</p>
+              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                {JSON.stringify(authUser.data ?? { message: "No auth user configured." }, null, 2)}
+              </pre>
+            </div>
+          </DetailCard>
+        </div>
+      ) : null}
+
+      {isCronSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Scheduler" value={cronStatus.data?.status ?? (cronStatus.data?.running ? "running" : "unknown")} subtitle={`Enabled: ${boolLabel(cronStatus.data?.enabled)}`} icon={Activity} />
+            <StatCard label="Jobs" value={String(cronJobItems.length)} subtitle={`Reported total: ${cronStatus.data?.jobs ?? cronStatus.data?.totalJobs ?? cronJobItems.length}`} icon={Database} />
+            <StatCard label="Include Disabled" value={cronIncludeDisabled ? "Yes" : "No"} subtitle="List cron jobs" icon={RefreshCcw} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <ListCard title="Cron Jobs" icon={Database}>
+              <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <input type="checkbox" checked={cronIncludeDisabled} onChange={(event) => setCronIncludeDisabled(event.target.checked)} />
+                Include disabled jobs
+              </label>
+              <div className="mt-4 space-y-2">
+                {cronJobItems.length === 0 ? (
+                  <p className="text-sm text-[var(--text-secondary)]">No cron jobs returned.</p>
+                ) : (
+                  cronJobItems.map((item, index) => {
+                    const jobId = String(item.jobId ?? item.id ?? item.name ?? `job-${index + 1}`);
+                    const active = jobId === selectedCronJob;
+                    return (
+                      <button
+                        key={jobId}
+                        type="button"
+                        onClick={() => setSelectedCronJob(jobId)}
+                        className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                          active
+                            ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                            : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                        }`}
+                      >
+                        <p className="font-medium text-[var(--text-primary)]">{String(item.name ?? item.jobId ?? item.id ?? jobId)}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(((item.schedule as Record<string, unknown> | undefined)?.kind) ?? item.cron ?? item.enabled ?? "No schedule metadata")}</p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </ListCard>
+
+            <DetailCard title="Manage Cron" icon={Wrench}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Create payload (JSON)</span>
+                  <textarea
+                    value={cronCreateText}
+                    onChange={(event) => setCronCreateText(event.target.value)}
+                    rows={10}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <div className="md:col-span-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateCronJob()}
+                    disabled={cronBusy != null}
+                    className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                  >
+                    {cronBusy === "create" ? "Creating…" : "Create Cron Job"}
+                  </button>
+                </div>
+
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Selected job</span>
+                  <input
+                    value={selectedCronJob}
+                    onChange={(event) => setSelectedCronJob(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Run mode</span>
+                  <select
+                    value={cronRunMode}
+                    onChange={(event) => setCronRunMode(event.target.value as "force" | "due")}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    <option value="force">force</option>
+                    <option value="due">due</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Patch payload (JSON)</span>
+                  <textarea
+                    value={cronPatchText}
+                    onChange={(event) => setCronPatchText(event.target.value)}
+                    rows={8}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handlePatchCronJob()}
+                  disabled={cronBusy != null || !selectedCronJob}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {cronBusy === "patch" ? "Saving…" : "Patch Selected Job"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRunCronJob()}
+                  disabled={cronBusy != null || !selectedCronJob}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {cronBusy === "run" ? "Running…" : "Run Selected Job"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected Cron Job</p>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(selectedCronJobData ?? cronStatus.data ?? { message: "No cron job selected." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
+        </div>
+      ) : null}
+
+      {isConfigAdvancedSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Schema Roots" value={String(configSchema.data?.roots?.length ?? 0)} subtitle={`Entries: ${configSchema.data?.count ?? configSchema.data?.schema?.length ?? 0}`} icon={Database} />
+            <StatCard label="Config File" value={configFile.data?.path ?? configFile.data?.file ?? "openclaw.json"} subtitle={`Updated: ${fmtDate(configFile.data?.mtime)}`} icon={Archive} />
+            <StatCard label="Apply Target" value={configApplyTarget} subtitle="Deferred config apply" icon={Wrench} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DetailCard title="Schema & Validation" icon={ShieldCheck}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Lookup path</span>
+                  <input
+                    value={configLookupPath}
+                    onChange={(event) => setConfigLookupPath(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="gateway.auth.token"
+                  />
+                </label>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleLookupConfig()}
+                    disabled={configAdvancedBusy != null}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {configAdvancedBusy === "lookup" ? "Loading…" : "Lookup"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleValidateConfig()}
+                  disabled={configAdvancedBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {configAdvancedBusy === "validate" ? "Validating…" : "Validate Config"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void configSchema.refresh({ refresh: true })}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                >
+                  Refresh Schema
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Schema</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(configSchema.data ?? { message: "No schema returned." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Lookup / Validation</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(configLookupResult ?? configValidationResult ?? { message: "Run a lookup or validation." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </DetailCard>
+
+            <DetailCard title="Patch, Raw Path, Apply" icon={Wrench}>
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Patch payload (JSON object)</span>
+                <textarea
+                  value={configPatchText}
+                  onChange={(event) => setConfigPatchText(event.target.value)}
+                  rows={8}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                />
+              </label>
+              <label className="mt-3 flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <input type="checkbox" checked={configPatchRestart} onChange={(event) => setConfigPatchRestart(event.target.checked)} />
+                Restart after patch
+              </label>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handlePatchConfig()}
+                  disabled={configAdvancedBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {configAdvancedBusy === "patch" ? "Patching…" : "Patch Config"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Raw config path</span>
+                  <input
+                    value={configRawPath}
+                    onChange={(event) => setConfigRawPath(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Raw value</span>
+                  <textarea
+                    value={configRawValueText}
+                    onChange={(event) => setConfigRawValueText(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                    disabled={configRawRemove}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <input type="checkbox" checked={configRawRemove} onChange={(event) => setConfigRawRemove(event.target.checked)} />
+                  Remove this path instead of setting a value
+                </label>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSetRawConfigPath()}
+                  disabled={configAdvancedBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {configAdvancedBusy === "raw" ? "Saving…" : "Set Raw Path"}
+                </button>
+                <select
+                  value={configApplyTarget}
+                  onChange={(event) => setConfigApplyTarget(event.target.value as "openclaw" | "caddy" | "all" | "none")}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                >
+                  <option value="openclaw">openclaw</option>
+                  <option value="caddy">caddy</option>
+                  <option value="all">all</option>
+                  <option value="none">none</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleApplyConfig()}
+                  disabled={configAdvancedBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {configAdvancedBusy === "apply" ? "Applying…" : "Apply Config"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Raw Config File</p>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {configFile.data?.content ?? configFile.data?.raw ?? JSON.stringify(configFile.data ?? { message: "No raw config file returned." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
         </div>
       ) : null}
 
