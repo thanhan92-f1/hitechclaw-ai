@@ -110,15 +110,19 @@ type OpenClawNavItem = {
   key:
     | "overview"
     | "runtime"
+    | "mcp"
+    | "gateway"
     | "provider"
     | "credentials"
     | "domain"
     | "backup"
     | "channels"
+    | "plugins"
     | "skills"
     | "hooks"
     | "directory"
     | "models"
+    | "system"
     | "sessions";
   label: string;
   subtitle: string;
@@ -145,15 +149,19 @@ const moreSheetItems: NavItem[] = [
 const openClawNavItems: OpenClawNavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
   { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
+  { key: "mcp", label: "MCP", icon: Plug, subtitle: "MCP server inventory" },
+  { key: "gateway", label: "Gateway", icon: Network, subtitle: "Gateway discovery & nodes" },
   { key: "provider", label: "Provider", icon: Bot, subtitle: "Provider and model control" },
   { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
   { key: "domain", label: "Domain", icon: Globe, subtitle: "Domain and SSL" },
   { key: "backup", label: "Backup", icon: Archive, subtitle: "Snapshots and verify" },
   { key: "channels", label: "Channels", icon: MessageSquare, subtitle: "Messaging connectors" },
+  { key: "plugins", label: "Plugins", icon: Puzzle, subtitle: "Plugin inventory & toggles" },
   { key: "skills", label: "Skills", icon: Puzzle, subtitle: "Skill inventory and config" },
   { key: "hooks", label: "Hooks", icon: Wrench, subtitle: "Hook checks and toggles" },
   { key: "directory", label: "Directory", icon: Database, subtitle: "Peers and groups" },
   { key: "models", label: "Models", icon: Settings, subtitle: "Aliases and fallbacks" },
+  { key: "system", label: "System", icon: Shield, subtitle: "Presence and heartbeat" },
   { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
 ];
 

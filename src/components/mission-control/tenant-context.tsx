@@ -11,15 +11,19 @@ export type WorkspaceMode = "hitechclaw" | "openclaw";
 export type OpenClawSection =
   | "overview"
   | "runtime"
+  | "mcp"
+  | "gateway"
   | "provider"
   | "credentials"
   | "domain"
   | "backup"
   | "channels"
+  | "plugins"
   | "skills"
   | "hooks"
   | "directory"
   | "models"
+  | "system"
   | "sessions";
 
 interface TenantContextValue {
@@ -65,15 +69,19 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (
           storedSection === "overview" ||
           storedSection === "runtime" ||
+          storedSection === "mcp" ||
+          storedSection === "gateway" ||
           storedSection === "provider" ||
           storedSection === "credentials" ||
           storedSection === "domain" ||
           storedSection === "backup" ||
           storedSection === "channels" ||
+          storedSection === "plugins" ||
           storedSection === "skills" ||
           storedSection === "hooks" ||
           storedSection === "directory" ||
           storedSection === "models" ||
+          storedSection === "system" ||
           storedSection === "sessions"
         ) {
           setOpenClawSectionRaw(storedSection);

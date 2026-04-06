@@ -17,5 +17,13 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: hitechclaw-ai-redis-test
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-56379}:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--loglevel", "warning"]
+
 volumes:
   pgdata_test:

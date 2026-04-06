@@ -1,99 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRole, unauthorized, forbidden } from "@/app/api/tools/_utils";
+import {
+  buildOpenClawCacheKey,
+  getOpenClawCachedResponse,
+  getOpenClawCacheMetadata,
+  invalidateOpenClawCache,
+  isOpenClawRefreshRequested,
+  setOpenClawCachedResponse,
+  shouldCacheOpenClawRequest,
+} from "@/lib/openclaw-cache";
 import { resolveOpenClawEnvironment } from "@/lib/openclaw-environments";
 
-const ALLOWED_ROUTE_PATTERNS: Record<string, RegExp[]> = {
-  GET: [
-    /^\/api\/(info|status|system|openclaw\/status|logs|sessions|version)$/,
-    /^\/api\/config(?:\/(get|validate|schema(?:\/lookup)?|file))?$/,
-    /^\/api\/providers$/,
-    /^\/api\/models(?:\/.*)?$/,
-    /^\/api\/channels(?:\/(status|upstream|capabilities|logs|[^/]+))?$/,
-    /^\/api\/skills(?:\/(status|search|check|bins|[^/]+))?$/,
-    /^\/api\/(secrets|security)\/audit$/,
-    /^\/api\/domain(?:\/(preflight(?:\/live)?|issuer))?$/,
-    /^\/api\/(directory|hooks|plugins|nodes)(?:\/.*)?$/,
-  ],
-  POST: [
-    /^\/api\/(restart|stop|start|rebuild|upgrade)$/,
-    /^\/api\/sessions\/cleanup$/,
-    /^\/api\/config\/(test-key|apply)$/,
-    /^\/api\/backup\/(create|verify)$/,
-    /^\/api\/channels\/resolve$/,
-    /^\/api\/hooks\/[^/]+\/(enable|disable)$/,
-    /^\/api\/models\/(aliases|fallbacks|image-fallbacks)$/,
-    /^\/api\/skills\/update$/,
-    /^\/api\/secrets\/reload$/,
-  ],
-  PUT: [
-    /^\/api\/config\/(provider|api-key|raw|custom-provider)$/,
-    /^\/api\/domain$/,
-    /^\/api\/channels\/[^/]+$/,
-    /^\/api\/models\/(default|image-default|auth-order)$/,
-    /^\/api\/(hooks|plugins)\/[^/]+$/,
-  ],
-  PATCH: [
-    /^\/api\/config$/,
-  ],
-  DELETE: [
-    /^\/api\/config\/(api-key|unset|custom-provider)$/,
-    /^\/api\/channels\/[^/]+$/,
-    /^\/api\/models\/(auth-order|fallbacks|image-fallbacks)$/,
-    /^\/api\/models\/aliases\/[^/]+$/,
-    /^\/api\/models\/(fallbacks|image-fallbacks)\/[^/]+$/,
-    /^\/api\/(hooks|plugins)\/[^/]+$/,
-  ],
-};
+const DEFAULT_OPENCLAW_TIMEOUT_MS = 60000;
 
-const HIGH_RISK_PATTERNS: RegExp[] = [
-  /^\/api\/(restart|stop|start|rebuild|upgrade)$/,
-  /^\/api\/sessions\/cleanup$/,
-  /^\/api\/config\/(apply|provider|api-key|raw|custom-provider|unset)$/,
-  /^\/api\/config$/,
-  /^\/api\/backup\/create$/,
-  /^\/api\/domain$/,
-  /^\/api\/channels\/[^/]+$/,
-  /^\/api\/hooks\/[^/]+\/(enable|disable)$/,
-  /^\/api\/models\/(default|image-default|auth-order|aliases|fallbacks|image-fallbacks)(?:\/[^/]+)?$/,
-  /^\/api\/skills\/update$/,
-  /^\/api\/(hooks|plugins)\/[^/]+$/,
-];
-
-function isAllowed(method: string, path: string) {
-  return (ALLOWED_ROUTE_PATTERNS[method] ?? []).some((pattern) => pattern.test(path));
-}
-
-function normalizeCustomManagementPath(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const withApiPrefix = trimmed.startsWith("/api/")
-    ? trimmed
-    : trimmed.startsWith("/")
-      ? `/api${trimmed}`
-      : `/api/${trimmed}`;
-
-  return withApiPrefix.replace(/\/+$/g, "").replace(/\/+/g, "/");
-}
-
-function isAllowedByEnvironment(method: string, path: string, customAllowedPaths: unknown) {
-  if (isAllowed(method, path)) {
-    return true;
-  }
-
-  if (!Array.isArray(customAllowedPaths)) {
+function isOpenClawTimeoutError(error: unknown) {
+  if (!(error instanceof Error)) {
     return false;
   }
 
-  return customAllowedPaths
-    .filter((entry): entry is string => typeof entry === "string")
-    .map((entry) => normalizeCustomManagementPath(entry))
-    .filter(Boolean)
-    .some((entry) => path === entry || path.startsWith(`${entry}/`));
+  const message = error.message.toLowerCase();
+  return (
+    error.name === "AbortError" ||
+    message.includes("aborted due to timeout") ||
+    message.includes("operation was aborted") ||
+    message.includes("timeout")
+  );
 }
 
-function isHighRisk(path: string) {
-  return HIGH_RISK_PATTERNS.some((pattern) => pattern.test(path));
+function createOpenClawResponse(
+  data: unknown,
+  status: number,
+  headers: Record<string, string | undefined>,
+) {
+  const response = NextResponse.json(data, { status });
+  Object.entries(headers).forEach(([key, value]) => {
+    if (value) {
+      response.headers.set(key, value);
+    }
+  });
+  return response;
 }
 
 async function forward(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
@@ -115,15 +60,6 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
     return NextResponse.json({ error: "OpenClaw environment not found" }, { status: 404 });
   }
 
-  if (!isAllowedByEnvironment(method, normalizedPath, environment.config.allowedManagementPaths)) {
-    return forbidden("Management path not allowed");
-  }
-
-  const allowDestructiveActions = environment.config.allowDestructiveActions;
-  if (allowDestructiveActions === false && isHighRisk(normalizedPath)) {
-    return forbidden("High-risk OpenClaw actions are disabled for this environment");
-  }
-
   const baseUrl = environment.baseUrl;
   const apiKey = environment.managementApiKey || environment.authToken || environment.gatewayToken;
 
@@ -140,6 +76,23 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
     targetUrl.searchParams.set(key, value);
   });
 
+  const cacheableRequest = shouldCacheOpenClawRequest(method);
+  const forceRefresh = cacheableRequest && isOpenClawRefreshRequested(req.nextUrl.searchParams);
+  const cacheKey = cacheableRequest ? buildOpenClawCacheKey(environment.id, method, targetUrl.toString()) : null;
+  const cachedEntry = cacheKey ? await getOpenClawCachedResponse(cacheKey) : null;
+
+  if (cacheableRequest && cachedEntry && !forceRefresh) {
+    const metadata = getOpenClawCacheMetadata(cachedEntry);
+    return createOpenClawResponse(cachedEntry.data, cachedEntry.status, {
+      "x-openclaw-environment-id": environment.id,
+      "x-openclaw-environment-name": environment.name,
+      "x-openclaw-cache": metadata.isFresh ? "hit" : "stale",
+      "x-openclaw-fetched-at": metadata.fetchedAt,
+      "x-openclaw-cache-age-ms": metadata.ageMs === null ? undefined : String(metadata.ageMs),
+      "x-openclaw-target-url": cachedEntry.targetUrl,
+    });
+  }
+
   const init: RequestInit = {
     method,
     headers: {
@@ -148,7 +101,9 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
     },
     cache: "no-store",
     signal: AbortSignal.timeout(
-      typeof environment.config.requestTimeoutMs === "number" ? environment.config.requestTimeoutMs : 15000,
+      typeof environment.config.requestTimeoutMs === "number"
+        ? environment.config.requestTimeoutMs
+        : DEFAULT_OPENCLAW_TIMEOUT_MS,
     ),
   };
 
@@ -173,11 +128,49 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
       data = { raw: text };
     }
 
-    const nextResponse = NextResponse.json(data, { status: response.status });
-    nextResponse.headers.set("x-openclaw-environment-id", environment.id);
-    nextResponse.headers.set("x-openclaw-environment-name", environment.name);
-    return nextResponse;
+    if (cacheableRequest && cacheKey && response.ok) {
+      await setOpenClawCachedResponse(cacheKey, {
+        status: response.status,
+        data,
+        contentType: response.headers.get("content-type") ?? "application/json",
+        fetchedAt: new Date().toISOString(),
+        targetUrl: targetUrl.toString(),
+      });
+    }
+
+    if (!cacheableRequest && response.ok) {
+      await invalidateOpenClawCache(environment.id);
+    }
+
+    return createOpenClawResponse(data, response.status, {
+      "x-openclaw-environment-id": environment.id,
+      "x-openclaw-environment-name": environment.name,
+      "x-openclaw-cache": cacheableRequest ? "miss" : "bypass",
+      "x-openclaw-fetched-at": new Date().toISOString(),
+      "x-openclaw-target-url": targetUrl.toString(),
+    });
   } catch (error) {
+    if (cacheableRequest && cachedEntry) {
+      const metadata = getOpenClawCacheMetadata(cachedEntry);
+      return createOpenClawResponse(cachedEntry.data, cachedEntry.status, {
+        "x-openclaw-environment-id": environment.id,
+        "x-openclaw-environment-name": environment.name,
+        "x-openclaw-cache": "stale-if-error",
+        "x-openclaw-fetched-at": metadata.fetchedAt,
+        "x-openclaw-cache-age-ms": metadata.ageMs === null ? undefined : String(metadata.ageMs),
+        "x-openclaw-target-url": cachedEntry.targetUrl,
+      });
+    }
+
+    if (isOpenClawTimeoutError(error)) {
+      return NextResponse.json(
+        {
+          error: "OpenClaw request timed out. Use Refresh to load the latest data again.",
+        },
+        { status: 504 },
+      );
+    }
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "OpenClaw management request failed",

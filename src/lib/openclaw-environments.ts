@@ -8,6 +8,8 @@ import {
 
 const SECRET_FIELDS = ["managementApiKey", "gatewayToken", "authToken"] as const;
 const DEFAULT_OPENCLAW_ENVIRONMENT_ID = "default";
+const OPENCLAW_REQUEST_TIMEOUT_MIN_MS = 1000;
+const OPENCLAW_REQUEST_TIMEOUT_MAX_MS = 300000;
 
 export type OpenClawEnvironmentSecretField = (typeof SECRET_FIELDS)[number];
 
@@ -140,8 +142,8 @@ function normalizeConfig(value: unknown): OpenClawEnvironmentConfig {
   const timeoutRaw = config.requestTimeoutMs;
   if (timeoutRaw !== undefined && timeoutRaw !== null && String(timeoutRaw).trim() !== "") {
     const timeout = Number(timeoutRaw);
-    if (!Number.isFinite(timeout) || timeout < 1000 || timeout > 120000) {
-      throw new Error("config.requestTimeoutMs must be between 1000 and 120000 milliseconds.");
+    if (!Number.isFinite(timeout) || timeout < OPENCLAW_REQUEST_TIMEOUT_MIN_MS || timeout > OPENCLAW_REQUEST_TIMEOUT_MAX_MS) {
+      throw new Error(`config.requestTimeoutMs must be between ${OPENCLAW_REQUEST_TIMEOUT_MIN_MS} and ${OPENCLAW_REQUEST_TIMEOUT_MAX_MS} milliseconds.`);
     }
     config.requestTimeoutMs = Math.round(timeout);
   } else {

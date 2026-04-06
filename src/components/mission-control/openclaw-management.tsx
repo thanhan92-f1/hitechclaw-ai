@@ -13,7 +13,9 @@ import {
   KeyRound,
   Loader2,
   MessageSquare,
+  Network,
   Play,
+  Plug,
   Puzzle,
   RefreshCcw,
   Server,
@@ -33,6 +35,19 @@ type FetchState<T> = {
   data: T | null;
   loading: boolean;
   error: string | null;
+  fetchedAt: string | null;
+  cacheStatus: string | null;
+};
+
+type OpenClawResponseMeta = {
+  fetchedAt: string | null;
+  cacheStatus: string | null;
+  environmentId: string | null;
+  targetUrl: string | null;
+};
+
+type OpenClawRequestInit = RequestInit & {
+  refresh?: boolean;
 };
 
 interface ServiceInfo {
@@ -57,8 +72,8 @@ interface ServiceStatus {
   ok?: boolean;
   openclaw?: { status?: string; startedAt?: string };
   caddy?: { status?: string };
-  version?: string;
   gatewayPort?: string;
+  version?: string;
 }
 
 interface SystemInfo {
@@ -368,6 +383,106 @@ interface ModelFallbacksInfo {
   [key: string]: unknown;
 }
 
+interface McpServersInfo {
+  ok?: boolean;
+  servers?: Array<Record<string, unknown> | string> | Record<string, unknown>;
+  items?: Array<Record<string, unknown> | string>;
+  data?: Array<Record<string, unknown> | string> | Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface McpServerDetailInfo {
+  ok?: boolean;
+  server?: Record<string, unknown>;
+  item?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface PluginEntry {
+  id?: string;
+  name?: string;
+  title?: string;
+  enabled?: boolean;
+  active?: boolean;
+  description?: string;
+  version?: string;
+  [key: string]: unknown;
+}
+
+interface PluginsInfo {
+  ok?: boolean;
+  plugins?: PluginEntry[] | Record<string, PluginEntry>;
+  items?: PluginEntry[];
+  data?: PluginEntry[];
+  [key: string]: unknown;
+}
+
+interface PluginInspectInfo {
+  ok?: boolean;
+  plugins?: PluginEntry[] | Record<string, PluginEntry>;
+  plugin?: PluginEntry;
+  item?: PluginEntry;
+  data?: PluginEntry | PluginEntry[];
+  [key: string]: unknown;
+}
+
+interface GatewayUsageCostInfo {
+  ok?: boolean;
+  days?: number;
+  totalCost?: number | string;
+  cost?: number | string;
+  currency?: string;
+  [key: string]: unknown;
+}
+
+interface GatewayDiscoverInfo {
+  ok?: boolean;
+  gateways?: Array<Record<string, unknown>>;
+  nodes?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface NodesInfo {
+  ok?: boolean;
+  nodes?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface NodeDetailInfo {
+  ok?: boolean;
+  node?: Record<string, unknown>;
+  item?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface SystemEventInfo {
+  ok?: boolean;
+  message?: string;
+  [key: string]: unknown;
+}
+
+interface SystemHeartbeatInfo {
+  ok?: boolean;
+  enabled?: boolean;
+  lastHeartbeat?: Record<string, unknown>;
+  heartbeat?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface SystemPresenceInfo {
+  ok?: boolean;
+  presence?: Array<Record<string, unknown>>;
+  entries?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
 interface OpenClawEnvironmentOption {
   id: string;
   name: string;
@@ -383,8 +498,8 @@ interface OpenClawEnvironmentsPayload {
   defaultEnvironmentId?: string;
 }
 
-const OPENCLAW_SYNC_ACTIVE_MS = 5 * 60 * 1000;
-const OPENCLAW_SYNC_PASSIVE_MS = 10 * 60 * 1000;
+const OPENCLAW_SYNC_ACTIVE_MS = 0;
+const OPENCLAW_SYNC_PASSIVE_MS = 0;
 const OPENCLAW_ENVIRONMENTS_SYNC_MS = 10 * 60 * 1000;
 
 function fmtUptime(seconds?: number) {
@@ -399,7 +514,23 @@ function fmtUptime(seconds?: number) {
 function fmtDate(value?: string) {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("en-ZA");
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "medium",
+        hour12: false,
+        timeZone: "Asia/Ho_Chi_Minh",
+      }).format(date);
+}
+
+function appendRefreshQuery(path: string) {
+  const [pathWithSearch, hash = ""] = path.split("#", 2);
+  const [pathname, search = ""] = pathWithSearch.split("?", 2);
+  const params = new URLSearchParams(search);
+  params.set("refresh", "1");
+  const query = params.toString();
+  return `${pathname}${query ? `?${query}` : ""}${hash ? `#${hash}` : ""}`;
 }
 
 function statusTone(status?: string) {
@@ -490,13 +621,38 @@ function normalizeAliasEntries(value: unknown) {
   return [] as Array<{ alias: string; model: string }>;
 }
 
-async function requestOpenClaw<T>(path: string, init?: RequestInit): Promise<T> {
+function normalizeLooseItems(value: unknown, keyName: string) {
+  if (!value) return [] as Array<Record<string, unknown>>;
+  if (Array.isArray(value)) {
+    return value
+      .map((entry, index) => {
+        if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+          return entry as Record<string, unknown>;
+        }
+        return { [keyName]: String(entry ?? `${keyName}-${index + 1}`), value: entry };
+      })
+      .filter(Boolean);
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(([key, entry]) => {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        return { [keyName]: key, ...(entry as Record<string, unknown>) };
+      }
+      return { [keyName]: key, value: entry };
+    });
+  }
+  return [] as Array<Record<string, unknown>>;
+}
+
+async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestInit): Promise<{ data: T; meta: OpenClawResponseMeta }> {
   const environmentId =
     typeof window !== "undefined"
       ? window.localStorage.getItem("hitechclaw-ai-openclaw-environment")
       : null;
 
-  const response = await fetch(`/api/openclaw-management${path}`, {
+  const requestPath = init?.refresh ? appendRefreshQuery(path) : path;
+
+  const response = await fetch(`/api/openclaw-management${requestPath}`, {
     headers: {
       ...getAuthHeaders(),
       ...(environmentId ? { "x-openclaw-environment-id": environmentId } : {}),
@@ -525,26 +681,56 @@ async function requestOpenClaw<T>(path: string, init?: RequestInit): Promise<T> 
       typeof data === "object" && data && "error" in data && typeof (data as { error?: unknown }).error === "string"
         ? (data as { error: string }).error
         : `${response.status} ${response.statusText}`;
+    if (message === "High-risk OpenClaw actions are disabled for this environment") {
+      throw new Error("This OpenClaw action is currently unavailable for the selected target.");
+    }
     throw new Error(message);
   }
 
-  return data as T;
+  return {
+    data: data as T,
+    meta: {
+      fetchedAt: response.headers.get("x-openclaw-fetched-at"),
+      cacheStatus: response.headers.get("x-openclaw-cache"),
+      environmentId: response.headers.get("x-openclaw-environment-id"),
+      targetUrl: response.headers.get("x-openclaw-target-url"),
+    },
+  };
+}
+
+async function requestOpenClaw<T>(path: string, init?: OpenClawRequestInit): Promise<T> {
+  const result = await requestOpenClawDetailed<T>(path, init);
+  return result.data;
 }
 
 function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
-  const [state, setState] = useState<FetchState<T>>({ data: null, loading: enabled, error: null });
+  const [state, setState] = useState<FetchState<T>>({
+    data: null,
+    loading: enabled,
+    error: null,
+    fetchedAt: null,
+    cacheStatus: null,
+  });
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { refresh?: boolean }) => {
     if (!enabled) return;
     setState((current) => ({ ...current, loading: current.data == null, error: null }));
     try {
-      const data = await requestOpenClaw<T>(path);
-      setState({ data, loading: false, error: null });
+      const result = await requestOpenClawDetailed<T>(path, { refresh: options?.refresh });
+      setState({
+        data: result.data,
+        loading: false,
+        error: null,
+        fetchedAt: result.meta.fetchedAt,
+        cacheStatus: result.meta.cacheStatus,
+      });
     } catch (error) {
       setState((current) => ({
         data: current.data,
         loading: false,
         error: error instanceof Error ? error.message : "Request failed",
+        fetchedAt: current.fetchedAt,
+        cacheStatus: current.cacheStatus,
       }));
     }
   }, [enabled, path]);
@@ -552,6 +738,9 @@ function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     void refresh();
+    if (intervalMs <= 0) {
+      return;
+    }
     const timer = window.setInterval(() => {
       void refresh();
     }, intervalMs);
@@ -582,31 +771,44 @@ export function OpenClawManagement() {
     [environmentOptions, openClawEnvironmentId],
   );
   const configSections: OpenClawSection[] = [
+    "mcp",
+    "gateway",
     "provider",
     "credentials",
     "domain",
     "backup",
     "channels",
+    "plugins",
     "skills",
     "hooks",
     "directory",
     "models",
+    "system",
   ];
   const isConfigSection = configSections.includes(openClawSection);
+  const isMcpSection = openClawSection === "mcp";
+  const isGatewaySection = openClawSection === "gateway";
   const isProviderSection = openClawSection === "provider";
   const isCredentialsSection = openClawSection === "credentials";
   const isDomainSection = openClawSection === "domain";
   const isBackupSection = openClawSection === "backup";
   const isChannelsSection = openClawSection === "channels";
+  const isPluginsSection = openClawSection === "plugins";
   const isSkillsSection = openClawSection === "skills";
   const isHooksSection = openClawSection === "hooks";
   const isDirectorySection = openClawSection === "directory";
   const isModelsSection = openClawSection === "models";
+  const isSystemSection = openClawSection === "system";
 
   const info = useOpenClawFetch<ServiceInfo>("/info", OPENCLAW_SYNC_PASSIVE_MS);
   const status = useOpenClawFetch<ServiceStatus>("/status", OPENCLAW_SYNC_ACTIVE_MS);
   const system = useOpenClawFetch<SystemInfo>("/system", OPENCLAW_SYNC_PASSIVE_MS);
   const upstream = useOpenClawFetch<UpstreamStatus>("/openclaw/status?all=true&usage=true&deep=false&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS);
+  const mcpServers = useOpenClawFetch<McpServersInfo>("/mcp", OPENCLAW_SYNC_PASSIVE_MS, isMcpSection);
+  const gatewayUsage = useOpenClawFetch<GatewayUsageCostInfo>("/gateway/usage-cost?days=30", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
+  const gatewayDiscover = useOpenClawFetch<GatewayDiscoverInfo>("/gateway/discover?timeoutMs=2000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
+  const nodesStatus = useOpenClawFetch<NodesInfo>("/nodes/status?connected=true&lastConnected=24h&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
+  const nodesList = useOpenClawFetch<NodesInfo>("/nodes?connected=false&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection);
   const config = useOpenClawFetch<ConfigInfo>("/config", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isConfigSection);
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "runtime");
@@ -616,6 +818,9 @@ export function OpenClawManagement() {
   const providers = useOpenClawFetch<ProvidersInfo>("/providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
   const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, OPENCLAW_SYNC_PASSIVE_MS, isProviderSection && Boolean(provider));
   const channels = useOpenClawFetch<ChannelsInfo>("/channels", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
+  const channelsStatus = useOpenClawFetch<ChannelsInfo>("/channels/status?probe=true", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
+  const plugins = useOpenClawFetch<PluginsInfo>("/plugins?enabled=false&verbose=false", OPENCLAW_SYNC_PASSIVE_MS, isPluginsSection);
+  const pluginsInspect = useOpenClawFetch<PluginInspectInfo>("/plugins/inspect?all=true", OPENCLAW_SYNC_PASSIVE_MS, isPluginsSection);
   const hooks = useOpenClawFetch<HooksInfo>("/hooks?eligible=true&verbose=true", OPENCLAW_SYNC_PASSIVE_MS, isHooksSection);
   const hookCheck = useOpenClawFetch<HookCheckInfo>("/hooks/check", OPENCLAW_SYNC_PASSIVE_MS, isHooksSection);
 
@@ -640,6 +845,8 @@ export function OpenClawManagement() {
   const modelAliases = useOpenClawFetch<ModelAliasesInfo>("/models/aliases", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
   const modelFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/fallbacks", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
   const imageFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/image-fallbacks", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
+  const systemHeartbeatLast = useOpenClawFetch<SystemHeartbeatInfo>("/system/heartbeat/last?timeoutMs=30000", OPENCLAW_SYNC_PASSIVE_MS, isSystemSection);
+  const systemPresence = useOpenClawFetch<SystemPresenceInfo>("/system/presence?timeoutMs=30000", OPENCLAW_SYNC_PASSIVE_MS, isSystemSection);
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainEmail, setDomainEmail] = useState("");
@@ -657,6 +864,15 @@ export function OpenClawManagement() {
   const [channelAppToken, setChannelAppToken] = useState("");
   const [channelDmPolicy, setChannelDmPolicy] = useState("pairing");
   const [channelBusy, setChannelBusy] = useState<string | null>(null);
+  const [selectedMcpServer, setSelectedMcpServer] = useState("");
+  const [mcpValueText, setMcpValueText] = useState('{\n  "command": "",\n  "args": []\n}');
+  const [mcpBusy, setMcpBusy] = useState<string | null>(null);
+  const [selectedPlugin, setSelectedPlugin] = useState("");
+  const [pluginBusy, setPluginBusy] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState("");
+  const [systemEventText, setSystemEventText] = useState("manual-health-check");
+  const [systemEventMode, setSystemEventMode] = useState<"now" | "next-heartbeat">("now");
+  const [systemBusy, setSystemBusy] = useState<string | null>(null);
   const [selectedHook, setSelectedHook] = useState("");
   const [hookBusy, setHookBusy] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState("");
@@ -680,6 +896,8 @@ export function OpenClawManagement() {
 
   const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, OPENCLAW_SYNC_PASSIVE_MS, isHooksSection && Boolean(selectedHook));
   const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
+  const mcpServerDetail = useOpenClawFetch<McpServerDetailInfo>(`/mcp/${encodeURIComponent(selectedMcpServer)}`, OPENCLAW_SYNC_PASSIVE_MS, isMcpSection && Boolean(selectedMcpServer));
+  const nodeDetail = useOpenClawFetch<NodeDetailInfo>(`/nodes/${encodeURIComponent(selectedNode)}?timeoutMs=10000`, OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection && Boolean(selectedNode));
 
   const refreshEnvironments = useCallback(async () => {
     try {
@@ -705,6 +923,9 @@ export function OpenClawManagement() {
   }, [refreshEnvironments]);
 
   useEffect(() => {
+    if (OPENCLAW_ENVIRONMENTS_SYNC_MS <= 0) {
+      return;
+    }
     const timer = window.setInterval(() => {
       void refreshEnvironments();
     }, OPENCLAW_ENVIRONMENTS_SYNC_MS);
@@ -735,6 +956,60 @@ export function OpenClawManagement() {
       setChannelDmPolicy(String(currentChannel.dmPolicy));
     }
   }, [channels.data?.channels, selectedChannel]);
+
+  const mcpServerItems = useMemo(
+    () => normalizeLooseItems(mcpServers.data?.servers ?? mcpServers.data?.items ?? mcpServers.data?.data ?? null, "name"),
+    [mcpServers.data?.data, mcpServers.data?.items, mcpServers.data?.servers],
+  );
+
+  useEffect(() => {
+    if (!mcpServerItems.some((item) => String(item.name ?? item.id ?? item.server ?? "") === selectedMcpServer)) {
+      const firstServer = mcpServerItems[0];
+      setSelectedMcpServer(String(firstServer?.name ?? firstServer?.id ?? firstServer?.server ?? ""));
+    }
+  }, [mcpServerItems, selectedMcpServer]);
+
+  useEffect(() => {
+    const server = mcpServerDetail.data?.server ?? mcpServerDetail.data?.item ?? mcpServerDetail.data?.data;
+    if (server && selectedMcpServer) {
+      setMcpValueText(JSON.stringify(server, null, 2));
+    }
+  }, [mcpServerDetail.data?.data, mcpServerDetail.data?.item, mcpServerDetail.data?.server, selectedMcpServer]);
+
+  const pluginItems = useMemo(
+    () => normalizeLooseItems(plugins.data?.plugins ?? plugins.data?.items ?? plugins.data?.data ?? null, "id"),
+    [plugins.data?.data, plugins.data?.items, plugins.data?.plugins],
+  );
+
+  useEffect(() => {
+    if (!pluginItems.some((item) => String(item.id ?? item.name ?? item.title ?? "") === selectedPlugin)) {
+      const firstPlugin = pluginItems[0];
+      setSelectedPlugin(String(firstPlugin?.id ?? firstPlugin?.name ?? firstPlugin?.title ?? ""));
+    }
+  }, [pluginItems, selectedPlugin]);
+
+  const gatewayDiscoverItems = useMemo(
+    () => normalizeRecordItems(gatewayDiscover.data?.gateways ?? gatewayDiscover.data?.nodes ?? gatewayDiscover.data?.results ?? gatewayDiscover.data?.items ?? null, "gatewayId"),
+    [gatewayDiscover.data?.gateways, gatewayDiscover.data?.items, gatewayDiscover.data?.nodes, gatewayDiscover.data?.results],
+  );
+
+  const nodesStatusItems = useMemo(
+    () => normalizeRecordItems(nodesStatus.data?.nodes ?? nodesStatus.data?.results ?? nodesStatus.data?.items ?? null, "nodeId"),
+    [nodesStatus.data?.items, nodesStatus.data?.nodes, nodesStatus.data?.results],
+  );
+
+  const nodesListItems = useMemo(
+    () => normalizeRecordItems(nodesList.data?.nodes ?? nodesList.data?.results ?? nodesList.data?.items ?? null, "nodeId"),
+    [nodesList.data?.items, nodesList.data?.nodes, nodesList.data?.results],
+  );
+
+  useEffect(() => {
+    const allNodes = [...nodesStatusItems, ...nodesListItems];
+    if (!allNodes.some((item) => String(item.nodeId ?? item.id ?? item.name ?? "") === selectedNode)) {
+      const firstNode = allNodes[0];
+      setSelectedNode(String(firstNode?.nodeId ?? firstNode?.id ?? firstNode?.name ?? ""));
+    }
+  }, [nodesListItems, nodesStatusItems, selectedNode]);
 
   const hookEntries = useMemo(
     () => normalizeHookEntries(hooks.data?.hooks ?? hooks.data?.items ?? hooks.data?.data ?? null),
@@ -806,40 +1081,246 @@ export function OpenClawManagement() {
     setSkillConfigText(JSON.stringify(sourceSkill.config ?? sourceSkill.metadata ?? {}, null, 2));
   }, [selectedSkill, skillDetail.data?.skill, skills.data?.skills]);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (forceFresh = false) => {
     await Promise.all([
-      info.refresh(),
-      status.refresh(),
-      system.refresh(),
-      upstream.refresh(),
-      config.refresh(),
-      sessions.refresh(),
-      logs.refresh(),
-      version.refresh(),
-      domain.refresh(),
-      domainIssuer.refresh(),
-      providers.refresh(),
-      providerModels.refresh(),
-      channels.refresh(),
-      hooks.refresh(),
-      hookCheck.refresh(),
-      hookDetail.refresh(),
-      skills.refresh(),
-      skillsStatus.refresh(),
-      skillBins.refresh(),
-      skillDetail.refresh(),
-      directorySelf.refresh(),
-      directoryPeers.refresh(),
-      directoryGroups.refresh(),
-      directoryMembers.refresh(),
-      modelsCatalog.refresh(),
-      modelsStatus.refresh(),
-      modelAuthOrder.refresh(),
-      modelAliases.refresh(),
-      modelFallbacks.refresh(),
-      imageFallbacks.refresh(),
+      info.refresh({ refresh: forceFresh }),
+      status.refresh({ refresh: forceFresh }),
+      system.refresh({ refresh: forceFresh }),
+      upstream.refresh({ refresh: forceFresh }),
+      mcpServers.refresh({ refresh: forceFresh }),
+      mcpServerDetail.refresh({ refresh: forceFresh }),
+      gatewayUsage.refresh({ refresh: forceFresh }),
+      gatewayDiscover.refresh({ refresh: forceFresh }),
+      nodesStatus.refresh({ refresh: forceFresh }),
+      nodesList.refresh({ refresh: forceFresh }),
+      nodeDetail.refresh({ refresh: forceFresh }),
+      config.refresh({ refresh: forceFresh }),
+      sessions.refresh({ refresh: forceFresh }),
+      logs.refresh({ refresh: forceFresh }),
+      version.refresh({ refresh: forceFresh }),
+      domain.refresh({ refresh: forceFresh }),
+      domainIssuer.refresh({ refresh: forceFresh }),
+      providers.refresh({ refresh: forceFresh }),
+      providerModels.refresh({ refresh: forceFresh }),
+      channels.refresh({ refresh: forceFresh }),
+      channelsStatus.refresh({ refresh: forceFresh }),
+      plugins.refresh({ refresh: forceFresh }),
+      pluginsInspect.refresh({ refresh: forceFresh }),
+      hooks.refresh({ refresh: forceFresh }),
+      hookCheck.refresh({ refresh: forceFresh }),
+      hookDetail.refresh({ refresh: forceFresh }),
+      skills.refresh({ refresh: forceFresh }),
+      skillsStatus.refresh({ refresh: forceFresh }),
+      skillBins.refresh({ refresh: forceFresh }),
+      skillDetail.refresh({ refresh: forceFresh }),
+      directorySelf.refresh({ refresh: forceFresh }),
+      directoryPeers.refresh({ refresh: forceFresh }),
+      directoryGroups.refresh({ refresh: forceFresh }),
+      directoryMembers.refresh({ refresh: forceFresh }),
+      modelsCatalog.refresh({ refresh: forceFresh }),
+      modelsStatus.refresh({ refresh: forceFresh }),
+      modelAuthOrder.refresh({ refresh: forceFresh }),
+      modelAliases.refresh({ refresh: forceFresh }),
+      modelFallbacks.refresh({ refresh: forceFresh }),
+      imageFallbacks.refresh({ refresh: forceFresh }),
+      systemHeartbeatLast.refresh({ refresh: forceFresh }),
+      systemPresence.refresh({ refresh: forceFresh }),
     ]);
-  }, [channels, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, providerModels, providers, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, upstream, version]);
+  }, [channels, channelsStatus, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+
+  const lastUpdatedAt = useMemo(() => {
+    const timestamps = [
+      info.fetchedAt,
+      status.fetchedAt,
+      system.fetchedAt,
+      upstream.fetchedAt,
+      mcpServers.fetchedAt,
+      mcpServerDetail.fetchedAt,
+      gatewayUsage.fetchedAt,
+      gatewayDiscover.fetchedAt,
+      nodesStatus.fetchedAt,
+      nodesList.fetchedAt,
+      nodeDetail.fetchedAt,
+      config.fetchedAt,
+      sessions.fetchedAt,
+      logs.fetchedAt,
+      version.fetchedAt,
+      domain.fetchedAt,
+      domainIssuer.fetchedAt,
+      providers.fetchedAt,
+      providerModels.fetchedAt,
+      channels.fetchedAt,
+      channelsStatus.fetchedAt,
+      plugins.fetchedAt,
+      pluginsInspect.fetchedAt,
+      hooks.fetchedAt,
+      hookCheck.fetchedAt,
+      hookDetail.fetchedAt,
+      skills.fetchedAt,
+      skillsStatus.fetchedAt,
+      skillBins.fetchedAt,
+      skillDetail.fetchedAt,
+      directorySelf.fetchedAt,
+      directoryPeers.fetchedAt,
+      directoryGroups.fetchedAt,
+      directoryMembers.fetchedAt,
+      modelsCatalog.fetchedAt,
+      modelsStatus.fetchedAt,
+      modelAuthOrder.fetchedAt,
+      modelAliases.fetchedAt,
+      modelFallbacks.fetchedAt,
+      imageFallbacks.fetchedAt,
+      systemHeartbeatLast.fetchedAt,
+      systemPresence.fetchedAt,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .map((value) => new Date(value).getTime())
+      .filter((value) => Number.isFinite(value));
+
+    if (timestamps.length === 0) {
+      return null;
+    }
+
+    return new Date(Math.max(...timestamps)).toISOString();
+  }, [
+    channels.fetchedAt,
+    channelsStatus.fetchedAt,
+    config.fetchedAt,
+    directoryGroups.fetchedAt,
+    directoryMembers.fetchedAt,
+    directoryPeers.fetchedAt,
+    directorySelf.fetchedAt,
+    domain.fetchedAt,
+    domainIssuer.fetchedAt,
+    gatewayDiscover.fetchedAt,
+    gatewayUsage.fetchedAt,
+    hookCheck.fetchedAt,
+    hookDetail.fetchedAt,
+    hooks.fetchedAt,
+    imageFallbacks.fetchedAt,
+    info.fetchedAt,
+    logs.fetchedAt,
+    mcpServerDetail.fetchedAt,
+    mcpServers.fetchedAt,
+    modelAliases.fetchedAt,
+    modelAuthOrder.fetchedAt,
+    modelFallbacks.fetchedAt,
+    modelsCatalog.fetchedAt,
+    modelsStatus.fetchedAt,
+    nodeDetail.fetchedAt,
+    nodesList.fetchedAt,
+    nodesStatus.fetchedAt,
+    plugins.fetchedAt,
+    pluginsInspect.fetchedAt,
+    providerModels.fetchedAt,
+    providers.fetchedAt,
+    sessions.fetchedAt,
+    skillBins.fetchedAt,
+    skillDetail.fetchedAt,
+    skills.fetchedAt,
+    skillsStatus.fetchedAt,
+    status.fetchedAt,
+    system.fetchedAt,
+    systemHeartbeatLast.fetchedAt,
+    systemPresence.fetchedAt,
+    upstream.fetchedAt,
+    version.fetchedAt,
+  ]);
+
+  const cacheSummary = useMemo(() => {
+    const statuses = [
+      info.cacheStatus,
+      status.cacheStatus,
+      system.cacheStatus,
+      upstream.cacheStatus,
+      mcpServers.cacheStatus,
+      mcpServerDetail.cacheStatus,
+      gatewayUsage.cacheStatus,
+      gatewayDiscover.cacheStatus,
+      nodesStatus.cacheStatus,
+      nodesList.cacheStatus,
+      nodeDetail.cacheStatus,
+      config.cacheStatus,
+      sessions.cacheStatus,
+      logs.cacheStatus,
+      version.cacheStatus,
+      domain.cacheStatus,
+      domainIssuer.cacheStatus,
+      providers.cacheStatus,
+      providerModels.cacheStatus,
+      channels.cacheStatus,
+      channelsStatus.cacheStatus,
+      plugins.cacheStatus,
+      pluginsInspect.cacheStatus,
+      hooks.cacheStatus,
+      hookCheck.cacheStatus,
+      hookDetail.cacheStatus,
+      skills.cacheStatus,
+      skillsStatus.cacheStatus,
+      skillBins.cacheStatus,
+      skillDetail.cacheStatus,
+      directorySelf.cacheStatus,
+      directoryPeers.cacheStatus,
+      directoryGroups.cacheStatus,
+      directoryMembers.cacheStatus,
+      modelsCatalog.cacheStatus,
+      modelsStatus.cacheStatus,
+      modelAuthOrder.cacheStatus,
+      modelAliases.cacheStatus,
+      modelFallbacks.cacheStatus,
+      imageFallbacks.cacheStatus,
+      systemHeartbeatLast.cacheStatus,
+      systemPresence.cacheStatus,
+    ].filter((value): value is string => Boolean(value));
+
+    if (statuses.includes("stale-if-error")) return "Showing cached fallback data";
+    if (statuses.includes("miss")) return "Fresh OpenClaw data loaded";
+    if (statuses.includes("hit") || statuses.includes("stale")) return "Serving cached OpenClaw data";
+    return "Refresh manually when you need the latest OpenClaw state";
+  }, [
+    channels.cacheStatus,
+    channelsStatus.cacheStatus,
+    config.cacheStatus,
+    directoryGroups.cacheStatus,
+    directoryMembers.cacheStatus,
+    directoryPeers.cacheStatus,
+    directorySelf.cacheStatus,
+    domain.cacheStatus,
+    domainIssuer.cacheStatus,
+    gatewayDiscover.cacheStatus,
+    gatewayUsage.cacheStatus,
+    hookCheck.cacheStatus,
+    hookDetail.cacheStatus,
+    hooks.cacheStatus,
+    imageFallbacks.cacheStatus,
+    info.cacheStatus,
+    logs.cacheStatus,
+    mcpServerDetail.cacheStatus,
+    mcpServers.cacheStatus,
+    modelAliases.cacheStatus,
+    modelAuthOrder.cacheStatus,
+    modelFallbacks.cacheStatus,
+    modelsCatalog.cacheStatus,
+    modelsStatus.cacheStatus,
+    nodeDetail.cacheStatus,
+    nodesList.cacheStatus,
+    nodesStatus.cacheStatus,
+    plugins.cacheStatus,
+    pluginsInspect.cacheStatus,
+    providerModels.cacheStatus,
+    providers.cacheStatus,
+    sessions.cacheStatus,
+    skillBins.cacheStatus,
+    skillDetail.cacheStatus,
+    skills.cacheStatus,
+    skillsStatus.cacheStatus,
+    status.cacheStatus,
+    system.cacheStatus,
+    systemHeartbeatLast.cacheStatus,
+    systemPresence.cacheStatus,
+    upstream.cacheStatus,
+    version.cacheStatus,
+  ]);
 
   const performRuntimeAction = useCallback(async (action: "start" | "restart" | "rebuild" | "stop") => {
     setRuntimeBusy(action);
@@ -1088,6 +1569,103 @@ export function OpenClawManagement() {
       setChannelBusy(null);
     }
   }, [channels, logs, selectedChannel, status]);
+
+  const handleSaveMcpServer = useCallback(async () => {
+    if (!selectedMcpServer.trim()) {
+      toast.error("Enter an MCP server name first");
+      return;
+    }
+
+    setMcpBusy("save");
+    try {
+      const value = parseJsonObjectInput(mcpValueText, "MCP server value");
+      await requestOpenClaw(`/mcp/${encodeURIComponent(selectedMcpServer.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      });
+      toast.success(`MCP server ${selectedMcpServer.trim()} saved`);
+      await Promise.all([mcpServers.refresh(), mcpServerDetail.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save MCP server");
+    } finally {
+      setMcpBusy(null);
+    }
+  }, [mcpServerDetail, mcpServers, mcpValueText, selectedMcpServer]);
+
+  const handleDeleteMcpServer = useCallback(async () => {
+    if (!selectedMcpServer.trim()) {
+      toast.error("Choose an MCP server first");
+      return;
+    }
+
+    setMcpBusy("delete");
+    try {
+      await requestOpenClaw(`/mcp/${encodeURIComponent(selectedMcpServer.trim())}`, { method: "DELETE" });
+      toast.success(`MCP server ${selectedMcpServer.trim()} removed`);
+      await Promise.all([mcpServers.refresh(), mcpServerDetail.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove MCP server");
+    } finally {
+      setMcpBusy(null);
+    }
+  }, [mcpServerDetail, mcpServers, selectedMcpServer]);
+
+  const handleTogglePlugin = useCallback(async (enabled: boolean) => {
+    if (!selectedPlugin.trim()) {
+      toast.error("Choose a plugin first");
+      return;
+    }
+
+    setPluginBusy(enabled ? "enable" : "disable");
+    try {
+      await requestOpenClaw(`/plugins/${encodeURIComponent(selectedPlugin.trim())}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+      });
+      toast.success(`Plugin ${selectedPlugin.trim()} ${enabled ? "enabled" : "disabled"}`);
+      await Promise.all([plugins.refresh(), pluginsInspect.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} plugin`);
+    } finally {
+      setPluginBusy(null);
+    }
+  }, [plugins, pluginsInspect, selectedPlugin]);
+
+  const handlePostSystemEvent = useCallback(async () => {
+    if (!systemEventText.trim()) {
+      toast.error("Enter a system event first");
+      return;
+    }
+
+    setSystemBusy("event");
+    try {
+      const result = await requestOpenClaw<SystemEventInfo>("/system/events", {
+        method: "POST",
+        body: JSON.stringify({ text: systemEventText.trim(), mode: systemEventMode, timeoutMs: 30000 }),
+      });
+      toast.success(result.message ?? "System event posted");
+      await Promise.all([systemHeartbeatLast.refresh(), systemPresence.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to post system event");
+    } finally {
+      setSystemBusy(null);
+    }
+  }, [systemEventMode, systemEventText, systemHeartbeatLast, systemPresence]);
+
+  const handleToggleHeartbeat = useCallback(async (enabled: boolean) => {
+    setSystemBusy(enabled ? "heartbeat-enable" : "heartbeat-disable");
+    try {
+      await requestOpenClaw(`/system/heartbeat/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+        body: JSON.stringify({ timeoutMs: 30000 }),
+      });
+      toast.success(`Heartbeat ${enabled ? "enabled" : "disabled"}`);
+      await Promise.all([systemHeartbeatLast.refresh(), systemPresence.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} heartbeat`);
+    } finally {
+      setSystemBusy(null);
+    }
+  }, [systemHeartbeatLast, systemPresence]);
 
   const handleToggleHook = useCallback(async (enabled: boolean) => {
     if (!selectedHook) {
@@ -1404,6 +1982,39 @@ export function OpenClawManagement() {
     [modelAliases.data?.aliases, modelAliases.data?.items],
   );
 
+  const selectedPluginData = useMemo(() => {
+    const inspected = pluginsInspect.data?.plugin ?? pluginsInspect.data?.item;
+    if (inspected && String(inspected.id ?? inspected.name ?? inspected.title ?? "") === selectedPlugin) {
+      return inspected;
+    }
+
+    const inspectItems = normalizeLooseItems(
+      pluginsInspect.data?.plugins ?? pluginsInspect.data?.data ?? null,
+      "id",
+    );
+    const inspectMatch = inspectItems.find((item) => String(item.id ?? item.name ?? item.title ?? "") === selectedPlugin);
+    if (inspectMatch) {
+      return inspectMatch;
+    }
+
+    return pluginItems.find((item) => String(item.id ?? item.name ?? item.title ?? "") === selectedPlugin) ?? null;
+  }, [pluginItems, pluginsInspect.data?.data, pluginsInspect.data?.item, pluginsInspect.data?.plugin, pluginsInspect.data?.plugins, selectedPlugin]);
+
+  const selectedMcpServerData = useMemo(
+    () => mcpServerDetail.data?.server ?? mcpServerDetail.data?.item ?? mcpServerDetail.data?.data ?? null,
+    [mcpServerDetail.data?.data, mcpServerDetail.data?.item, mcpServerDetail.data?.server],
+  );
+
+  const selectedNodeData = useMemo(
+    () => nodeDetail.data?.node ?? nodeDetail.data?.item ?? nodeDetail.data?.data ?? null,
+    [nodeDetail.data?.data, nodeDetail.data?.item, nodeDetail.data?.node],
+  );
+
+  const systemPresenceItems = useMemo(
+    () => normalizeRecordItems(systemPresence.data?.presence ?? systemPresence.data?.entries ?? systemPresence.data?.items ?? null, "entryId"),
+    [systemPresence.data?.entries, systemPresence.data?.items, systemPresence.data?.presence],
+  );
+
   const fallbackEntries = useMemo(
     () => normalizeStringItems(modelFallbacks.data?.models ?? modelFallbacks.data?.fallbacks ?? modelFallbacks.data?.items ?? null),
     [modelFallbacks.data?.fallbacks, modelFallbacks.data?.items, modelFallbacks.data?.models],
@@ -1419,6 +2030,13 @@ export function OpenClawManagement() {
     status.error,
     system.error,
     upstream.error,
+    mcpServers.error,
+    mcpServerDetail.error,
+    gatewayUsage.error,
+    gatewayDiscover.error,
+    nodesStatus.error,
+    nodesList.error,
+    nodeDetail.error,
     config.error,
     sessions.error,
     logs.error,
@@ -1428,6 +2046,9 @@ export function OpenClawManagement() {
     providers.error,
     providerModels.error,
     channels.error,
+    channelsStatus.error,
+    plugins.error,
+    pluginsInspect.error,
     hooks.error,
     hookCheck.error,
     hookDetail.error,
@@ -1445,6 +2066,8 @@ export function OpenClawManagement() {
     modelAliases.error,
     modelFallbacks.error,
     imageFallbacks.error,
+    systemHeartbeatLast.error,
+    systemPresence.error,
   ].filter(Boolean);
 
   return (
@@ -1457,7 +2080,7 @@ export function OpenClawManagement() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void refreshAll()}
+              onClick={() => void refreshAll(true)}
               className="flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
             >
               <RefreshCcw className="h-3.5 w-3.5" />
@@ -1477,6 +2100,10 @@ export function OpenClawManagement() {
         <div className="rounded-[16px] border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-secondary)]">
           Managing <span className="font-semibold text-[var(--text-primary)]">{activeEnvironment.name}</span>
           <span className="ml-2 text-[var(--text-tertiary)]">{activeEnvironment.baseUrl}</span>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-tertiary)]">
+            <span>Last updated: {fmtDate(lastUpdatedAt ?? undefined)} (Asia/Ho_Chi_Minh)</span>
+            <span>{cacheSummary}</span>
+          </div>
         </div>
       ) : null}
 
@@ -1610,6 +2237,152 @@ export function OpenClawManagement() {
               {logs.data?.logs ?? "No logs returned yet."}
             </pre>
           </DetailCard>
+        </div>
+      ) : null}
+
+      {openClawSection === "mcp" ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <ListCard title="MCP Servers" icon={Plug}>
+            <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              {mcpServerItems.length === 0 ? (
+                <p>No MCP servers returned.</p>
+              ) : (
+                mcpServerItems.map((item, index) => {
+                  const name = String(item.name ?? item.id ?? item.server ?? `server-${index + 1}`);
+                  const active = name === selectedMcpServer;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => setSelectedMcpServer(name)}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                        active
+                          ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                          : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                      }`}
+                    >
+                      <p className="font-medium text-[var(--text-primary)]">{name}</p>
+                      <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.command ?? item.transport ?? item.type ?? "No command metadata")}</p>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </ListCard>
+
+          <DetailCard title="MCP Server Detail" icon={Plug}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_1fr]">
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Server Name</span>
+                <input
+                  value={selectedMcpServer}
+                  onChange={(event) => setSelectedMcpServer(event.target.value)}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  placeholder="context7"
+                />
+              </label>
+              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Value (JSON)</span>
+                <textarea
+                  value={mcpValueText}
+                  onChange={(event) => setMcpValueText(event.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSaveMcpServer()}
+                disabled={mcpBusy != null}
+                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+              >
+                {mcpBusy === "save" ? "Saving…" : "Save MCP Server"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteMcpServer()}
+                disabled={mcpBusy != null || !selectedMcpServer}
+                className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--danger)]/40 disabled:opacity-50"
+              >
+                {mcpBusy === "delete" ? "Removing…" : "Remove MCP Server"}
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected MCP Payload</p>
+              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                {JSON.stringify(selectedMcpServerData ?? { message: "No MCP server detail returned." }, null, 2)}
+              </pre>
+            </div>
+          </DetailCard>
+        </div>
+      ) : null}
+
+      {openClawSection === "gateway" ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Usage Window" value={`${gatewayUsage.data?.days ?? 30} days`} subtitle={String(gatewayUsage.data?.currency ?? "currency unknown")} icon={Network} />
+            <StatCard label="Gateway Cost" value={String(gatewayUsage.data?.totalCost ?? gatewayUsage.data?.cost ?? "—")} subtitle="Gateway usage summary" icon={Activity} />
+            <StatCard label="Discovered Gateways" value={String(gatewayDiscoverItems.length)} subtitle="gateway discover" icon={Server} />
+            <StatCard label="Known Nodes" value={String(nodesStatusItems.length + nodesListItems.length)} subtitle="status + inventory" icon={Database} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_1.1fr]">
+            <ListCard title="Gateway Discovery" icon={Network}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {gatewayDiscoverItems.length === 0 ? (
+                  <p>No gateway discovery data returned.</p>
+                ) : (
+                  gatewayDiscoverItems.slice(0, 10).map((item, index) => (
+                    <div key={`${String(item.gatewayId ?? item.id ?? item.name ?? index)}`} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                      <p className="font-medium text-[var(--text-primary)]">{String(item.name ?? item.gatewayId ?? item.id ?? `gateway-${index + 1}`)}</p>
+                      <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.host ?? item.url ?? item.address ?? "No endpoint")}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ListCard>
+
+            <ListCard title="Node Fleet" icon={Database}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {[...nodesStatusItems, ...nodesListItems].length === 0 ? (
+                  <p>No nodes returned.</p>
+                ) : (
+                  [...nodesStatusItems, ...nodesListItems].slice(0, 12).map((item, index) => {
+                    const nodeId = String(item.nodeId ?? item.id ?? item.name ?? `node-${index + 1}`);
+                    const active = nodeId === selectedNode;
+                    return (
+                      <button
+                        key={nodeId}
+                        type="button"
+                        onClick={() => setSelectedNode(nodeId)}
+                        className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                          active
+                            ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                            : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                        }`}
+                      >
+                        <p className="font-medium text-[var(--text-primary)]">{nodeId}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.status ?? item.connected ?? item.lastConnected ?? "No node status")}</p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </ListCard>
+
+            <DetailCard title="Node Detail" icon={Server}>
+              <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected Node</p>
+                <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(selectedNodeData ?? { message: "No node selected or no node detail returned." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
         </div>
       ) : null}
 
@@ -2029,6 +2802,173 @@ export function OpenClawManagement() {
                 >
                   {channelBusy === "delete" ? "Removing…" : "Remove Channel"}
                 </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Channel Status</p>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(channelsStatus.data ?? { message: "No upstream channel status returned." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+            ) : null}
+          </div>
+          ) : null}
+
+          {isPluginsSection || isSystemSection ? (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {isPluginsSection ? (
+            <DetailCard title="Plugins" icon={Puzzle}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
+                <div className="space-y-2">
+                  {pluginItems.length === 0 ? (
+                    <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                      No plugins returned.
+                    </div>
+                  ) : (
+                    pluginItems.map((item, index) => {
+                      const pluginId = String(item.id ?? item.name ?? item.title ?? `plugin-${index + 1}`);
+                      const active = pluginId === selectedPlugin;
+                      return (
+                        <button
+                          key={pluginId}
+                          type="button"
+                          onClick={() => setSelectedPlugin(pluginId)}
+                          className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                            active
+                              ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                              : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                          }`}
+                        >
+                          <p className="font-medium text-[var(--text-primary)]">{pluginId}</p>
+                          <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.version ?? item.description ?? "No plugin metadata")}</p>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div>
+                  {selectedPluginData ? (
+                    <>
+                      <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-[var(--text-primary)]">{String(selectedPluginData.title ?? selectedPluginData.name ?? selectedPluginData.id ?? selectedPlugin)}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(selectedPluginData.version ?? "Version unavailable")}</p>
+                          </div>
+                          <span className={`text-xs ${(selectedPluginData.enabled || selectedPluginData.active) ? "text-[var(--accent)]" : "text-[var(--warning)]"}`}>
+                            {(selectedPluginData.enabled || selectedPluginData.active) ? "enabled" : "disabled"}
+                          </span>
+                        </div>
+                        <p className="mt-3">{String(selectedPluginData.description ?? "No plugin description returned.")}</p>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleTogglePlugin(true)}
+                          disabled={pluginBusy != null || !selectedPlugin}
+                          className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                        >
+                          {pluginBusy === "enable" ? "Enabling…" : "Enable Plugin"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleTogglePlugin(false)}
+                          disabled={pluginBusy != null || !selectedPlugin}
+                          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50"
+                        >
+                          {pluginBusy === "disable" ? "Disabling…" : "Disable Plugin"}
+                        </button>
+                      </div>
+
+                      <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Plugin Inspect Data</p>
+                        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                          {JSON.stringify(selectedPluginData, null, 2)}
+                        </pre>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                      No plugin selected.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DetailCard>
+            ) : null}
+
+            {isSystemSection ? (
+            <DetailCard title="System" icon={ShieldCheck}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>System Event</span>
+                  <input
+                    value={systemEventText}
+                    onChange={(event) => setSystemEventText(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="manual-health-check"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Mode</span>
+                  <select
+                    value={systemEventMode}
+                    onChange={(event) => setSystemEventMode(event.target.value as "now" | "next-heartbeat")}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    <option value="now">now</option>
+                    <option value="next-heartbeat">next-heartbeat</option>
+                  </select>
+                </label>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Presence Entries</p>
+                  <p className="mt-2 text-[var(--text-primary)]">{systemPresenceItems.length}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handlePostSystemEvent()}
+                  disabled={systemBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {systemBusy === "event" ? "Posting…" : "Post System Event"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleHeartbeat(true)}
+                  disabled={systemBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {systemBusy === "heartbeat-enable" ? "Enabling…" : "Enable Heartbeat"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleHeartbeat(false)}
+                  disabled={systemBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50"
+                >
+                  {systemBusy === "heartbeat-disable" ? "Disabling…" : "Disable Heartbeat"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Heartbeat</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(systemHeartbeatLast.data ?? { message: "No heartbeat data returned." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Presence Snapshot</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(systemPresence.data ?? { message: "No system presence returned." }, null, 2)}
+                  </pre>
+                </div>
               </div>
             </DetailCard>
             ) : null}

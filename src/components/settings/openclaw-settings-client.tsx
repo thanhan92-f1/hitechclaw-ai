@@ -92,7 +92,7 @@ const EMPTY_FORM: FormState = {
   allowedManagementPaths: "",
   allowDestructiveActions: true,
   confirmHighRiskActions: true,
-  requestTimeoutMs: "15000",
+  requestTimeoutMs: "60000",
 };
 
 function getAuthHeaders(): Record<string, string> {
@@ -138,7 +138,7 @@ export function toFormState(environment?: OpenClawEnvironment | null): FormState
         : Boolean(environment.config.confirmHighRiskActions),
     requestTimeoutMs:
       environment.config.requestTimeoutMs === undefined
-        ? "15000"
+        ? "60000"
         : String(environment.config.requestTimeoutMs),
   };
 }
@@ -567,7 +567,7 @@ export function OpenClawSettingsClient({ title, description, section }: Props) {
                 </label>
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
                   <span>Request timeout (ms)</span>
-                  <input value={form.requestTimeoutMs} onChange={(event) => updateField("requestTimeoutMs", event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none" placeholder="15000" />
+                  <input value={form.requestTimeoutMs} onChange={(event) => updateField("requestTimeoutMs", event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none" placeholder="60000" />
                 </label>
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
                   <span>Region</span>
