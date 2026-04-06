@@ -138,7 +138,7 @@ jobs:
           EOF
 
       - name: Upload dependency reports as artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-health-reports
           path: reports
