@@ -3,18 +3,19 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Shield, AlertTriangle } from "lucide-react";
+import { getCsrfToken, redirectToLogin } from "./api";
 import { EmptyCard } from "./ui-cards";
 import { SectionDescription } from "./dashboard-clarity";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1] || "";
+  const csrf = getCsrfToken();
   const res = await fetch(url, {
     credentials: "include",
     headers: { "x-csrf-token": csrf, ...(opts?.headers || {}) },
     ...opts,
   });
-  if (res.status === 401) { window.location.href = "/login"; throw new Error("Unauthorized"); }
+  if (res.status === 401) { redirectToLogin(); throw new Error("Unauthorized"); }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }

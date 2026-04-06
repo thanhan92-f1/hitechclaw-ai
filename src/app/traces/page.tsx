@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { getAuthHeaders, redirectToLogin } from "@/components/mission-control/api";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { SectionDescription } from "@/components/mission-control/dashboard-clarity";
 import { Search, Filter, AlertTriangle, CheckCircle, XCircle, ChevronDown, Activity } from "lucide-react";
@@ -28,16 +29,6 @@ interface TracesResponse {
   total: number;
   limit: number;
   offset: number;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (typeof document !== "undefined") {
-    const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1];
-    if (csrf) headers["x-csrf-token"] = decodeURIComponent(csrf);
-  }
-  return headers;
 }
 
 function fmtDuration(ms: number | null): string {
@@ -103,7 +94,7 @@ export default function TracesPage() {
         credentials: "include",
         headers: getAuthHeaders(),
       });
-      if (res.status === 401) { window.location.href = "/login"; return; }
+      if (res.status === 401) { redirectToLogin(); return; }
       const data: TracesResponse = await res.json();
       setTraces(data.traces);
       setTotal(data.total);

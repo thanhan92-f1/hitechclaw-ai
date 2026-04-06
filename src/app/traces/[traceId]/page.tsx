@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { getAuthHeaders, redirectToLogin } from "@/components/mission-control/api";
 import { GlowingEffect } from "@/components/ui/glowing-effect";
 import { SpanTree } from "@/components/mission-control/span-tree";
 import { SpanDetail } from "@/components/mission-control/span-detail";
@@ -38,16 +39,6 @@ export interface Span {
   error: string | null;
   started_at: string;
   ended_at: string | null;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (typeof document !== "undefined") {
-    const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1];
-    if (csrf) headers["x-csrf-token"] = decodeURIComponent(csrf);
-  }
-  return headers;
 }
 
 function fmtDuration(ms: number | null): string {
@@ -91,7 +82,7 @@ export default function TraceDetailPage({ params }: { params: Promise<{ traceId:
         credentials: "include",
         headers: getAuthHeaders(),
       });
-      if (res.status === 401) { window.location.href = "/login"; return; }
+      if (res.status === 401) { redirectToLogin(); return; }
       if (res.status === 404) { setTrace(null); setLoading(false); return; }
       const data = await res.json();
       setTrace(data.trace);

@@ -116,6 +116,12 @@ export function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+export function redirectToLogin() {
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.assign("/login");
+  }
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
     headers: { ...getAuthHeaders() },
@@ -123,9 +129,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   });
 
   if (response.status === 401) {
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-      window.location.href = "/login";
-    }
+    redirectToLogin();
     throw new Error("Unauthorized");
   }
 

@@ -30,6 +30,7 @@ import {
   PieChart,
   Pie,
 } from "recharts";
+import { getCsrfToken, redirectToLogin } from "./api";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -132,13 +133,13 @@ function timeAgo(dateStr: string): string {
 }
 
 async function apiFetch<T>(url: string): Promise<T> {
-  const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1] || "";
+  const csrf = getCsrfToken();
   const res = await fetch(url, {
     credentials: "include",
     headers: { "x-csrf-token": decodeURIComponent(csrf) },
   });
   if (res.status === 401) {
-    window.location.href = "/login";
+    redirectToLogin();
     throw new Error("Unauthorized");
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
