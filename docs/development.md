@@ -233,6 +233,15 @@ npm run test:setup
 npm run test:e2e:managed
 ```
 
+Targeted categorized runs:
+
+```powershell
+npm run test:e2e:api
+npm run test:e2e:ui
+npm run test:e2e:mobile
+npm run test:e2e:edge
+```
+
 Smoke-only:
 
 ```powershell
@@ -285,3 +294,20 @@ Playwright auth helpers now accept either `MC_AGENT_TOKEN` or the standard `MC_A
 ### Playwright env loading
 
 `playwright.config.ts` now auto-loads `.env.test.local` first and falls back to `.env.local`, without overriding variables already provided by the shell or CI.
+
+### Categorized Playwright suite
+
+The end-to-end suite is organized into focused directories instead of keeping all specs at the root:
+
+- `tests/api` — API contracts, ingest, auth, audit, dashboards, workflows, and service endpoints
+- `tests/ui` — desktop UI flows, route smoke checks, settings, help, and operational dashboards
+- `tests/mobile` — mobile viewport and shell behavior
+- `tests/setup` — setup wizard coverage and auth bootstrap state generation
+- `tests/edge` — high-risk edge scenarios such as tenant isolation
+- `tests/helpers` — shared auth, session, route, and page error helpers
+
+Notes:
+
+- `npm run test:e2e:managed` still runs the full categorized suite.
+- `npm run test:e2e:mobile` pins execution to the `chromium-mobile` project for the mobile-only folder.
+- The `setup` Playwright project generates `tests/.auth/admin.json` before dependent browser projects run.

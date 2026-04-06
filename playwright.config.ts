@@ -1,6 +1,8 @@
 import { existsSync, readFileSync } from "fs";
 import { defineConfig, devices } from "@playwright/test";
 
+const baseURL = process.env.HITECHCLAW_AI_BASE_URL ?? "http://localhost:3001";
+
 function loadEnvFile(filePath: string) {
   if (!existsSync(filePath)) return;
 
@@ -26,32 +28,52 @@ loadEnvFile(".env.local");
 
 export default defineConfig({
   testDir: "./tests",
-  fullyParallel: false,
+  fullyParallel: true,
   retries: 1,
   timeout: 30000,
-  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
+  reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }], ["json", { outputFile: "playwright-report/results.json" }]],
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER === "1"
     ? undefined
     : {
         command: "node ./node_modules/next/dist/bin/next dev -p 3001",
-        url: process.env.HITECHCLAW_AI_BASE_URL ?? "http://localhost:3001",
+        url: baseURL,
         reuseExistingServer: true,
         timeout: 120000,
       },
   use: {
-    baseURL: process.env.HITECHCLAW_AI_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     screenshot: "only-on-failure",
     video: "off",
     trace: "retain-on-failure",
   },
   projects: [
     {
+      name: "setup",
+      testMatch: /tests[\\/]setup[\\/]auth\.setup\.ts/,
+    },
+    {
       name: "chromium-desktop",
+      dependencies: ["setup"],
+      testIgnore: /tests[\\/]setup[\\/]auth\.setup\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "chromium-mobile",
+      dependencies: ["setup"],
+      testIgnore: /tests[\\/]setup[\\/]auth\.setup\.ts/,
       use: { ...devices["Pixel 5"] },
+    },
+    {
+      name: "firefox-desktop",
+      dependencies: ["setup"],
+      testIgnore: /tests[\\/]setup[\\/]auth\.setup\.ts/,
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit-desktop",
+      dependencies: ["setup"],
+      testIgnore: /tests[\\/]setup[\\/]auth\.setup\.ts/,
+      use: { ...devices["Desktop Safari"] },
     },
   ],
 });

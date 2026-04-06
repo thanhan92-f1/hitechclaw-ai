@@ -55,6 +55,7 @@ logs/
 # test artifacts
 test-results/
 playwright-report/
+tests/.auth/*.json
 
 # archives
 *.tar.gz

@@ -155,6 +155,10 @@ Common local commands:
 - `npm run dev:clean` — remove dev DB container and volume
 - `npm run test:setup` — start test DB and run test migrations
 - `npm run test:e2e:managed` — run Playwright with managed app startup
+- `npm run test:e2e:api` — run API-only Playwright coverage from `tests/api`
+- `npm run test:e2e:ui` — run desktop UI coverage from `tests/ui`
+- `npm run test:e2e:mobile` — run mobile-focused coverage from `tests/mobile` on the mobile Chromium project
+- `npm run test:e2e:edge` — run edge-case coverage from `tests/edge`
 - `npm run test:e2e:ci-local` — CI-like clean local Playwright run
 - `npm run check:local` — dev DB + test DB + lint + smoke tests
 - `npm run check:pre-push` — stronger local validation before pushing
@@ -181,9 +185,23 @@ HiTechClaw AI supports a host-based development workflow where the app runs loca
 
 - Start app dependencies: `npm run dev:up`
 - Run app locally: `npm run dev`
+- Run targeted Playwright coverage as needed: `npm run test:e2e:api`, `npm run test:e2e:ui`, `npm run test:e2e:mobile`, `npm run test:e2e:edge`
 - Run smoke checks: `npm run check:local`
 - Run stronger pre-push gate: `npm run check:pre-push`
 - Clean everything when needed: `npm run clean:all`
+
+### Playwright suite layout
+
+The browser suite is now organized by intent instead of a flat `tests/*.spec.ts` layout:
+
+- `tests/api` — API contracts and backend integration flows
+- `tests/ui` — desktop UI journeys and route smoke coverage
+- `tests/mobile` — mobile shell and responsive coverage
+- `tests/setup` — auth bootstrap and setup-wizard flows
+- `tests/edge` — tenant isolation and other high-risk edge cases
+- `tests/helpers` — shared auth/session/page helper utilities
+
+Use the targeted npm scripts above when you only need one slice of the suite.
 
 ### Developer references
 
