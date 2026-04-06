@@ -215,6 +215,25 @@ interface BackupResponse {
   [key: string]: unknown;
 }
 
+interface BackupHistoryRecord {
+  id?: string;
+  action?: string;
+  archivePath?: string;
+  archive?: string;
+  verified?: boolean | null;
+  status?: string;
+  message?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  payload?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface BackupHistoryResponse {
+  items?: BackupHistoryRecord[];
+  environmentId?: string;
+}
+
 interface ProviderRecord {
   active?: boolean;
   configured?: boolean;
@@ -673,6 +692,19 @@ interface AuthUserInfo {
   [key: string]: unknown;
 }
 
+interface ManagedAuthRecord {
+  environmentId?: string;
+  username?: string;
+  passwordConfigured?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface ManagedAuthRecordResponse {
+  record?: ManagedAuthRecord | null;
+  environmentId?: string;
+}
+
 interface CronStatusInfo {
   ok?: boolean;
   enabled?: boolean;
@@ -968,6 +1000,42 @@ function normalizeLooseItems(value: unknown, keyName: string) {
   return [] as Array<Record<string, unknown>>;
 }
 
+async function requestOpenClawSettings<T>(path: string, environmentId?: string | null, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    headers: {
+      ...getAuthHeaders(),
+      ...(environmentId ? { "x-openclaw-environment-id": environmentId } : {}),
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+    ...init,
+  });
+
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new Error("Unauthorized");
+  }
+
+  const text = await response.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof data === "object" && data && "error" in data && typeof (data as { error?: unknown }).error === "string"
+        ? (data as { error: string }).error
+        : `${response.status} ${response.statusText}`;
+    throw new Error(message);
+  }
+
+  return data as T;
+}
+
 async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestInit): Promise<{ data: T; meta: OpenClawResponseMeta }> {
   const environmentId =
     typeof window !== "undefined"
@@ -982,6 +1050,18 @@ async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestIn
 
     if (/Workspace file ['"].+['"] not found/i.test(normalized)) {
       return "Selected agent workspace file was not found. Choose another file and try again.";
+    }
+
+    if (/openclaw environment not found/i.test(normalized)) {
+      return "Selected OpenClaw target is unavailable right now. Refresh targets or choose another target.";
+    }
+
+    if (/no openclaw environment configured in database/i.test(normalized)) {
+      return "No OpenClaw target is configured yet. Add one in Settings → OpenClaw.";
+    }
+
+    if (/management api is not configured for the selected environment/i.test(normalized)) {
+      return "Selected OpenClaw target is missing management credentials. Update it in Settings → OpenClaw.";
     }
 
     if (/spawnsync\s+openclaw\s+etimedout/i.test(normalized) || /etimedout/i.test(normalized) || /timed out/i.test(normalized)) {
@@ -1115,6 +1195,9 @@ function shouldHideOpenClawErrorMessage(message: string | null | undefined) {
     "This OpenClaw target does not support release channel selection for update status.",
     "Agent workspace file is unavailable right now. Refresh and choose another file if needed.",
     "Selected agent workspace file was not found. Choose another file and try again.",
+    "Selected OpenClaw target is unavailable right now. Refresh targets or choose another target.",
+    "No OpenClaw target is configured yet. Add one in Settings → OpenClaw.",
+    "Selected OpenClaw target is missing management credentials. Update it in Settings → OpenClaw.",
     "OpenClaw gateway is not paired for the selected target. Pair the gateway first, then try again.",
     "OpenClaw gateway is currently unavailable for the selected target. Check gateway connectivity and pairing, then try again.",
     "OpenClaw gateway command failed for the selected target. Verify gateway setup, then try again.",
@@ -1136,7 +1219,7 @@ export function OpenClawManagement() {
     setOpenClawEnvironmentId,
   } = useTenantFilter();
   const [serviceFilter, setServiceFilter] = useState<"openclaw" | "caddy">("openclaw");
-  const [lines, setLines] = useState(150);
+  const [lines, setLines] = useState(50);
   const [provider, setProvider] = useState("anthropic");
   const [model, setModel] = useState("anthropic/claude-sonnet-4-20250514");
   const [apiKey, setApiKey] = useState("");
@@ -1318,6 +1401,9 @@ export function OpenClawManagement() {
   const [backupVerifyPath, setBackupVerifyPath] = useState("/opt/openclaw/backups/openclaw-backup.tgz");
   const [backupBusy, setBackupBusy] = useState<string | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResponse | null>(null);
+  const [backupHistoryItems, setBackupHistoryItems] = useState<BackupHistoryRecord[]>([]);
+  const [backupHistoryLoading, setBackupHistoryLoading] = useState(false);
+  const [backupHistoryError, setBackupHistoryError] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState("telegram");
   const [channelToken, setChannelToken] = useState("");
   const [channelAppToken, setChannelAppToken] = useState("");
@@ -1388,6 +1474,9 @@ export function OpenClawManagement() {
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authNewPassword, setAuthNewPassword] = useState("");
+  const [managedAuthRecord, setManagedAuthRecord] = useState<ManagedAuthRecord | null>(null);
+  const [managedAuthLoading, setManagedAuthLoading] = useState(false);
+  const [managedAuthError, setManagedAuthError] = useState<string | null>(null);
   const [cronBusy, setCronBusy] = useState<string | null>(null);
   const [selectedCronJob, setSelectedCronJob] = useState("");
   const [cronCreateText, setCronCreateText] = useState(`{
@@ -1473,12 +1562,14 @@ export function OpenClawManagement() {
         throw new Error("Failed to load OpenClaw environments");
       }
       const payload = (await response.json()) as OpenClawEnvironmentsPayload;
-      setEnvironmentOptions(payload.environments ?? []);
-      if (!openClawEnvironmentId) {
-        setOpenClawEnvironmentId(payload.defaultEnvironmentId ?? payload.environments?.[0]?.id ?? null);
+      const nextEnvironments = payload.environments ?? [];
+      const fallbackEnvironmentId = payload.defaultEnvironmentId ?? nextEnvironments[0]?.id ?? null;
+      setEnvironmentOptions(nextEnvironments);
+      if (!openClawEnvironmentId || !nextEnvironments.some((environment) => environment.id === openClawEnvironmentId)) {
+        setOpenClawEnvironmentId(fallbackEnvironmentId);
       }
     } catch {
-      setEnvironmentOptions([]);
+      // Preserve the last known environment list during transient failures.
     }
   }, [openClawEnvironmentId, setOpenClawEnvironmentId]);
 
@@ -1520,6 +1611,101 @@ export function OpenClawManagement() {
       setChannelDmPolicy(String(currentChannel.dmPolicy));
     }
   }, [channels.data?.channels, selectedChannel]);
+
+  const loadManagedAuthRecord = useCallback(async () => {
+    setManagedAuthLoading(true);
+    try {
+      const payload = await requestOpenClawSettings<ManagedAuthRecordResponse>("/api/settings/openclaw/auth-record", openClawEnvironmentId);
+      setManagedAuthRecord(payload.record ?? null);
+      setManagedAuthError(null);
+    } catch (error) {
+      setManagedAuthRecord(null);
+      setManagedAuthError(error instanceof Error ? error.message : "Failed to load managed auth record");
+    } finally {
+      setManagedAuthLoading(false);
+    }
+  }, [openClawEnvironmentId]);
+
+  const saveManagedAuthRecord = useCallback(async (username: string, password: string) => {
+    await requestOpenClawSettings<ManagedAuthRecordResponse>("/api/settings/openclaw/auth-record", openClawEnvironmentId, {
+      method: "PUT",
+      body: JSON.stringify({ username, password }),
+    });
+    await loadManagedAuthRecord();
+  }, [loadManagedAuthRecord, openClawEnvironmentId]);
+
+  const removeManagedAuthRecord = useCallback(async () => {
+    await requestOpenClawSettings("/api/settings/openclaw/auth-record", openClawEnvironmentId, {
+      method: "DELETE",
+    });
+    await loadManagedAuthRecord();
+  }, [loadManagedAuthRecord, openClawEnvironmentId]);
+
+  const loadBackupHistory = useCallback(async () => {
+    setBackupHistoryLoading(true);
+    try {
+      const payload = await requestOpenClawSettings<BackupHistoryResponse>("/api/settings/openclaw/backup-history?limit=20", openClawEnvironmentId);
+      setBackupHistoryItems(payload.items ?? []);
+      setBackupHistoryError(null);
+    } catch (error) {
+      setBackupHistoryItems([]);
+      setBackupHistoryError(error instanceof Error ? error.message : "Failed to load backup inventory");
+    } finally {
+      setBackupHistoryLoading(false);
+    }
+  }, [openClawEnvironmentId]);
+
+  const recordBackupHistory = useCallback(async (entry: {
+    action: "create" | "verify";
+    archivePath?: string;
+    verified?: boolean | null;
+    status?: string;
+    message?: string;
+    payload?: Record<string, unknown>;
+  }) => {
+    if (!entry.archivePath?.trim()) {
+      return;
+    }
+
+    await requestOpenClawSettings("/api/settings/openclaw/backup-history", openClawEnvironmentId, {
+      method: "POST",
+      body: JSON.stringify({
+        action: entry.action,
+        archivePath: entry.archivePath.trim(),
+        verified: entry.verified ?? null,
+        status: entry.status ?? "ok",
+        message: entry.message ?? "",
+        payload: entry.payload,
+      }),
+    });
+
+    await loadBackupHistory();
+  }, [loadBackupHistory, openClawEnvironmentId]);
+
+  useEffect(() => {
+    if (!isAuthSection) {
+      return;
+    }
+    void loadManagedAuthRecord();
+  }, [isAuthSection, loadManagedAuthRecord]);
+
+  useEffect(() => {
+    if (!isBackupSection) {
+      return;
+    }
+    void loadBackupHistory();
+  }, [isBackupSection, loadBackupHistory]);
+
+  useEffect(() => {
+    if (authUsername.trim()) {
+      return;
+    }
+
+    const preferredUsername = managedAuthRecord?.username ?? authUser.data?.username ?? authUser.data?.user?.username ?? "";
+    if (preferredUsername) {
+      setAuthUsername(preferredUsername);
+    }
+  }, [authUser.data?.user?.username, authUser.data?.username, authUsername, managedAuthRecord?.username]);
 
   const mcpServerItems = useMemo(
     () => normalizeLooseItems(mcpServers.data?.servers ?? mcpServers.data?.items ?? mcpServers.data?.data ?? null, "name"),
@@ -1720,6 +1906,11 @@ export function OpenClawManagement() {
     [environmentVariables.data?.env],
   );
 
+  const authEffectiveUsername = useMemo(
+    () => managedAuthRecord?.username ?? authUser.data?.username ?? authUser.data?.user?.username ?? authUsername,
+    [authUser.data?.user?.username, authUser.data?.username, authUsername, managedAuthRecord?.username],
+  );
+
   useEffect(() => {
     const listSkill = (skills.data?.skills ?? []).find((entry) => entry.skillKey === selectedSkill);
     const detailSkill = skillDetail.data?.skill;
@@ -1813,6 +2004,15 @@ export function OpenClawManagement() {
       agentFile.refresh({ refresh: forceFresh }),
     ]);
   }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, chatGptOAuthStatus, config, configFile, configSchema, cronJobs, cronStatus, customProviders, customSkillDetail, customSkills, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, pluginInspectDetail, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsCheck, skillsStatus, status, system, systemHeartbeatLast, systemPresence, updateStatus, upstream, version]);
+
+  const handleManualRefresh = useCallback(async () => {
+    try {
+      await Promise.all([refreshAll(true), refreshEnvironments()]);
+      toast.success("OpenClaw data refreshed");
+    } catch {
+      toast.error("Refresh completed with partial errors. Review the latest data panels.");
+    }
+  }, [refreshAll, refreshEnvironments]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -2634,13 +2834,31 @@ export function OpenClawManagement() {
       if (typeof result.archive === "string" && result.archive) {
         setBackupVerifyPath(result.archive);
       }
+      try {
+        await recordBackupHistory({
+          action: "create",
+          archivePath: typeof result.archive === "string" ? result.archive : backupOutput.trim() || undefined,
+          verified: typeof result.verified === "boolean" ? result.verified : null,
+          status: result.ok === false ? "failed" : "completed",
+          message: result.message ?? "Backup request completed",
+          payload: result,
+        });
+      } catch {
+        // Ignore local history persistence failures so the primary action still succeeds.
+      }
       toast.success(result.message ?? "Backup request completed");
     } catch (error) {
+      void recordBackupHistory({
+        action: "create",
+        archivePath: backupOutput.trim() || undefined,
+        status: "failed",
+        message: formatOpenClawActionError(error, "Backup failed"),
+      }).catch(() => undefined);
       toast.error(formatOpenClawActionError(error, "Backup failed"));
     } finally {
       setBackupBusy(null);
     }
-  }, [backupDryRun, backupOnlyConfig, backupOutput, backupVerifyAfterCreate]);
+  }, [backupDryRun, backupOnlyConfig, backupOutput, backupVerifyAfterCreate, recordBackupHistory]);
 
   const handleVerifyBackup = useCallback(async () => {
     if (!backupVerifyPath.trim()) {
@@ -2655,13 +2873,32 @@ export function OpenClawManagement() {
         body: JSON.stringify({ archive: backupVerifyPath.trim() }),
       });
       setBackupResult(result);
+      try {
+        await recordBackupHistory({
+          action: "verify",
+          archivePath: backupVerifyPath.trim(),
+          verified: typeof result.verified === "boolean" ? result.verified : true,
+          status: result.ok === false ? "failed" : "completed",
+          message: result.message ?? "Backup verification completed",
+          payload: result,
+        });
+      } catch {
+        // Ignore local history persistence failures so the primary action still succeeds.
+      }
       toast.success(result.message ?? "Backup verification completed");
     } catch (error) {
+      void recordBackupHistory({
+        action: "verify",
+        archivePath: backupVerifyPath.trim(),
+        verified: false,
+        status: "failed",
+        message: formatOpenClawActionError(error, "Backup verification failed"),
+      }).catch(() => undefined);
       toast.error(formatOpenClawActionError(error, "Backup verification failed"));
     } finally {
       setBackupBusy(null);
     }
-  }, [backupVerifyPath]);
+  }, [backupVerifyPath, recordBackupHistory]);
 
   const handleSaveChannel = useCallback(async () => {
     if (!channelToken.trim()) {
@@ -2902,6 +3139,7 @@ export function OpenClawManagement() {
         method: "POST",
         body: JSON.stringify({ username: authUsername.trim(), password: authPassword }),
       });
+      await saveManagedAuthRecord(authUsername.trim(), authPassword);
       toast.success(`Login user ${authUsername.trim()} created`);
       setAuthPassword("");
       await authUser.refresh({ refresh: true });
@@ -2910,7 +3148,7 @@ export function OpenClawManagement() {
     } finally {
       setAuthBusy(null);
     }
-  }, [authPassword, authUser, authUsername]);
+  }, [authPassword, authUser, authUsername, saveManagedAuthRecord]);
 
   const handleChangeAuthPassword = useCallback(async () => {
     if (!authNewPassword.trim()) {
@@ -2924,6 +3162,7 @@ export function OpenClawManagement() {
         method: "PUT",
         body: JSON.stringify({ password: authNewPassword }),
       });
+      await saveManagedAuthRecord(authEffectiveUsername.trim() || authUsername.trim(), authNewPassword);
       toast.success("Login password updated");
       setAuthNewPassword("");
       await authUser.refresh({ refresh: true });
@@ -2932,7 +3171,7 @@ export function OpenClawManagement() {
     } finally {
       setAuthBusy(null);
     }
-  }, [authNewPassword, authUser]);
+  }, [authEffectiveUsername, authNewPassword, authUser, authUsername, saveManagedAuthRecord]);
 
   const handleDeleteAuthUser = useCallback(async () => {
     const username = authUser.data?.username ?? authUser.data?.user?.username ?? authUsername;
@@ -2943,6 +3182,7 @@ export function OpenClawManagement() {
     setAuthBusy("delete");
     try {
       await requestOpenClaw("/auth/user", { method: "DELETE" });
+      await removeManagedAuthRecord();
       toast.success("Login user removed");
       setAuthNewPassword("");
       setAuthPassword("");
@@ -2952,7 +3192,7 @@ export function OpenClawManagement() {
     } finally {
       setAuthBusy(null);
     }
-  }, [authUser, authUsername]);
+  }, [authUser, authUsername, removeManagedAuthRecord]);
 
   const handleCreateCronJob = useCallback(async () => {
     setCronBusy("create");
@@ -3964,6 +4204,18 @@ export function OpenClawManagement() {
     [providers.data?.providers],
   );
 
+  const providerCatalogGroups = useMemo(() => {
+    const active = providerEntries.filter(([, details]) => Boolean(details.active));
+    const configured = providerEntries.filter(([, details]) => !details.active && Boolean(details.configured));
+    const available = providerEntries.filter(([, details]) => !details.active && !details.configured);
+
+    return [
+      { title: "Active", items: active },
+      { title: "Configured", items: configured },
+      { title: "Available", items: available },
+    ].filter((group) => group.items.length > 0);
+  }, [providerEntries]);
+
   const providerModelOptions = useMemo(
     () => (providerModels.data?.models ?? []).map((entry) => ({ value: toModelOptionValue(entry), label: toModelOptionLabel(entry) })),
     [providerModels.data?.models],
@@ -4010,6 +4262,17 @@ export function OpenClawManagement() {
   const channelEntries = useMemo(
     () => Object.entries(channels.data?.channels ?? {}),
     [channels.data?.channels],
+  );
+
+  const authPayloadRows = useMemo(
+    () => [
+      ["Effective username", authEffectiveUsername || "—"],
+      ["Live auth configured", boolLabel(Boolean(authUser.data?.exists ?? authUser.data?.configured ?? authUser.data?.username ?? authUser.data?.user?.username))],
+      ["Stored in database", boolLabel(Boolean(managedAuthRecord?.username || managedAuthRecord?.passwordConfigured))],
+      ["Password stored", boolLabel(managedAuthRecord?.passwordConfigured)],
+      ["Last stored update", fmtDate(managedAuthRecord?.updatedAt)],
+    ],
+    [authEffectiveUsername, authUser.data?.configured, authUser.data?.exists, authUser.data?.user?.username, authUser.data?.username, managedAuthRecord?.passwordConfigured, managedAuthRecord?.updatedAt, managedAuthRecord?.username],
   );
 
   const hookCheckEntries = useMemo(
@@ -4296,7 +4559,7 @@ export function OpenClawManagement() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => void refreshAll(true)}
+              onClick={() => void handleManualRefresh()}
               className="flex h-10 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
             >
               <RefreshCcw className="h-3.5 w-3.5" />
@@ -4813,7 +5076,7 @@ export function OpenClawManagement() {
                 onChange={(event) => setLines(Number(event.target.value))}
                 className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]"
               >
-                {[100, 150, 250, 500].map((value) => (
+                {[50, 100, 150, 250, 500].map((value) => (
                   <option key={value} value={value}>{value} lines</option>
                 ))}
               </select>
@@ -4988,10 +5251,33 @@ export function OpenClawManagement() {
             </div>
 
             <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Auth Payload</p>
-              <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                {JSON.stringify(authUser.data ?? { message: "No auth user configured." }, null, 2)}
-              </pre>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Auth Summary</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">Friendly overview of live auth and locally managed credentials for this target.</p>
+                </div>
+                {managedAuthLoading ? <span className="text-xs text-[var(--text-tertiary)]">Syncing…</span> : null}
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                {authPayloadRows.map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">{label}</p>
+                    <p className="mt-2 break-words text-sm font-medium text-[var(--text-primary)]">{String(value || "—")}</p>
+                  </div>
+                ))}
+              </div>
+
+              {managedAuthError ? (
+                <p className="mt-3 text-xs text-[var(--warning)]">{managedAuthError}</p>
+              ) : null}
+
+              <details className="mt-4 rounded-xl border border-[var(--border)]/50 bg-[rgba(148,163,184,0.05)] p-3">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Raw Auth Payload</summary>
+                <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(authUser.data ?? { message: "No auth user configured." }, null, 2)}
+                </pre>
+              </details>
             </div>
           </DetailCard>
         </div>
@@ -5360,7 +5646,7 @@ export function OpenClawManagement() {
       {isConfigSection ? (
         <div className="space-y-4">
           {isProviderSection || isCredentialsSection ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-1">
             {isProviderSection ? (
             <DetailCard title="Provider & Model" icon={Bot}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -5420,7 +5706,7 @@ export function OpenClawManagement() {
                 </button>
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -5735,7 +6021,7 @@ export function OpenClawManagement() {
           ) : null}
 
           {isDomainSection || isBackupSection ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-1">
             {isDomainSection ? (
             <DetailCard title="Domain & SSL" icon={Globe}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -5887,43 +6173,111 @@ export function OpenClawManagement() {
                   {JSON.stringify(backupResult ?? { message: "No backup request executed yet." }, null, 2)}
                 </pre>
               </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Backup Inventory</p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">Recent backup operations stored locally for this OpenClaw target.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadBackupHistory()}
+                    disabled={backupHistoryLoading}
+                    className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {backupHistoryLoading ? "Refreshing…" : "Refresh Inventory"}
+                  </button>
+                </div>
+
+                {backupHistoryError ? (
+                  <p className="mt-3 text-xs text-[var(--warning)]">{backupHistoryError}</p>
+                ) : null}
+
+                <div className="mt-4 space-y-3">
+                  {backupHistoryItems.length === 0 ? (
+                    <p className="text-sm text-[var(--text-secondary)]">No backup history stored yet.</p>
+                  ) : (
+                    backupHistoryItems.map((item, index) => {
+                      const key = String(item.id ?? `${item.action ?? "backup"}-${item.archivePath ?? index}`);
+                      const statusTone = item.status === "failed"
+                        ? "text-[var(--danger)]"
+                        : item.verified
+                          ? "text-[var(--accent)]"
+                          : "text-[var(--text-primary)]";
+
+                      return (
+                        <div key={key} className="rounded-xl border border-[var(--border)]/50 px-4 py-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                                {(item.action ?? "backup").toUpperCase()} · {item.archivePath || item.archive || "Archive path not reported"}
+                              </p>
+                              <p className="text-xs text-[var(--text-secondary)]">{item.message || "No additional details provided."}</p>
+                            </div>
+                            <div className="text-right text-xs text-[var(--text-secondary)]">
+                              <p className={statusTone}>{item.status ?? (item.verified ? "verified" : "recorded")}</p>
+                              <p className="mt-1">{fmtDate(item.updatedAt ?? item.createdAt)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-secondary)]">
+                            <span className="rounded-full border border-[var(--border)]/50 px-2 py-1">Verified: {boolLabel(item.verified ?? undefined)}</span>
+                            {item.action ? <span className="rounded-full border border-[var(--border)]/50 px-2 py-1">Action: {item.action}</span> : null}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </DetailCard>
             ) : null}
           </div>
           ) : null}
 
           {isProviderSection || isChannelsSection ? (
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-1">
             {isProviderSection ? (
             <ListCard title="Providers Catalog" icon={ShieldCheck}>
-              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <div className="space-y-4 text-sm text-[var(--text-secondary)]">
                 {providerEntries.length === 0 ? (
                   <p>No provider inventory returned.</p>
                 ) : (
-                  providerEntries.map(([name, details]) => (
-                    <div key={name} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProvider(name);
-                            if (details.defaultModel) {
-                              setModel(details.defaultModel);
-                            }
-                          }}
-                          className="text-left font-medium text-[var(--text-primary)] transition hover:text-[var(--accent)]"
-                        >
-                          {name}
-                        </button>
-                        <span className={`text-xs ${details.active ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"}`}>
-                          {details.active ? "active" : "idle"}
-                        </span>
+                  providerCatalogGroups.map((group) => (
+                    <div key={group.title} className="rounded-2xl border border-[var(--border)]/50 bg-[rgba(148,163,184,0.05)] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">{group.title}</p>
+                        <span className="text-xs text-[var(--text-secondary)]">{group.items.length} provider{group.items.length === 1 ? "" : "s"}</span>
                       </div>
-                      <p className="mt-1 text-xs">Default model: {details.defaultModel ?? "—"}</p>
-                      <p className="mt-1 text-xs">Configured: {boolLabel(details.configured)}</p>
-                      {(details.models?.length ?? 0) > 0 ? (
-                        <p className="mt-1 truncate text-xs text-[var(--text-tertiary)]">{details.models?.slice(0, 4).join(" · ")}</p>
-                      ) : null}
+                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        {group.items.map(([name, details]) => (
+                          <div key={name} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setProvider(name);
+                                  if (details.defaultModel) {
+                                    setModel(details.defaultModel);
+                                  }
+                                }}
+                                className="text-left font-medium text-[var(--text-primary)] transition hover:text-[var(--accent)]"
+                              >
+                                {name}
+                              </button>
+                              <span className={`text-xs ${details.active ? "text-[var(--accent)]" : details.configured ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"}`}>
+                                {details.active ? "active" : details.configured ? "configured" : "available"}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs">Default model: {details.defaultModel ?? "—"}</p>
+                            <p className="mt-1 text-xs">Configured: {boolLabel(details.configured)}</p>
+                            {(details.models?.length ?? 0) > 0 ? (
+                              <p className="mt-1 text-xs text-[var(--text-tertiary)]">{details.models?.slice(0, 6).join(" · ")}</p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))
                 )}
