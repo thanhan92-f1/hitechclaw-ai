@@ -4683,7 +4683,7 @@ export function OpenClawManagement() {
             <ListCard title="Current Bindings" icon={Wrench}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {bindingItems.length === 0 ? (
-                  <p>No bindings returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(bindings.error, "No bindings returned.")}</p>
                 ) : (
                   bindingItems.map((item) => {
                     const index = String(item.bindingIndex ?? "");
@@ -4776,7 +4776,7 @@ export function OpenClawManagement() {
             <ListCard title="Environment Variables" icon={Globe}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {environmentEntries.length === 0 ? (
-                  <p>No environment variables returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(environmentVariables.error, "No environment variables returned.")}</p>
                 ) : (
                   environmentEntries.map(([key, value]) => (
                     <div key={key} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
@@ -5105,7 +5105,7 @@ export function OpenClawManagement() {
           <ListCard title="MCP Servers" icon={Plug}>
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
               {mcpServerItems.length === 0 ? (
-                <p>No MCP servers returned.</p>
+                <p>{getOpenClawEmptyStateMessage(mcpServers.error, "No MCP servers returned.")}</p>
               ) : (
                 mcpServerItems.map((item, index) => {
                   const name = String(item.name ?? item.id ?? item.server ?? `server-${index + 1}`);
@@ -5291,7 +5291,7 @@ export function OpenClawManagement() {
               <details className="mt-4 rounded-xl border border-[var(--border)]/50 bg-[rgba(148,163,184,0.05)] p-3">
                 <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Raw Auth Payload</summary>
                 <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(authUser.data ?? { message: "No auth user configured." }, null, 2)}
+                  {JSON.stringify(authUser.data ?? { message: getOpenClawEmptyStateMessage(authUser.error, "No auth user configured.") }, null, 2)}
                 </pre>
               </details>
             </div>
@@ -5315,7 +5315,7 @@ export function OpenClawManagement() {
               </label>
               <div className="mt-4 space-y-2">
                 {cronJobItems.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)]">No cron jobs returned.</p>
+                  <p className="text-sm text-[var(--text-secondary)]">{getOpenClawEmptyStateMessage(cronJobs.error, "No cron jobs returned.")}</p>
                 ) : (
                   cronJobItems.map((item, index) => {
                     const jobId = String(item.jobId ?? item.id ?? item.name ?? `job-${index + 1}`);
@@ -7670,7 +7670,7 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">OAuth Status</p>
                   <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(chatGptOAuthStatus.data ?? { message: "No OAuth status returned." }, null, 2)}
+                    {JSON.stringify(chatGptOAuthStatus.data ?? { message: getOpenClawEmptyStateMessage(chatGptOAuthStatus.error, "No OAuth status returned.") }, null, 2)}
                   </pre>
                 </div>
               </div>
