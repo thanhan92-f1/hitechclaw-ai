@@ -76,17 +76,27 @@ export function GuidedTour() {
   // Activate tour when ?tour=1 is in URL and tour hasn't been dismissed
   useEffect(() => {
     const shouldTour = searchParams.get("tour") === "1";
-    const dismissed = localStorage.getItem(TOUR_DISMISSED_KEY);
-    if (shouldTour && !dismissed) {
-      // Small delay to let the page render
-      const timer = setTimeout(() => setActive(true), 500);
-      return () => clearTimeout(timer);
+    let dismissed = false;
+
+    try {
+      dismissed = localStorage.getItem(TOUR_DISMISSED_KEY) === "1";
+    } catch {
+      dismissed = false;
     }
+
+    if (!shouldTour || dismissed) return;
+
+    const timer = window.setTimeout(() => setActive(true), 500);
+    return () => window.clearTimeout(timer);
   }, [searchParams]);
 
   const closeTour = useCallback(() => {
     setActive(false);
-    localStorage.setItem(TOUR_DISMISSED_KEY, "1");
+    try {
+      localStorage.setItem(TOUR_DISMISSED_KEY, "1");
+    } catch {
+      // Silent
+    }
     // Clean up URL param
     const url = new URL(window.location.href);
     url.searchParams.delete("tour");

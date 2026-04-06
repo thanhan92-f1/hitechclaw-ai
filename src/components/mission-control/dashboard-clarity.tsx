@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 
 /* ── MetricTooltip ─────────────────────────────────────────────────────────── */
@@ -276,15 +276,28 @@ export function SectionDescription({
   children: ReactNode;
 }) {
   const storageKey = `${SECTION_SEEN_PREFIX}${id}`;
-  const [expanded, setExpanded] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const seen = localStorage.getItem(storageKey);
-    if (!seen) {
-      localStorage.setItem(storageKey, "1");
-      return true;
-    }
-    return false;
-  });
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      try {
+        const seen = localStorage.getItem(storageKey);
+        if (!seen) {
+          localStorage.setItem(storageKey, "1");
+          setExpanded(true);
+        }
+      } catch {
+        setExpanded(false);
+      }
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [storageKey]);
 
   return (
     <div className="mb-4">
