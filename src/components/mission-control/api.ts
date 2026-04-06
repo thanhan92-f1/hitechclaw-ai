@@ -103,13 +103,13 @@ type State<T> = {
   loading: boolean;
 };
 
-function getCsrfToken(): string {
+export function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
   const match = document.cookie.match(/mc_csrf=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : "";
 }
 
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   const csrf = getCsrfToken();
   if (csrf) headers["x-csrf-token"] = csrf;

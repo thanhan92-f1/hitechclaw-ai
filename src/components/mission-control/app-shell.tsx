@@ -42,6 +42,7 @@ import { HelpPanel } from "./help-panel";
 import { Breadcrumbs } from "../ui/breadcrumbs";
 import { TenantSwitcher } from "./tenant-switcher";
 import { ThemeToggle } from "./theme-toggle";
+import { getAuthHeaders } from "./api";
 
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
@@ -188,15 +189,6 @@ type PinnedDoc = {
   category: string;
   file_path: string | null;
 };
-
-function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (typeof document !== "undefined") {
-    const csrf = document.cookie.match(/mc_csrf=([^;]+)/)?.[1];
-    if (csrf) headers["x-csrf-token"] = decodeURIComponent(csrf);
-  }
-  return headers;
-}
 
 /* ── Tour target IDs for guided tour ── */
 const TOUR_IDS: Record<string, string> = {

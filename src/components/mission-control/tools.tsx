@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
 import { toast } from "sonner";
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   ErrorState,
@@ -14,12 +14,17 @@ import {
   ShellHeader,
   StatCard,
 } from "./dashboard";
+import { getAuthHeaders } from "./api";
 import { SectionDescription } from "./dashboard-clarity";
 
 type FetchState<T> = {
   data: T | null;
   error: string | null;
   loading: boolean;
+};
+
+type PollingResult<T> = FetchState<T> & {
+  refresh: () => Promise<void>;
 };
 
 type ApprovalItem = {
@@ -136,15 +141,6 @@ function renderMarkdown(content: string): string {
   return raw;
 }
 
-function getAuthHeaders(): Record<string, string> {
-  const token = "";
-  const csrf = typeof document !== "undefined"
-    ? (document.cookie.match(/mc_csrf=([^;]+)/)?.[1] ?? "") : "";
-  const h: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-  if (csrf) h["x-csrf-token"] = decodeURIComponent(csrf);
-  return h;
-}
-
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -164,19 +160,34 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function usePollingData<T>(url: string, intervalMs = 15000) {
+function usePollingData<T>(url: string, intervalMs = 15000): PollingResult<T> {
   const [state, setState] = useState<FetchState<T>>({
     data: null,
     error: null,
     loading: true,
   });
+  const urlRef = useRef(url);
+  urlRef.current = url;
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchJson<T>(urlRef.current);
+      setState({ data, error: null, loading: false });
+    } catch (error) {
+      setState((current) => ({
+        data: current.data,
+        error: error instanceof Error ? error.message : "Request failed",
+        loading: false,
+      }));
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
     const run = async () => {
       try {
-        const data = await fetchJson<T>(url);
+        const data = await fetchJson<T>(urlRef.current);
         if (!mounted) return;
         setState({ data, error: null, loading: false });
       } catch (error) {
@@ -198,7 +209,7 @@ function usePollingData<T>(url: string, intervalMs = 15000) {
     };
   }, [intervalMs, url]);
 
-  return state;
+  return { ...state, refresh };
 }
 
 function useNow(intervalMs = 1000) {
@@ -645,7 +656,7 @@ export function DocsToolScreen() {
   const selectedId = searchParams.get("id");
   const deferredSearch = useDeferredValue(search.trim());
   const queryString = `/api/tools/docs?category=${category}${deferredSearch ? `&search=${encodeURIComponent(deferredSearch)}` : ""}`;
-  const { data, error, loading } = usePollingData<{ items: DocumentItem[] }>(queryString, 20000);
+  const { data, error, loading, refresh } = usePollingData<{ items: DocumentItem[] }>(queryString, 20000);
 
   const openDoc = async (id: number) => {
     try {
@@ -667,7 +678,7 @@ export function DocsToolScreen() {
         body: JSON.stringify({ pinned: !doc.pinned }),
       });
       if (selected?.id === updated.id) setSelected(updated);
-      window.location.reload();
+      await refresh();
     } catch (pinError) {
       toast.error(pinError instanceof Error ? pinError.message : 'Pin failed');
     }
@@ -868,7 +879,7 @@ export function TasksToolScreen() {
   const [tab, setTab] = useState("todo");
   const [quickTitle, setQuickTitle] = useState("");
   const [quickPriority, setQuickPriority] = useState("P2");
-  const { data, error, loading } = usePollingData<{ items: TaskItem[] }>("/api/tools/tasks", 12000);
+  const { data, error, loading, refresh } = usePollingData<{ items: TaskItem[] }>("/api/tools/tasks", 12000);
   const now = useNow(60000);
 
   const groups = useMemo(() => {
@@ -894,7 +905,7 @@ export function TasksToolScreen() {
       });
       setQuickTitle("");
       setQuickPriority("P2");
-      window.location.reload();
+      await refresh();
     } catch (createError) {
       toast.error(createError instanceof Error ? createError.message : 'Create failed');
     }
@@ -911,7 +922,7 @@ export function TasksToolScreen() {
         method: "PATCH",
         body: JSON.stringify({ status: flow[nextIndex] }),
       });
-      window.location.reload();
+      await refresh();
     } catch (moveError) {
       toast.error(moveError instanceof Error ? moveError.message : 'Move failed');
     }
@@ -1217,7 +1228,7 @@ function runTone(status: string) {
 export function AgentsLiveToolScreen() {
   const now = useNow(1000);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const { data, error, loading } = usePollingData<{ items: SubagentRun[] }>("/api/tools/agents-live", 5000);
+  const { data, error, loading, refresh } = usePollingData<{ items: SubagentRun[] }>("/api/tools/agents-live", 5000);
 
   const killRun = (run: SubagentRun) => {
     toast(`Kill agent "${run.run_label}"?`, {
@@ -1227,7 +1238,7 @@ export function AgentsLiveToolScreen() {
           try {
             await fetchJson(`/api/tools/agents-live/${run.id}/kill`, { method: "POST" });
             toast.success(`Agent "${run.run_label}" terminated`);
-            window.location.reload();
+            await refresh();
           } catch (killError) {
             toast.error(killError instanceof Error ? killError.message : "Kill failed");
           }
@@ -1324,7 +1335,7 @@ const quickActions = ["Status", "Briefing", "Priority list"];
 export function CommandToolScreen() {
   const [message, setMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const { data, error, loading } = usePollingData<{ items: QuickCommand[] }>("/api/tools/commands?limit=10", 5000);
+  const { data, error, loading, refresh } = usePollingData<{ items: QuickCommand[] }>("/api/tools/commands?limit=10", 5000);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -1365,7 +1376,7 @@ export function CommandToolScreen() {
         toast("Command saved — gateway unreachable", { icon: "⚠️" });
       }
 
-      window.location.reload();
+      await refresh();
     } catch (sendError) {
       toast.error(sendError instanceof Error ? sendError.message : 'Send failed');
     }
