@@ -33,8 +33,10 @@ import {
   KeyRound,
   Globe,
   Archive,
+  Brain,
   MessageSquare,
   Puzzle,
+  Smartphone,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -117,6 +119,9 @@ type OpenClawNavItem = {
     | "credentials"
     | "cron"
     | "config-advanced"
+    | "memory"
+    | "devices"
+    | "agents"
     | "domain"
     | "backup"
     | "channels"
@@ -159,6 +164,9 @@ const openClawNavItems: OpenClawNavItem[] = [
   { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
   { key: "cron", label: "Cron", icon: Workflow, subtitle: "Scheduler jobs and runs" },
   { key: "config-advanced", label: "Config Advanced", icon: Settings, subtitle: "Schema, patch, and raw file" },
+  { key: "memory", label: "Memory", icon: Brain, subtitle: "Index, search, and health" },
+  { key: "devices", label: "Devices", icon: Smartphone, subtitle: "Pairing and token lifecycle" },
+  { key: "agents", label: "Agents", icon: Bot, subtitle: "Agent registry and files" },
   { key: "domain", label: "Domain", icon: Globe, subtitle: "Domain and SSL" },
   { key: "backup", label: "Backup", icon: Archive, subtitle: "Snapshots and verify" },
   { key: "channels", label: "Channels", icon: MessageSquare, subtitle: "Messaging connectors" },

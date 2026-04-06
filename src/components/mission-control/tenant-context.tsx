@@ -18,6 +18,9 @@ export type OpenClawSection =
   | "credentials"
   | "cron"
   | "config-advanced"
+  | "memory"
+  | "devices"
+  | "agents"
   | "domain"
   | "backup"
   | "channels"
@@ -79,6 +82,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           storedSection === "credentials" ||
           storedSection === "cron" ||
           storedSection === "config-advanced" ||
+          storedSection === "memory" ||
+          storedSection === "devices" ||
+          storedSection === "agents" ||
           storedSection === "domain" ||
           storedSection === "backup" ||
           storedSection === "channels" ||

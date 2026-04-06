@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Archive,
+  Brain,
   Bot,
   CheckCircle2,
   Cpu,
   Database,
+  FileText,
   Globe,
   HardDrive,
   KeyRound,
@@ -20,6 +22,7 @@ import {
   RefreshCcw,
   Server,
   ShieldCheck,
+  Smartphone,
   Square,
   TerminalSquare,
   Wrench,
@@ -578,6 +581,84 @@ interface ConfigFileInfo {
   [key: string]: unknown;
 }
 
+interface MemoryStatusInfo {
+  ok?: boolean;
+  agentId?: string;
+  summary?: string;
+  embedding?: Record<string, unknown>;
+  index?: Record<string, unknown>;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface MemorySearchInfo {
+  ok?: boolean;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  matches?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface DoctorMemoryStatusInfo {
+  ok?: boolean;
+  agentId?: string;
+  provider?: string;
+  embedding?: Record<string, unknown>;
+  note?: string;
+  [key: string]: unknown;
+}
+
+interface DevicesInfo {
+  ok?: boolean;
+  devices?: Array<Record<string, unknown>>;
+  pending?: Array<Record<string, unknown>>;
+  paired?: Array<Record<string, unknown>>;
+  requests?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface AgentsInfo {
+  ok?: boolean;
+  agents?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface AgentDetailInfo {
+  ok?: boolean;
+  agent?: Record<string, unknown>;
+  item?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface AgentApiKeysInfo {
+  ok?: boolean;
+  keys?: Record<string, unknown>;
+  apiKeys?: Record<string, unknown>;
+  providers?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface AgentFilesInfo {
+  ok?: boolean;
+  agentId?: string;
+  workspace?: string;
+  files?: Array<Record<string, unknown>>;
+  count?: number;
+  [key: string]: unknown;
+}
+
+interface AgentFileInfo {
+  ok?: boolean;
+  agentId?: string;
+  workspace?: string;
+  file?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 interface OpenClawEnvironmentOption {
   id: string;
   name: string;
@@ -910,6 +991,9 @@ export function OpenClawManagement() {
   const isAuthSection = openClawSection === "auth";
   const isCronSection = openClawSection === "cron";
   const isConfigAdvancedSection = openClawSection === "config-advanced";
+  const isMemorySection = openClawSection === "memory";
+  const isDevicesSection = openClawSection === "devices";
+  const isAgentsSection = openClawSection === "agents";
 
   const info = useOpenClawFetch<ServiceInfo>("/info", OPENCLAW_SYNC_PASSIVE_MS);
   const status = useOpenClawFetch<ServiceStatus>("/status", OPENCLAW_SYNC_ACTIVE_MS);
@@ -965,6 +1049,42 @@ export function OpenClawManagement() {
   const cronJobs = useOpenClawFetch<CronJobsInfo>(`/cron/jobs?all=${cronIncludeDisabled ? "true" : "false"}`, OPENCLAW_SYNC_PASSIVE_MS, isCronSection);
   const configSchema = useOpenClawFetch<ConfigSchemaInfo>("/config/schema", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
   const configFile = useOpenClawFetch<ConfigFileInfo>("/config/file", OPENCLAW_SYNC_PASSIVE_MS, isConfigAdvancedSection);
+  const [memoryAgentId, setMemoryAgentId] = useState("main");
+  const [memorySearchQuery, setMemorySearchQuery] = useState("deployment");
+  const [memorySearchMaxResults, setMemorySearchMaxResults] = useState(5);
+  const memoryStatus = useOpenClawFetch<MemoryStatusInfo>(`/memory/status?agentId=${encodeURIComponent(memoryAgentId)}&deep=true`, OPENCLAW_SYNC_PASSIVE_MS, isMemorySection);
+  const doctorMemoryStatus = useOpenClawFetch<DoctorMemoryStatusInfo>("/doctor/memory-status", OPENCLAW_SYNC_PASSIVE_MS, isMemorySection);
+  const [memoryBusy, setMemoryBusy] = useState<string | null>(null);
+  const [memoryIndexForce, setMemoryIndexForce] = useState(true);
+  const [memoryIndexResult, setMemoryIndexResult] = useState<Record<string, unknown> | null>(null);
+  const [memorySearchResult, setMemorySearchResult] = useState<MemorySearchInfo | null>(null);
+  const devicesLegacy = useOpenClawFetch<DevicesInfo>("/devices", OPENCLAW_SYNC_PASSIVE_MS, isDevicesSection);
+  const devicesPairing = useOpenClawFetch<DevicesInfo>("/devices/pairing", OPENCLAW_SYNC_PASSIVE_MS, isDevicesSection);
+  const [devicesBusy, setDevicesBusy] = useState<string | null>(null);
+  const [selectedDeviceRequestId, setSelectedDeviceRequestId] = useState("");
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
+  const [deviceTokenRole, setDeviceTokenRole] = useState("operator");
+  const [deviceTokenScopesText, setDeviceTokenScopesText] = useState("operator.read\noperator.write");
+  const [deviceActionResult, setDeviceActionResult] = useState<Record<string, unknown> | null>(null);
+  const agents = useOpenClawFetch<AgentsInfo>("/agents", OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection);
+  const [selectedAgentId, setSelectedAgentId] = useState("main");
+  const agentDetail = useOpenClawFetch<AgentDetailInfo>(`/agents/${encodeURIComponent(selectedAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
+  const agentApiKeys = useOpenClawFetch<AgentApiKeysInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/api-key`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
+  const agentFiles = useOpenClawFetch<AgentFilesInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
+  const [selectedAgentFileName, setSelectedAgentFileName] = useState("AGENTS.md");
+  const agentFile = useOpenClawFetch<AgentFileInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files/${encodeURIComponent(selectedAgentFileName)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId) && Boolean(selectedAgentFileName));
+  const [agentsBusy, setAgentsBusy] = useState<string | null>(null);
+  const [agentCreateId, setAgentCreateId] = useState("ops");
+  const [agentCreateName, setAgentCreateName] = useState("Operations Agent");
+  const [agentCreateModel, setAgentCreateModel] = useState("anthropic/claude-sonnet-4-20250514");
+  const [agentCreateDefault, setAgentCreateDefault] = useState(false);
+  const [agentNameDraft, setAgentNameDraft] = useState("");
+  const [agentModelDraft, setAgentModelDraft] = useState("");
+  const [agentWorkspaceDraft, setAgentWorkspaceDraft] = useState("");
+  const [agentDeleteData, setAgentDeleteData] = useState(true);
+  const [agentApiKeyProvider, setAgentApiKeyProvider] = useState("anthropic");
+  const [agentApiKeyValue, setAgentApiKeyValue] = useState("");
+  const [agentFilesContent, setAgentFilesContent] = useState("");
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainEmail, setDomainEmail] = useState("");
@@ -1246,6 +1366,53 @@ export function OpenClawManagement() {
   }, [authUser.data?.user?.username, authUser.data?.username, authUsername]);
 
   useEffect(() => {
+    const agentItems = normalizeRecordItems(agents.data?.agents ?? agents.data?.items ?? agents.data?.results ?? null, "agentId");
+    if (!agentItems.some((item) => String(item.agentId ?? item.id ?? item.name ?? "") === selectedAgentId)) {
+      const firstAgent = agentItems[0];
+      setSelectedAgentId(String(firstAgent?.agentId ?? firstAgent?.id ?? firstAgent?.name ?? "main"));
+    }
+  }, [agents.data?.agents, agents.data?.items, agents.data?.results, selectedAgentId]);
+
+  useEffect(() => {
+    const detail = agentDetail.data?.agent ?? agentDetail.data?.item ?? agentDetail.data?.data;
+    if (!detail) {
+      return;
+    }
+
+    setAgentNameDraft(String(detail.name ?? detail.title ?? detail.id ?? selectedAgentId));
+    setAgentModelDraft(String(detail.model ?? detail.defaultModel ?? ""));
+    setAgentWorkspaceDraft(String(detail.workspace ?? detail.workspaceDir ?? ""));
+  }, [agentDetail.data?.agent, agentDetail.data?.data, agentDetail.data?.item, selectedAgentId]);
+
+  useEffect(() => {
+    const fileItems = agentFiles.data?.files ?? [];
+    if (!fileItems.some((item) => String(item.name ?? "") === selectedAgentFileName)) {
+      setSelectedAgentFileName(String(fileItems[0]?.name ?? "AGENTS.md"));
+    }
+  }, [agentFiles.data?.files, selectedAgentFileName]);
+
+  useEffect(() => {
+    const content = agentFile.data?.file?.content;
+    if (typeof content === "string") {
+      setAgentFilesContent(content);
+    }
+  }, [agentFile.data?.file]);
+
+  useEffect(() => {
+    const pendingItems = normalizeRecordItems(devicesPairing.data?.pending ?? devicesPairing.data?.requests ?? null, "requestId");
+    if (!pendingItems.some((item) => String(item.requestId ?? item.id ?? item.name ?? "") === selectedDeviceRequestId)) {
+      setSelectedDeviceRequestId(String(pendingItems[0]?.requestId ?? pendingItems[0]?.id ?? pendingItems[0]?.name ?? ""));
+    }
+  }, [devicesPairing.data?.pending, devicesPairing.data?.requests, selectedDeviceRequestId]);
+
+  useEffect(() => {
+    const pairedItems = normalizeRecordItems(devicesPairing.data?.paired ?? devicesPairing.data?.devices ?? null, "deviceId");
+    if (!pairedItems.some((item) => String(item.deviceId ?? item.id ?? item.name ?? "") === selectedDeviceId)) {
+      setSelectedDeviceId(String(pairedItems[0]?.deviceId ?? pairedItems[0]?.id ?? pairedItems[0]?.name ?? ""));
+    }
+  }, [devicesPairing.data?.devices, devicesPairing.data?.paired, selectedDeviceId]);
+
+  useEffect(() => {
     setAuthOrderText((modelAuthOrder.data?.order ?? []).join("\n"));
   }, [modelAuthOrder.data?.order]);
 
@@ -1315,8 +1482,17 @@ export function OpenClawManagement() {
       cronJobs.refresh({ refresh: forceFresh }),
       configSchema.refresh({ refresh: forceFresh }),
       configFile.refresh({ refresh: forceFresh }),
+      memoryStatus.refresh({ refresh: forceFresh }),
+      doctorMemoryStatus.refresh({ refresh: forceFresh }),
+      devicesLegacy.refresh({ refresh: forceFresh }),
+      devicesPairing.refresh({ refresh: forceFresh }),
+      agents.refresh({ refresh: forceFresh }),
+      agentDetail.refresh({ refresh: forceFresh }),
+      agentApiKeys.refresh({ refresh: forceFresh }),
+      agentFiles.refresh({ refresh: forceFresh }),
+      agentFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1372,6 +1548,15 @@ export function OpenClawManagement() {
       cronJobs.fetchedAt,
       configSchema.fetchedAt,
       configFile.fetchedAt,
+      memoryStatus.fetchedAt,
+      doctorMemoryStatus.fetchedAt,
+      devicesLegacy.fetchedAt,
+      devicesPairing.fetchedAt,
+      agents.fetchedAt,
+      agentDetail.fetchedAt,
+      agentApiKeys.fetchedAt,
+      agentFiles.fetchedAt,
+      agentFile.fetchedAt,
     ]
       .filter((value): value is string => Boolean(value))
       .map((value) => new Date(value).getTime())
@@ -1433,6 +1618,15 @@ export function OpenClawManagement() {
     cronJobs.fetchedAt,
     configSchema.fetchedAt,
     configFile.fetchedAt,
+    memoryStatus.fetchedAt,
+    doctorMemoryStatus.fetchedAt,
+    devicesLegacy.fetchedAt,
+    devicesPairing.fetchedAt,
+    agents.fetchedAt,
+    agentDetail.fetchedAt,
+    agentApiKeys.fetchedAt,
+    agentFiles.fetchedAt,
+    agentFile.fetchedAt,
     upstream.fetchedAt,
     version.fetchedAt,
   ]);
@@ -1491,6 +1685,15 @@ export function OpenClawManagement() {
       cronJobs.cacheStatus,
       configSchema.cacheStatus,
       configFile.cacheStatus,
+      memoryStatus.cacheStatus,
+      doctorMemoryStatus.cacheStatus,
+      devicesLegacy.cacheStatus,
+      devicesPairing.cacheStatus,
+      agents.cacheStatus,
+      agentDetail.cacheStatus,
+      agentApiKeys.cacheStatus,
+      agentFiles.cacheStatus,
+      agentFile.cacheStatus,
     ].filter((value): value is string => Boolean(value));
 
     if (statuses.includes("stale-if-error")) return "Showing cached fallback data";
@@ -1548,6 +1751,15 @@ export function OpenClawManagement() {
     cronJobs.cacheStatus,
     configSchema.cacheStatus,
     configFile.cacheStatus,
+    memoryStatus.cacheStatus,
+    doctorMemoryStatus.cacheStatus,
+    devicesLegacy.cacheStatus,
+    devicesPairing.cacheStatus,
+    agents.cacheStatus,
+    agentDetail.cacheStatus,
+    agentApiKeys.cacheStatus,
+    agentFiles.cacheStatus,
+    agentFile.cacheStatus,
     upstream.cacheStatus,
     version.cacheStatus,
   ]);
@@ -2219,6 +2431,279 @@ export function OpenClawManagement() {
     }
   }, [configApplyTarget, refreshAll]);
 
+  const handleReindexMemory = useCallback(async () => {
+    setMemoryBusy("index");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>("/memory/index", {
+        method: "POST",
+        body: JSON.stringify({
+          agentId: memoryAgentId.trim() || "main",
+          force: memoryIndexForce,
+          timeoutMs: 120000,
+        }),
+      });
+      setMemoryIndexResult(result);
+      toast.success("Memory reindex started");
+      await Promise.all([memoryStatus.refresh({ refresh: true }), doctorMemoryStatus.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Memory reindex failed");
+    } finally {
+      setMemoryBusy(null);
+    }
+  }, [doctorMemoryStatus, memoryAgentId, memoryIndexForce, memoryStatus]);
+
+  const handleSearchMemory = useCallback(async () => {
+    if (!memorySearchQuery.trim()) {
+      toast.error("Enter a memory query first");
+      return;
+    }
+
+    setMemoryBusy("search");
+    try {
+      const query = new URLSearchParams({
+        query: memorySearchQuery.trim(),
+        agentId: memoryAgentId.trim() || "main",
+        maxResults: String(memorySearchMaxResults),
+      });
+      const result = await requestOpenClaw<MemorySearchInfo>(`/memory/search?${query.toString()}`);
+      setMemorySearchResult(result);
+      const count = (result.results ?? result.items ?? result.matches ?? []).length;
+      toast.success(`Found ${count} memory result${count === 1 ? "" : "s"}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Memory search failed");
+    } finally {
+      setMemoryBusy(null);
+    }
+  }, [memoryAgentId, memorySearchMaxResults, memorySearchQuery]);
+
+  const handleApproveDeviceLegacy = useCallback(async () => {
+    if (!selectedDeviceRequestId.trim()) {
+      toast.error("Choose a device request first");
+      return;
+    }
+
+    setDevicesBusy("approve-legacy");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/devices/approve/${encodeURIComponent(selectedDeviceRequestId.trim())}`, {
+        method: "POST",
+      });
+      setDeviceActionResult(result);
+      toast.success(`Approved legacy request ${selectedDeviceRequestId.trim()}`);
+      await Promise.all([devicesLegacy.refresh({ refresh: true }), devicesPairing.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve legacy device request");
+    } finally {
+      setDevicesBusy(null);
+    }
+  }, [devicesLegacy, devicesPairing, selectedDeviceRequestId]);
+
+  const handleDevicePairingAction = useCallback(async (action: "approve" | "reject") => {
+    if (!selectedDeviceRequestId.trim()) {
+      toast.error("Choose a pairing request first");
+      return;
+    }
+
+    setDevicesBusy(`pair-${action}`);
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/devices/pairing/${action}`, {
+        method: "POST",
+        body: JSON.stringify({ requestId: selectedDeviceRequestId.trim() }),
+      });
+      setDeviceActionResult(result);
+      toast.success(`Pairing request ${action}d`);
+      await devicesPairing.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${action} pairing request`);
+    } finally {
+      setDevicesBusy(null);
+    }
+  }, [devicesPairing, selectedDeviceRequestId]);
+
+  const handleRemovePairedDevice = useCallback(async () => {
+    if (!selectedDeviceId.trim()) {
+      toast.error("Choose a paired device first");
+      return;
+    }
+
+    setDevicesBusy("remove-device");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/devices/${encodeURIComponent(selectedDeviceId.trim())}/pairing`, {
+        method: "DELETE",
+        body: JSON.stringify({}),
+      });
+      setDeviceActionResult(result);
+      toast.success(`Removed paired device ${selectedDeviceId.trim()}`);
+      await devicesPairing.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove paired device");
+    } finally {
+      setDevicesBusy(null);
+    }
+  }, [devicesPairing, selectedDeviceId]);
+
+  const handleDeviceTokenAction = useCallback(async (action: "rotate" | "revoke") => {
+    if (!selectedDeviceId.trim()) {
+      toast.error("Choose a paired device first");
+      return;
+    }
+
+    setDevicesBusy(`token-${action}`);
+    try {
+      const body: Record<string, unknown> = { role: deviceTokenRole.trim() || "operator" };
+      if (action === "rotate") {
+        body.scopes = deviceTokenScopesText
+          .split(/\r?\n|,/) 
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+      }
+      const result = await requestOpenClaw<Record<string, unknown>>(`/devices/${encodeURIComponent(selectedDeviceId.trim())}/tokens/${action}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setDeviceActionResult(result);
+      toast.success(`Device token ${action}d`);
+      await devicesPairing.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${action} device token`);
+    } finally {
+      setDevicesBusy(null);
+    }
+  }, [deviceTokenRole, deviceTokenScopesText, devicesPairing, selectedDeviceId]);
+
+  const handleCreateAgent = useCallback(async () => {
+    if (!agentCreateId.trim() || !agentCreateName.trim()) {
+      toast.error("Enter agent id and name");
+      return;
+    }
+
+    setAgentsBusy("create-agent");
+    try {
+      await requestOpenClaw("/agents", {
+        method: "POST",
+        body: JSON.stringify({
+          id: agentCreateId.trim(),
+          name: agentCreateName.trim(),
+          model: agentCreateModel.trim() || undefined,
+          default: agentCreateDefault,
+        }),
+      });
+      toast.success(`Agent ${agentCreateId.trim()} created`);
+      setSelectedAgentId(agentCreateId.trim());
+      await agents.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create agent");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentCreateDefault, agentCreateId, agentCreateModel, agentCreateName, agents]);
+
+  const handleUpdateAgent = useCallback(async () => {
+    if (!selectedAgentId.trim()) {
+      toast.error("Choose an agent first");
+      return;
+    }
+
+    setAgentsBusy("update-agent");
+    try {
+      await requestOpenClaw(`/agents/${encodeURIComponent(selectedAgentId.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: agentNameDraft.trim() || undefined,
+          model: agentModelDraft.trim() || undefined,
+          workspace: agentWorkspaceDraft.trim() || undefined,
+        }),
+      });
+      toast.success(`Agent ${selectedAgentId.trim()} updated`);
+      await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update agent");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentDetail, agentModelDraft, agentNameDraft, agentWorkspaceDraft, agents, selectedAgentId]);
+
+  const handleDeleteAgent = useCallback(async () => {
+    if (!selectedAgentId.trim()) {
+      toast.error("Choose an agent first");
+      return;
+    }
+
+    setAgentsBusy("delete-agent");
+    try {
+      await requestOpenClaw(`/agents/${encodeURIComponent(selectedAgentId.trim())}`, {
+        method: "DELETE",
+        body: JSON.stringify({ deleteData: agentDeleteData }),
+      });
+      toast.success(`Agent ${selectedAgentId.trim()} deleted`);
+      await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete agent");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentDeleteData, agentDetail, agents, selectedAgentId]);
+
+  const handleSetDefaultAgent = useCallback(async () => {
+    if (!selectedAgentId.trim()) {
+      toast.error("Choose an agent first");
+      return;
+    }
+
+    setAgentsBusy("default-agent");
+    try {
+      await requestOpenClaw(`/agents/${encodeURIComponent(selectedAgentId.trim())}/default`, { method: "PUT" });
+      toast.success(`Agent ${selectedAgentId.trim()} set as default`);
+      await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to set default agent");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentDetail, agents, selectedAgentId]);
+
+  const handleSaveAgentApiKey = useCallback(async () => {
+    if (!selectedAgentId.trim() || !agentApiKeyProvider.trim() || !agentApiKeyValue.trim()) {
+      toast.error("Enter agent, provider, and API key");
+      return;
+    }
+
+    setAgentsBusy("agent-api-key");
+    try {
+      await requestOpenClaw(`/agents/${encodeURIComponent(selectedAgentId.trim())}/api-key`, {
+        method: "PUT",
+        body: JSON.stringify({ provider: agentApiKeyProvider.trim(), apiKey: agentApiKeyValue.trim() }),
+      });
+      toast.success(`Saved API key for ${agentApiKeyProvider.trim()}`);
+      setAgentApiKeyValue("");
+      await agentApiKeys.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save agent API key");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentApiKeyProvider, agentApiKeyValue, agentApiKeys, selectedAgentId]);
+
+  const handleSaveAgentFile = useCallback(async () => {
+    if (!selectedAgentId.trim() || !selectedAgentFileName.trim()) {
+      toast.error("Choose an agent and file first");
+      return;
+    }
+
+    setAgentsBusy("agent-file");
+    try {
+      await requestOpenClaw(`/agents/${encodeURIComponent(selectedAgentId.trim())}/files/${encodeURIComponent(selectedAgentFileName.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify({ content: agentFilesContent }),
+      });
+      toast.success(`Saved ${selectedAgentFileName.trim()}`);
+      await Promise.all([agentFiles.refresh({ refresh: true }), agentFile.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save agent workspace file");
+    } finally {
+      setAgentsBusy(null);
+    }
+  }, [agentFile, agentFiles, agentFilesContent, selectedAgentFileName, selectedAgentId]);
+
   const handleToggleHook = useCallback(async (enabled: boolean) => {
     if (!selectedHook) {
       toast.error("Choose a hook first");
@@ -2597,6 +3082,46 @@ export function OpenClawManagement() {
     [cronJobs.data?.items, cronJobs.data?.jobs, cronJobs.data?.results],
   );
 
+  const memorySearchItems = useMemo(
+    () => normalizeRecordItems(memorySearchResult?.results ?? memorySearchResult?.items ?? memorySearchResult?.matches ?? null, "resultId"),
+    [memorySearchResult?.items, memorySearchResult?.matches, memorySearchResult?.results],
+  );
+
+  const devicesLegacyItems = useMemo(
+    () => normalizeRecordItems(devicesLegacy.data?.devices ?? devicesLegacy.data?.items ?? devicesLegacy.data?.results ?? null, "requestId"),
+    [devicesLegacy.data?.devices, devicesLegacy.data?.items, devicesLegacy.data?.results],
+  );
+
+  const devicesPendingItems = useMemo(
+    () => normalizeRecordItems(devicesPairing.data?.pending ?? devicesPairing.data?.requests ?? null, "requestId"),
+    [devicesPairing.data?.pending, devicesPairing.data?.requests],
+  );
+
+  const devicesPairedItems = useMemo(
+    () => normalizeRecordItems(devicesPairing.data?.paired ?? devicesPairing.data?.devices ?? null, "deviceId"),
+    [devicesPairing.data?.devices, devicesPairing.data?.paired],
+  );
+
+  const agentItems = useMemo(
+    () => normalizeRecordItems(agents.data?.agents ?? agents.data?.items ?? agents.data?.results ?? null, "agentId"),
+    [agents.data?.agents, agents.data?.items, agents.data?.results],
+  );
+
+  const selectedAgentData = useMemo(
+    () => agentDetail.data?.agent ?? agentDetail.data?.item ?? agentDetail.data?.data ?? agentItems.find((item) => String(item.agentId ?? item.id ?? item.name ?? "") === selectedAgentId) ?? null,
+    [agentDetail.data?.agent, agentDetail.data?.data, agentDetail.data?.item, agentItems, selectedAgentId],
+  );
+
+  const agentApiKeyEntries = useMemo(
+    () => Object.entries(agentApiKeys.data?.keys ?? agentApiKeys.data?.apiKeys ?? agentApiKeys.data?.providers ?? {}),
+    [agentApiKeys.data?.apiKeys, agentApiKeys.data?.keys, agentApiKeys.data?.providers],
+  );
+
+  const agentFileItems = useMemo(
+    () => agentFiles.data?.files ?? [],
+    [agentFiles.data?.files],
+  );
+
   useEffect(() => {
     if (!cronJobItems.some((item) => String(item.jobId ?? item.id ?? item.name ?? "") === selectedCronJob)) {
       const firstJob = cronJobItems[0];
@@ -2662,6 +3187,15 @@ export function OpenClawManagement() {
     cronJobs.error,
     configSchema.error,
     configFile.error,
+    memoryStatus.error,
+    doctorMemoryStatus.error,
+    devicesLegacy.error,
+    devicesPairing.error,
+    agents.error,
+    agentDetail.error,
+    agentApiKeys.error,
+    agentFiles.error,
+    agentFile.error,
   ].filter(Boolean);
 
   return (
@@ -4843,6 +5377,438 @@ export function OpenClawManagement() {
               density="compact"
             />
           )}
+        </div>
+      ) : null}
+
+      {isMemorySection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Agent" value={memoryAgentId || "main"} subtitle="Memory target" icon={Brain} />
+            <StatCard label="Search Results" value={String(memorySearchItems.length)} subtitle="Most recent query" icon={Database} />
+            <StatCard label="Provider" value={doctorMemoryStatus.data?.provider ?? "—"} subtitle={doctorMemoryStatus.data?.note ?? "Embeddings readiness"} icon={ShieldCheck} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <DetailCard title="Memory Status" icon={Brain}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_160px_120px]">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Agent</span>
+                  <input
+                    value={memoryAgentId}
+                    onChange={(event) => setMemoryAgentId(event.target.value || "main")}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="flex items-end gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <input type="checkbox" checked={memoryIndexForce} onChange={(event) => setMemoryIndexForce(event.target.checked)} />
+                  Force reindex
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => void handleReindexMemory()}
+                    disabled={memoryBusy != null}
+                    className="w-full rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                  >
+                    {memoryBusy === "index" ? "Indexing…" : "Reindex Memory"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Memory Status</p>
+                  <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(memoryStatus.data ?? { message: "No memory status returned." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Doctor Readiness</p>
+                  <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(doctorMemoryStatus.data ?? memoryIndexResult ?? { message: "No memory doctor output returned." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </DetailCard>
+
+            <DetailCard title="Memory Search" icon={Database}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_120px_140px]">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Query</span>
+                  <input
+                    value={memorySearchQuery}
+                    onChange={(event) => setMemorySearchQuery(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="deployment"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Max</span>
+                  <select
+                    value={memorySearchMaxResults}
+                    onChange={(event) => setMemorySearchMaxResults(Number(event.target.value))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {[5, 10, 20].map((value) => (
+                      <option key={value} value={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => void handleSearchMemory()}
+                    disabled={memoryBusy != null}
+                    className="w-full rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {memoryBusy === "search" ? "Searching…" : "Search"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2 text-sm text-[var(--text-secondary)]">
+                {memorySearchItems.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">No memory search results yet.</div>
+                ) : (
+                  memorySearchItems.map((item, index) => (
+                    <div key={`${String(item.resultId ?? item.id ?? item.path ?? index)}`} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                      <p className="font-medium text-[var(--text-primary)]">{String(item.title ?? item.path ?? item.id ?? `result-${index + 1}`)}</p>
+                      <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.score ?? item.distance ?? item.kind ?? "No score metadata")}</p>
+                      <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                        {JSON.stringify(item, null, 2)}
+                      </pre>
+                    </div>
+                  ))
+                )}
+              </div>
+            </DetailCard>
+          </div>
+        </div>
+      ) : null}
+
+      {isDevicesSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Legacy Requests" value={String(devicesLegacyItems.length)} subtitle="CLI fallback" icon={Smartphone} />
+            <StatCard label="Pending Pairing" value={String(devicesPendingItems.length)} subtitle="Upstream requests" icon={RefreshCcw} />
+            <StatCard label="Paired Devices" value={String(devicesPairedItems.length)} subtitle="Managed devices" icon={ShieldCheck} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+            <ListCard title="Pairing Requests" icon={Smartphone}>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Legacy CLI Requests</p>
+                  <div className="mt-2 space-y-2">
+                    {devicesLegacyItems.length === 0 ? (
+                      <p className="text-sm text-[var(--text-secondary)]">No legacy device requests returned.</p>
+                    ) : (
+                      devicesLegacyItems.map((item, index) => {
+                        const requestId = String(item.requestId ?? item.id ?? item.name ?? `request-${index + 1}`);
+                        const active = requestId === selectedDeviceRequestId;
+                        return (
+                          <button
+                            key={requestId}
+                            type="button"
+                            onClick={() => setSelectedDeviceRequestId(requestId)}
+                            className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                              active
+                                ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                                : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                            }`}
+                          >
+                            <p className="font-medium text-[var(--text-primary)]">{requestId}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.status ?? item.deviceId ?? item.platform ?? "No request metadata")}</p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Pending Requests</p>
+                  <div className="mt-2 space-y-2">
+                    {devicesPendingItems.length === 0 ? (
+                      <p className="text-sm text-[var(--text-secondary)]">No pending pairing requests.</p>
+                    ) : (
+                      devicesPendingItems.map((item, index) => {
+                        const requestId = String(item.requestId ?? item.id ?? item.name ?? `pair-${index + 1}`);
+                        const active = requestId === selectedDeviceRequestId;
+                        return (
+                          <button
+                            key={requestId}
+                            type="button"
+                            onClick={() => setSelectedDeviceRequestId(requestId)}
+                            className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                              active
+                                ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                                : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                            }`}
+                          >
+                            <p className="font-medium text-[var(--text-primary)]">{requestId}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.deviceId ?? item.platform ?? item.status ?? "No pairing metadata")}</p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </ListCard>
+
+            <DetailCard title="Device Actions" icon={ShieldCheck}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Request ID</span>
+                  <input
+                    value={selectedDeviceRequestId}
+                    onChange={(event) => setSelectedDeviceRequestId(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Device ID</span>
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(event) => setSelectedDeviceId(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {devicesPairedItems.map((item, index) => {
+                      const value = String(item.deviceId ?? item.id ?? item.name ?? `device-${index + 1}`);
+                      return <option key={value} value={value}>{value}</option>;
+                    })}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => void handleApproveDeviceLegacy()} disabled={devicesBusy != null || !selectedDeviceRequestId} className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50">
+                  {devicesBusy === "approve-legacy" ? "Approving…" : "Approve Legacy"}
+                </button>
+                <button type="button" onClick={() => void handleDevicePairingAction("approve")} disabled={devicesBusy != null || !selectedDeviceRequestId} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                  {devicesBusy === "pair-approve" ? "Approving…" : "Approve Pairing"}
+                </button>
+                <button type="button" onClick={() => void handleDevicePairingAction("reject")} disabled={devicesBusy != null || !selectedDeviceRequestId} className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50">
+                  {devicesBusy === "pair-reject" ? "Rejecting…" : "Reject Pairing"}
+                </button>
+                <button type="button" onClick={() => void handleRemovePairedDevice()} disabled={devicesBusy != null || !selectedDeviceId} className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50">
+                  {devicesBusy === "remove-device" ? "Removing…" : "Remove Device"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[160px_1fr]">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Token role</span>
+                  <input
+                    value={deviceTokenRole}
+                    onChange={(event) => setDeviceTokenRole(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Scopes</span>
+                  <textarea
+                    value={deviceTokenScopesText}
+                    onChange={(event) => setDeviceTokenScopesText(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => void handleDeviceTokenAction("rotate")} disabled={devicesBusy != null || !selectedDeviceId} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                  {devicesBusy === "token-rotate" ? "Rotating…" : "Rotate Token"}
+                </button>
+                <button type="button" onClick={() => void handleDeviceTokenAction("revoke")} disabled={devicesBusy != null || !selectedDeviceId} className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50">
+                  {devicesBusy === "token-revoke" ? "Revoking…" : "Revoke Token"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Pairing Snapshot</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(devicesPairing.data ?? { message: "No pairing data returned." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Action</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(deviceActionResult ?? devicesLegacy.data ?? { message: "No device action executed yet." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </DetailCard>
+          </div>
+        </div>
+      ) : null}
+
+      {isAgentsSection ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatCard label="Agents" value={String(agentItems.length)} subtitle="Configured registry" icon={Bot} />
+            <StatCard label="API Key Providers" value={String(agentApiKeyEntries.length)} subtitle={selectedAgentId || "Selected agent"} icon={KeyRound} />
+            <StatCard label="Workspace Files" value={String(agentFileItems.length)} subtitle={selectedAgentId || "Selected agent"} icon={FileText} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+            <ListCard title="Agent Registry" icon={Bot}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {agentItems.length === 0 ? (
+                  <p>No agents returned.</p>
+                ) : (
+                  agentItems.map((item, index) => {
+                    const agentId = String(item.agentId ?? item.id ?? item.name ?? `agent-${index + 1}`);
+                    const active = agentId === selectedAgentId;
+                    return (
+                      <button
+                        key={agentId}
+                        type="button"
+                        onClick={() => setSelectedAgentId(agentId)}
+                        className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                          active
+                            ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                            : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                        }`}
+                      >
+                        <p className="font-medium text-[var(--text-primary)]">{String(item.name ?? agentId)}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.model ?? item.workspace ?? item.default ?? "No metadata")}</p>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Create Agent</p>
+                <div className="mt-3 grid grid-cols-1 gap-3">
+                  <input value={agentCreateId} onChange={(event) => setAgentCreateId(event.target.value)} placeholder="ops" className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none" />
+                  <input value={agentCreateName} onChange={(event) => setAgentCreateName(event.target.value)} placeholder="Operations Agent" className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none" />
+                  <input value={agentCreateModel} onChange={(event) => setAgentCreateModel(event.target.value)} placeholder="anthropic/claude-sonnet-4-20250514" className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none" />
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={agentCreateDefault} onChange={(event) => setAgentCreateDefault(event.target.checked)} />
+                    Set as default
+                  </label>
+                  <button type="button" onClick={() => void handleCreateAgent()} disabled={agentsBusy != null} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                    {agentsBusy === "create-agent" ? "Creating…" : "Create Agent"}
+                  </button>
+                </div>
+              </div>
+            </ListCard>
+
+            <DetailCard title="Agent Detail & Files" icon={FileText}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Name</span>
+                  <input value={agentNameDraft} onChange={(event) => setAgentNameDraft(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none" />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Model</span>
+                  <input value={agentModelDraft} onChange={(event) => setAgentModelDraft(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none" />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Workspace</span>
+                  <input value={agentWorkspaceDraft} onChange={(event) => setAgentWorkspaceDraft(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none" />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button type="button" onClick={() => void handleUpdateAgent()} disabled={agentsBusy != null || !selectedAgentId} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                  {agentsBusy === "update-agent" ? "Saving…" : "Update Agent"}
+                </button>
+                <button type="button" onClick={() => void handleSetDefaultAgent()} disabled={agentsBusy != null || !selectedAgentId} className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50">
+                  {agentsBusy === "default-agent" ? "Saving…" : "Set Default"}
+                </button>
+                <label className="flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <input type="checkbox" checked={agentDeleteData} onChange={(event) => setAgentDeleteData(event.target.checked)} />
+                  Delete data
+                </label>
+                <button type="button" onClick={() => void handleDeleteAgent()} disabled={agentsBusy != null || !selectedAgentId} className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50">
+                  {agentsBusy === "delete-agent" ? "Deleting…" : "Delete Agent"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Agent Detail</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(selectedAgentData ?? { message: "No agent detail returned." }, null, 2)}
+                  </pre>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Agent API Keys</p>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {agentApiKeyEntries.length === 0 ? (
+                      <p>No provider API keys returned.</p>
+                    ) : (
+                      agentApiKeyEntries.map(([name, value]) => (
+                        <div key={name} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                          <p className="font-medium text-[var(--text-primary)]">{name}</p>
+                          <p className="mt-1 break-all font-mono text-xs text-[var(--text-tertiary)]">{String(typeof value === "string" ? value : JSON.stringify(value))}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-2">
+                    <input value={agentApiKeyProvider} onChange={(event) => setAgentApiKeyProvider(event.target.value)} placeholder="anthropic" className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none" />
+                    <textarea value={agentApiKeyValue} onChange={(event) => setAgentApiKeyValue(event.target.value)} rows={3} placeholder="Paste agent API key" className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none" />
+                    <button type="button" onClick={() => void handleSaveAgentApiKey()} disabled={agentsBusy != null || !selectedAgentId} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                      {agentsBusy === "agent-api-key" ? "Saving…" : "Save Agent API Key"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Workspace Files</p>
+                    {agentFileItems.length === 0 ? (
+                      <p className="text-sm text-[var(--text-secondary)]">No workspace files returned.</p>
+                    ) : (
+                      agentFileItems.map((item, index) => {
+                        const name = String(item.name ?? `file-${index + 1}`);
+                        const active = name === selectedAgentFileName;
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => setSelectedAgentFileName(name)}
+                            className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                              active
+                                ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                                : "border-[var(--border)]/60 bg-[var(--bg-primary)] hover:border-[var(--accent)]/30"
+                            }`}
+                          >
+                            <p className="font-medium text-[var(--text-primary)]">{name}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.exists ?? item.size ?? item.updatedAtMs ?? "No file metadata")}</p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>File content</span>
+                      <textarea
+                        value={agentFilesContent}
+                        onChange={(event) => setAgentFilesContent(event.target.value)}
+                        rows={16}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" onClick={() => void handleSaveAgentFile()} disabled={agentsBusy != null || !selectedAgentId || !selectedAgentFileName} className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50">
+                        {agentsBusy === "agent-file" ? "Saving…" : `Save ${selectedAgentFileName || "File"}`}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </DetailCard>
+          </div>
         </div>
       ) : null}
     </div>
