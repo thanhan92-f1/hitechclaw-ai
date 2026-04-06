@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 const STORAGE_KEY = "hitechclaw-ai-active-tenant";
 const MODE_STORAGE_KEY = "hitechclaw-ai-workspace-mode";
 const OPENCLAW_SECTION_STORAGE_KEY = "hitechclaw-ai-openclaw-section";
+export const OPENCLAW_ENVIRONMENT_STORAGE_KEY = "hitechclaw-ai-openclaw-environment";
 
 export type WorkspaceMode = "hitechclaw" | "openclaw";
 export type OpenClawSection = "overview" | "runtime" | "config" | "sessions";
@@ -17,6 +18,8 @@ interface TenantContextValue {
   setMode: (mode: WorkspaceMode) => void;
   openClawSection: OpenClawSection;
   setOpenClawSection: (section: OpenClawSection) => void;
+  openClawEnvironmentId: string | null;
+  setOpenClawEnvironmentId: (id: string | null) => void;
 }
 
 const TenantContext = createContext<TenantContextValue>({
@@ -26,12 +29,15 @@ const TenantContext = createContext<TenantContextValue>({
   setMode: () => {},
   openClawSection: "overview",
   setOpenClawSection: () => {},
+  openClawEnvironmentId: null,
+  setOpenClawEnvironmentId: () => {},
 });
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const [activeTenant, setActiveTenantRaw] = useState<string | null>(null);
   const [mode, setModeRaw] = useState<WorkspaceMode>("hitechclaw");
   const [openClawSection, setOpenClawSectionRaw] = useState<OpenClawSection>("overview");
+  const [openClawEnvironmentId, setOpenClawEnvironmentIdRaw] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -47,10 +53,12 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (storedSection === "overview" || storedSection === "runtime" || storedSection === "config" || storedSection === "sessions") {
           setOpenClawSectionRaw(storedSection);
         }
+        setOpenClawEnvironmentIdRaw(localStorage.getItem(OPENCLAW_ENVIRONMENT_STORAGE_KEY));
       } catch {
         setActiveTenantRaw(null);
         setModeRaw("hitechclaw");
         setOpenClawSectionRaw("overview");
+        setOpenClawEnvironmentIdRaw(null);
       }
     }, 0);
     return () => {
@@ -90,8 +98,32 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setOpenClawEnvironmentId = useCallback((id: string | null) => {
+    setOpenClawEnvironmentIdRaw(id);
+    try {
+      if (id) {
+        localStorage.setItem(OPENCLAW_ENVIRONMENT_STORAGE_KEY, id);
+      } else {
+        localStorage.removeItem(OPENCLAW_ENVIRONMENT_STORAGE_KEY);
+      }
+    } catch {
+      // Silent
+    }
+  }, []);
+
   return (
-    <TenantContext.Provider value={{ activeTenant, setActiveTenant, mode, setMode, openClawSection, setOpenClawSection }}>
+    <TenantContext.Provider
+      value={{
+        activeTenant,
+        setActiveTenant,
+        mode,
+        setMode,
+        openClawSection,
+        setOpenClawSection,
+        openClawEnvironmentId,
+        setOpenClawEnvironmentId,
+      }}
+    >
       {children}
     </TenantContext.Provider>
   );

@@ -5,7 +5,7 @@ import { LayoutDashboard, ServerCog } from "lucide-react";
 import { useTenantFilter } from "./tenant-context";
 
 export function WorkspaceModeToggle() {
-  const { mode, setMode, setOpenClawSection } = useTenantFilter();
+  const { mode, setMode, setOpenClawSection, openClawEnvironmentId } = useTenantFilter();
   const [role] = useState<string>(() => {
     if (typeof document === "undefined") return "viewer";
     const match = document.cookie.match(/mc_role=([^;]+)/);
@@ -45,7 +45,7 @@ export function WorkspaceModeToggle() {
         aria-pressed={mode === "openclaw"}
       >
         <ServerCog className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">OpenClaw</span>
+        <span className="hidden sm:inline">OpenClaw{openClawEnvironmentId ? "" : ""}</span>
       </button>
     </div>
   );

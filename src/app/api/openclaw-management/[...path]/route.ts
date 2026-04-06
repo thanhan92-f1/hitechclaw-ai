@@ -1,63 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateRole, unauthorized, forbidden } from "@/app/api/tools/_utils";
+import { resolveOpenClawEnvironment } from "@/lib/openclaw-environments";
 
-const ALLOWED_ROUTES: Record<string, string[]> = {
+const ALLOWED_ROUTE_PATTERNS: Record<string, RegExp[]> = {
   GET: [
-    "/api/info",
-    "/api/status",
-    "/api/system",
-    "/api/openclaw/status",
-    "/api/logs",
-    "/api/sessions",
-    "/api/config",
-    "/api/version",
+    /^\/api\/(info|status|system|openclaw\/status|logs|sessions|version)$/,
+    /^\/api\/config(?:\/(get|validate|schema(?:\/lookup)?|file))?$/,
+    /^\/api\/providers$/,
+    /^\/api\/models(?:\/.*)?$/,
+    /^\/api\/channels(?:\/(status|upstream|capabilities|logs|[^/]+))?$/,
+    /^\/api\/skills(?:\/(status|search|check|bins|[^/]+))?$/,
+    /^\/api\/(secrets|security)\/audit$/,
+    /^\/api\/domain(?:\/(preflight(?:\/live)?|issuer))?$/,
+    /^\/api\/(directory|hooks|plugins|nodes)(?:\/.*)?$/,
   ],
   POST: [
-    "/api/restart",
-    "/api/stop",
-    "/api/start",
-    "/api/rebuild",
-    "/api/upgrade",
-    "/api/sessions/cleanup",
-    "/api/config/test-key",
+    /^\/api\/(restart|stop|start|rebuild|upgrade)$/,
+    /^\/api\/sessions\/cleanup$/,
+    /^\/api\/config\/(test-key|apply)$/,
+    /^\/api\/backup\/(create|verify)$/,
+    /^\/api\/channels\/resolve$/,
+    /^\/api\/skills\/update$/,
+    /^\/api\/secrets\/reload$/,
   ],
   PUT: [
-    "/api/config/provider",
-    "/api/config/api-key",
+    /^\/api\/config\/(provider|api-key|raw|custom-provider)$/,
+    /^\/api\/domain$/,
+    /^\/api\/channels\/[^/]+$/,
+    /^\/api\/(hooks|plugins)\/[^/]+$/,
+  ],
+  PATCH: [
+    /^\/api\/config$/,
+  ],
+  DELETE: [
+    /^\/api\/config\/(api-key|unset|custom-provider)$/,
+    /^\/api\/channels\/[^/]+$/,
+    /^\/api\/(hooks|plugins)\/[^/]+$/,
   ],
 };
 
-function normalizeManagementBaseUrl() {
-  const configured =
-    process.env.OPENCLAW_MGMT_BASE_URL ??
-    process.env.OPENCLAW_MGMT_URL ??
-    process.env.OPENCLAW_GATEWAY_URL ??
-    process.env.NEXT_PUBLIC_GATEWAY_URL ??
-    "http://localhost:9998";
-
-  let normalized = configured.trim();
-  if (!normalized) {
-    return "";
-  }
-
-  normalized = normalized.replace(/^ws:/i, "http:").replace(/^wss:/i, "https:");
-
-  try {
-    const url = new URL(normalized);
-    if (url.port === "18789") {
-      url.port = "9998";
-    }
-    if (!url.port && !process.env.OPENCLAW_MGMT_BASE_URL && !process.env.OPENCLAW_MGMT_URL) {
-      url.port = "9998";
-    }
-    return url.toString().replace(/\/$/, "");
-  } catch {
-    return normalized.replace(/\/$/, "");
-  }
-}
+const HIGH_RISK_PATTERNS: RegExp[] = [
+  /^\/api\/(restart|stop|start|rebuild|upgrade)$/,
+  /^\/api\/sessions\/cleanup$/,
+  /^\/api\/config\/(apply|provider|api-key|raw|custom-provider|unset)$/,
+  /^\/api\/config$/,
+  /^\/api\/backup\/create$/,
+  /^\/api\/domain$/,
+  /^\/api\/channels\/[^/]+$/,
+  /^\/api\/skills\/update$/,
+  /^\/api\/(hooks|plugins)\/[^/]+$/,
+];
 
 function isAllowed(method: string, path: string) {
-  return (ALLOWED_ROUTES[method] ?? []).some((allowedPath) => path === allowedPath);
+  return (ALLOWED_ROUTE_PATTERNS[method] ?? []).some((pattern) => pattern.test(path));
+}
+
+function isHighRisk(path: string) {
+  return HIGH_RISK_PATTERNS.some((pattern) => pattern.test(path));
 }
 
 async function forward(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
@@ -65,16 +64,6 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
   if (!role) {
     const authenticated = await validateRole(req, "viewer");
     return authenticated ? forbidden("Admin access required") : unauthorized();
-  }
-
-  const baseUrl = normalizeManagementBaseUrl();
-  const apiKey = process.env.OPENCLAW_MGMT_API_KEY ?? process.env.GATEWAY_HOOK_TOKEN ?? "";
-
-  if (!baseUrl || !apiKey) {
-    return NextResponse.json(
-      { error: "OpenClaw management API is not configured" },
-      { status: 503 },
-    );
   }
 
   const params = await context.params;
@@ -86,8 +75,31 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
     return forbidden("Management path not allowed");
   }
 
+  const requestedEnvironmentId =
+    req.headers.get("x-openclaw-environment-id") ?? req.nextUrl.searchParams.get("environmentId");
+  const environment = await resolveOpenClawEnvironment(requestedEnvironmentId);
+  if (requestedEnvironmentId && environment.id !== requestedEnvironmentId) {
+    return NextResponse.json({ error: "OpenClaw environment not found" }, { status: 404 });
+  }
+
+  const allowDestructiveActions = environment.config.allowDestructiveActions;
+  if (allowDestructiveActions === false && isHighRisk(normalizedPath)) {
+    return forbidden("High-risk OpenClaw actions are disabled for this environment");
+  }
+
+  const baseUrl = environment.baseUrl;
+  const apiKey = environment.managementApiKey || environment.authToken || environment.gatewayToken;
+
+  if (!baseUrl || !apiKey) {
+    return NextResponse.json(
+      { error: "OpenClaw management API is not configured for the selected environment" },
+      { status: 503 },
+    );
+  }
+
   const targetUrl = new URL(`${baseUrl}${normalizedPath}`);
   req.nextUrl.searchParams.forEach((value, key) => {
+    if (key === "environmentId") return;
     targetUrl.searchParams.set(key, value);
   });
 
@@ -98,7 +110,9 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
       Authorization: `Bearer ${apiKey}`,
     },
     cache: "no-store",
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(
+      typeof environment.config.requestTimeoutMs === "number" ? environment.config.requestTimeoutMs : 15000,
+    ),
   };
 
   if (method !== "GET" && method !== "HEAD") {
@@ -122,7 +136,10 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
       data = { raw: text };
     }
 
-    return NextResponse.json(data, { status: response.status });
+    const nextResponse = NextResponse.json(data, { status: response.status });
+    nextResponse.headers.set("x-openclaw-environment-id", environment.id);
+    nextResponse.headers.set("x-openclaw-environment-name", environment.name);
+    return nextResponse;
   } catch (error) {
     return NextResponse.json(
       {
@@ -142,5 +159,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ path: 
 }
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return forward(req, context);
+}
+
+export async function PATCH(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
+  return forward(req, context);
+}
+
+export async function DELETE(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   return forward(req, context);
 }

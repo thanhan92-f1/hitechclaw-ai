@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Palette } from "lucide-react";
+import { Bell, Palette, ServerCog } from "lucide-react";
 import type { ReactNode } from "react";
 
 const tabs = [
   { href: "/settings/notifications", label: "Notifications", icon: Bell },
+  { href: "/settings/openclaw", label: "OpenClaw", icon: ServerCog },
   { href: "/settings/appearance", label: "Appearance", icon: Palette },
 ];
 

@@ -110,6 +110,21 @@ interface VersionInfo {
   message?: string;
 }
 
+interface OpenClawEnvironmentOption {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  baseUrl: string;
+  isDefault: boolean;
+  source: "database" | "environment";
+}
+
+interface OpenClawEnvironmentsPayload {
+  environments: OpenClawEnvironmentOption[];
+  defaultEnvironmentId?: string;
+}
+
 const sectionOptions: Array<{ key: OpenClawSection; label: string; icon: typeof Server }> = [
   { key: "overview", label: "Overview", icon: Server },
   { key: "runtime", label: "Runtime", icon: Activity },
@@ -144,9 +159,15 @@ function statusTone(status?: string) {
 }
 
 async function requestOpenClaw<T>(path: string, init?: RequestInit): Promise<T> {
+  const environmentId =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("hitechclaw-ai-openclaw-environment")
+      : null;
+
   const response = await fetch(`/api/openclaw-management${path}`, {
     headers: {
       ...getAuthHeaders(),
+      ...(environmentId ? { "x-openclaw-environment-id": environmentId } : {}),
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...(init?.headers ?? {}),
     },
@@ -209,7 +230,12 @@ function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
 }
 
 export function OpenClawManagement() {
-  const { openClawSection, setOpenClawSection } = useTenantFilter();
+  const {
+    openClawSection,
+    setOpenClawSection,
+    openClawEnvironmentId,
+    setOpenClawEnvironmentId,
+  } = useTenantFilter();
   const [serviceFilter, setServiceFilter] = useState<"openclaw" | "caddy">("openclaw");
   const [lines, setLines] = useState(150);
   const [provider, setProvider] = useState("anthropic");
@@ -218,6 +244,13 @@ export function OpenClawManagement() {
   const [configBusy, setConfigBusy] = useState(false);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [environmentOptions, setEnvironmentOptions] = useState<OpenClawEnvironmentOption[]>([]);
+  const [environmentLoading, setEnvironmentLoading] = useState(true);
+
+  const activeEnvironment = useMemo(
+    () => environmentOptions.find((environment) => environment.id === openClawEnvironmentId) ?? null,
+    [environmentOptions, openClawEnvironmentId],
+  );
 
   const info = useOpenClawFetch<ServiceInfo>("/info", 60000);
   const status = useOpenClawFetch<ServiceStatus>("/status", 20000);
@@ -227,6 +260,32 @@ export function OpenClawManagement() {
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", 30000, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, 20000, openClawSection === "runtime");
   const version = useOpenClawFetch<VersionInfo>("/version", 60000, openClawSection === "overview" || openClawSection === "runtime");
+
+  const refreshEnvironments = useCallback(async () => {
+    setEnvironmentLoading(true);
+    try {
+      const response = await fetch("/api/settings/openclaw/environments", {
+        headers: getAuthHeaders(),
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to load OpenClaw environments");
+      }
+      const payload = (await response.json()) as OpenClawEnvironmentsPayload;
+      setEnvironmentOptions(payload.environments ?? []);
+      if (!openClawEnvironmentId) {
+        setOpenClawEnvironmentId(payload.defaultEnvironmentId ?? payload.environments?.[0]?.id ?? null);
+      }
+    } catch {
+      setEnvironmentOptions([]);
+    } finally {
+      setEnvironmentLoading(false);
+    }
+  }, [openClawEnvironmentId, setOpenClawEnvironmentId]);
+
+  useEffect(() => {
+    void refreshEnvironments();
+  }, [refreshEnvironments]);
 
   useEffect(() => {
     if (config.data?.provider) {
@@ -395,6 +454,21 @@ export function OpenClawManagement() {
       />
 
       <div className="flex flex-wrap gap-2">
+        <div className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Target</span>
+          <select
+            value={openClawEnvironmentId ?? ""}
+            onChange={(event) => setOpenClawEnvironmentId(event.target.value || null)}
+            className="bg-transparent text-sm font-medium text-[var(--text-primary)] outline-none"
+          >
+            {environmentOptions.map((environment) => (
+              <option key={environment.id} value={environment.id}>
+                {environment.name}
+              </option>
+            ))}
+          </select>
+          {environmentLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--text-tertiary)]" /> : null}
+        </div>
         {sectionOptions.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -415,6 +489,13 @@ export function OpenClawManagement() {
       {errors.length > 0 ? (
         <div className="rounded-[16px] border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-400">
           {errors[0]}
+        </div>
+      ) : null}
+
+      {activeEnvironment ? (
+        <div className="rounded-[16px] border border-[var(--border)] bg-[var(--bg-surface)] px-4 py-3 text-sm text-[var(--text-secondary)]">
+          Managing <span className="font-semibold text-[var(--text-primary)]">{activeEnvironment.name}</span>
+          <span className="ml-2 text-[var(--text-tertiary)]">{activeEnvironment.baseUrl}</span>
         </div>
       ) : null}
 
