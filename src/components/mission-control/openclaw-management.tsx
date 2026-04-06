@@ -838,6 +838,35 @@ async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestIn
     typeof window !== "undefined"
       ? window.localStorage.getItem("hitechclaw-ai-openclaw-environment")
       : null;
+  const sanitizeOpenClawErrorMessage = (message: string) => {
+    const normalized = message.trim();
+
+    if (/Workspace file ['"].+['"] not found/i.test(normalized) && /timed out/i.test(normalized)) {
+      return "Agent workspace file is unavailable right now. Refresh and choose another file if needed.";
+    }
+
+    if (/Workspace file ['"].+['"] not found/i.test(normalized)) {
+      return "Selected agent workspace file was not found. Choose another file and try again.";
+    }
+
+    if (/timed out/i.test(normalized)) {
+      return "OpenClaw request timed out. Use Refresh to load the latest data again.";
+    }
+
+    if (/pairing required/i.test(normalized)) {
+      return "OpenClaw gateway is not paired for the selected target. Pair the gateway first, then try again.";
+    }
+
+    if (/gateway connect failed|gateway closed \(1008\)|GatewayClientRequestError/i.test(normalized)) {
+      return "OpenClaw gateway is currently unavailable for the selected target. Check gateway connectivity and pairing, then try again.";
+    }
+
+    if (/Command failed:\s*openclaw gateway call/i.test(normalized)) {
+      return "OpenClaw gateway command failed for the selected target. Verify gateway setup, then try again.";
+    }
+
+    return normalized;
+  };
 
   const requestPath = init?.refresh ? appendRefreshQuery(path) : path;
 
@@ -868,7 +897,7 @@ async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestIn
   if (!response.ok) {
     const message =
       typeof data === "object" && data && "error" in data && typeof (data as { error?: unknown }).error === "string"
-        ? (data as { error: string }).error
+        ? sanitizeOpenClawErrorMessage((data as { error: string }).error)
         : `${response.status} ${response.statusText}`;
     if (message === "High-risk OpenClaw actions are disabled for this environment") {
       throw new Error("This OpenClaw action is currently unavailable for the selected target.");
@@ -917,7 +946,7 @@ function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
       setState((current) => ({
         data: current.data,
         loading: false,
-        error: error instanceof Error ? error.message : "Request failed",
+        error: error instanceof Error ? error.message : "OpenClaw request failed",
         fetchedAt: current.fetchedAt,
         cacheStatus: current.cacheStatus,
       }));
@@ -937,6 +966,19 @@ function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
   }, [enabled, intervalMs, refresh]);
 
   return { ...state, refresh };
+}
+
+function shouldHideOpenClawErrorMessage(message: string | null | undefined) {
+  if (!message) return false;
+
+  return [
+    "OpenClaw request timed out. Use Refresh to load the latest data again.",
+    "Agent workspace file is unavailable right now. Refresh and choose another file if needed.",
+    "Selected agent workspace file was not found. Choose another file and try again.",
+    "OpenClaw gateway is not paired for the selected target. Pair the gateway first, then try again.",
+    "OpenClaw gateway is currently unavailable for the selected target. Check gateway connectivity and pairing, then try again.",
+    "OpenClaw gateway command failed for the selected target. Verify gateway setup, then try again.",
+  ].includes(message);
 }
 
 export function OpenClawManagement() {
@@ -1071,7 +1113,7 @@ export function OpenClawManagement() {
   const agentDetail = useOpenClawFetch<AgentDetailInfo>(`/agents/${encodeURIComponent(selectedAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
   const agentApiKeys = useOpenClawFetch<AgentApiKeysInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/api-key`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
   const agentFiles = useOpenClawFetch<AgentFilesInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
-  const [selectedAgentFileName, setSelectedAgentFileName] = useState("AGENTS.md");
+  const [selectedAgentFileName, setSelectedAgentFileName] = useState("");
   const agentFile = useOpenClawFetch<AgentFileInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files/${encodeURIComponent(selectedAgentFileName)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId) && Boolean(selectedAgentFileName));
   const [agentsBusy, setAgentsBusy] = useState<string | null>(null);
   const [agentCreateId, setAgentCreateId] = useState("ops");
@@ -1387,7 +1429,7 @@ export function OpenClawManagement() {
   useEffect(() => {
     const fileItems = agentFiles.data?.files ?? [];
     if (!fileItems.some((item) => String(item.name ?? "") === selectedAgentFileName)) {
-      setSelectedAgentFileName(String(fileItems[0]?.name ?? "AGENTS.md"));
+      setSelectedAgentFileName(String(fileItems[0]?.name ?? ""));
     }
   }, [agentFiles.data?.files, selectedAgentFileName]);
 
@@ -3196,7 +3238,7 @@ export function OpenClawManagement() {
     agentApiKeys.error,
     agentFiles.error,
     agentFile.error,
-  ].filter(Boolean);
+  ].filter((message): message is string => Boolean(message) && !shouldHideOpenClawErrorMessage(message));
 
   return (
     <div className="space-y-5 pb-24">
