@@ -22,6 +22,7 @@
   <img src="https://img.shields.io/badge/license-Non--Commercial-blue" alt="License" />
   <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version" />
   <img src="https://img.shields.io/badge/docker-compose%20up-green" alt="Docker" />
+  <img src="https://img.shields.io/badge/ghcr.io-package-blue" alt="GHCR Package" />
 </p>
 
 ---
@@ -120,6 +121,21 @@ docker compose up -d
 
 Open `http://localhost:3000` — the setup wizard walks you through creating your account, registering your first agent, and sending your first event.
 
+Prefer a prebuilt container instead of building locally? Pull the GitHub Container Registry image:
+
+```bash
+docker pull ghcr.io/thanhan92-f1/hitechclaw-ai:latest
+```
+
+Publishing model:
+
+- pushes to `main` refresh the moving `latest`, `main`, and SHA-scoped GHCR tags when container inputs change
+- release tags such as `v0.1.0` publish versioned GHCR tags through `release.yml`
+- both publish flows now ship multi-arch container images for `linux/amd64` and `linux/arm64`
+- both publish flows attach OCI provenance and SBOM attestations to the pushed GHCR images
+- both publish flows sign the pushed image digest with keyless Sigstore/Cosign using GitHub OIDC
+- consumer-side `cosign verify` and attestation examples are documented in `INSTALL.md`
+
 If your first agent uses **OpenClaw** or **NemoClaw**, the setup wizard now includes framework-specific bootstrap instructions from the initial install flow, including the generated telemetry token and the exact config block to paste into your runtime.
 
 **Send a test event:**
@@ -161,10 +177,21 @@ Common local commands:
 - `npm run test:e2e:edge` — run edge-case coverage from `tests/edge`
 - `npm run test:e2e:ci-local` — CI-like clean local Playwright run
 - `npm run check:local` — dev DB + test DB + lint + smoke tests
+- `npm run check:local:api` / `check:local:ui` / `check:local:mobile` / `check:local:edge` — focused lint + categorized Playwright slices
 - `npm run check:pre-push` — stronger local validation before pushing
+- `npm run check:pre-push:api` / `check:pre-push:ui` / `check:pre-push:mobile` / `check:pre-push:edge` — optional focused pre-push gates
 - `npm run check:summary` — print the recommended developer workflow summary
+- `npm run verify:ghcr` — verify GHCR image signature, provenance, and SBOM attestations locally with Cosign
+- `npm run verify:ghcr -- ghcr.io/thanhan92-f1/hitechclaw-ai:v0.1.0` — verify a specific tag or digest reference
+- `pwsh -File ./scripts/verify-ghcr-image.ps1 -ImageRef <ref> -Issuer <oidc> -Identity <regex>` — override verification identity settings when needed
+- `pwsh -File ./scripts/verify-ghcr-image.ps1 -OutputMode json` — emit machine-readable verification results for automation
 - `npm run clean:all` — clean dev/test DBs and local generated artifacts
 - `npm run hooks:install` — install tracked local Git hook templates
+
+Git hook note:
+
+- `.githooks/pre-push` runs `npm run check:pre-push` by default
+- set `HITECHCLAW_PRE_PUSH_COMMAND=check:pre-push:ui` (or another focused variant) if you need a temporary local slice-specific gate
 
 ---
 
@@ -186,6 +213,7 @@ HiTechClaw AI supports a host-based development workflow where the app runs loca
 - Start app dependencies: `npm run dev:up`
 - Run app locally: `npm run dev`
 - Run targeted Playwright coverage as needed: `npm run test:e2e:api`, `npm run test:e2e:ui`, `npm run test:e2e:mobile`, `npm run test:e2e:edge`
+- Run focused verification when you are only changing one slice: `npm run check:local:api` or `npm run check:pre-push:ui`
 - Run smoke checks: `npm run check:local`
 - Run stronger pre-push gate: `npm run check:pre-push`
 - Clean everything when needed: `npm run clean:all`
@@ -202,6 +230,20 @@ The browser suite is now organized by intent instead of a flat `tests/*.spec.ts`
 - `tests/helpers` — shared auth/session/page helper utilities
 
 Use the targeted npm scripts above when you only need one slice of the suite.
+
+GitHub Actions uses the same split pragmatically:
+
+- smoke CI runs `@smoke` coverage on `chromium-desktop`
+- categorized regression CI fans out `tests/api`, `tests/ui`, `tests/mobile`, and `tests/edge` into separate jobs for faster failure isolation
+- scheduled/manual cross-browser CI runs `tests/ui` on `chromium-desktop`, `firefox-desktop`, and `webkit-desktop`
+- docs-only and other non-runtime changes skip the heavier CI jobs more aggressively through path filtering
+- a lightweight docs/governance job still runs on every CI trigger so docs-only changes keep a useful green status signal
+- automation-only changes such as workflow or hook updates run lint/build plus smoke coverage, but skip the broader categorized regression jobs
+- pushes to `main` automatically publish refreshed GHCR Docker packages when container-impacting files change
+- release tags such as `v0.1.0` publish versioned GHCR images from the dedicated release workflow
+- both container publish workflows build `linux/amd64` and `linux/arm64` images
+- both container publish workflows attach provenance and SBOM metadata for supply-chain verification
+- both container publish workflows sign the published image digest with keyless Sigstore/Cosign
 
 ### Developer references
 

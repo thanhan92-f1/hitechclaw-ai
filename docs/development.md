@@ -264,6 +264,15 @@ Run database startup, migrations, lint, and smoke tests in one flow:
 npm run check:local
 ```
 
+Focused local slices:
+
+```powershell
+npm run check:local:api
+npm run check:local:ui
+npm run check:local:mobile
+npm run check:local:edge
+```
+
 ### Run the pre-push local gate
 
 Run a stronger local verification pass before pushing:
@@ -272,10 +281,21 @@ Run a stronger local verification pass before pushing:
 npm run check:pre-push
 ```
 
+Focused pre-push variants are also available when you are only touching one suite slice:
+
+```powershell
+npm run check:pre-push:api
+npm run check:pre-push:ui
+npm run check:pre-push:mobile
+npm run check:pre-push:edge
+```
+
 This runs:
 
 1. `npm run check:local`
 2. `npm run test:e2e:ci-local`
+
+Focused variants swap those commands for the matching categorized suite commands.
 
 ### Install the git hook template
 
@@ -286,6 +306,21 @@ npm run hooks:install
 ```
 
 This sets `core.hooksPath` to `.githooks` for the current clone.
+
+The tracked pre-push hook runs `npm run check:pre-push` by default. For temporary local focus on one categorized slice, set `HITECHCLAW_PRE_PUSH_COMMAND` before pushing, for example:
+
+```powershell
+$env:HITECHCLAW_PRE_PUSH_COMMAND = 'check:pre-push:api'
+git push
+```
+
+Supported values:
+
+- `check:pre-push`
+- `check:pre-push:api`
+- `check:pre-push:ui`
+- `check:pre-push:mobile`
+- `check:pre-push:edge`
 
 ### Test token compatibility
 
@@ -311,3 +346,9 @@ Notes:
 - `npm run test:e2e:managed` still runs the full categorized suite.
 - `npm run test:e2e:mobile` pins execution to the `chromium-mobile` project for the mobile-only folder.
 - The `setup` Playwright project generates `tests/.auth/admin.json` before dependent browser projects run.
+- GitHub Actions smoke coverage runs `@smoke` on `chromium-desktop`.
+- GitHub Actions categorized regression fans out `tests/api`, `tests/ui`, `tests/mobile`, and `tests/edge` into separate jobs for clearer failure isolation.
+- Scheduled or manual cross-browser regression runs `tests/ui` on `chromium-desktop`, `firefox-desktop`, and `webkit-desktop`.
+- Docs-only and other non-runtime changes skip the heavier CI jobs through path-based filtering in `.github/workflows/ci.yml`.
+- A lightweight docs/governance job still runs on every CI trigger, verifies core repository guidance files exist, and writes a CI scope summary to the job summary.
+- Automation-only changes such as `.github/workflows/**`, `.githooks/**`, or `scripts/**` run lint/build plus smoke coverage, but intentionally skip the broader categorized regression jobs.

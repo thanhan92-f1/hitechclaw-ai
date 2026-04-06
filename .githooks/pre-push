@@ -1,8 +1,26 @@
 #!/usr/bin/env pwsh
 $ErrorActionPreference = 'Stop'
 
-Write-Host '[githooks/pre-push] Running repository pre-push checks...'
-& pwsh -ExecutionPolicy Bypass -File ./scripts/pre-push-check.ps1
+$allowedCommands = @(
+  'check:pre-push',
+  'check:pre-push:api',
+  'check:pre-push:ui',
+  'check:pre-push:mobile',
+  'check:pre-push:edge'
+)
+
+$command = if ($env:HITECHCLAW_PRE_PUSH_COMMAND) {
+  $env:HITECHCLAW_PRE_PUSH_COMMAND
+} else {
+  'check:pre-push'
+}
+
+if ($command -notin $allowedCommands) {
+  throw "Unsupported HITECHCLAW_PRE_PUSH_COMMAND '$command'. Allowed values: $($allowedCommands -join ', ')"
+}
+
+Write-Host "[githooks/pre-push] Running repository pre-push checks via: npm run $command"
+& npm run $command
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }

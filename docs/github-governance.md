@@ -24,7 +24,7 @@ The `.github` automation in HiTechClaw AI is designed to enforce five outcomes:
 | --- | --- | --- |
 | Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, full regression, and Docker image validation. |
 | CodeQL Security Analysis | `.github/workflows/codeql.yml` | Perform CodeQL scanning for JavaScript and TypeScript code. |
-| Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, build release bundles, publish containers, and create GitHub Releases. |
+| Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, build release bundles, publish signed containers, and create GitHub Releases. |
 
 ### Maintenance and governance
 
@@ -101,10 +101,13 @@ To make the automation fully effective, maintainers should verify these reposito
 
 1. **Actions permissions** allow workflows to write pull request comments, labels, and issue comments.
 2. **GitHub Container Registry publishing** is allowed for `GITHUB_TOKEN` if `release.yml` publishes images.
-3. **Branch protection** requires at least the key checks from `ci.yml`, `codeql.yml`, and `pr-quality.yml` before merge.
-4. **Auto-merge** is enabled if maintainers want the Dependabot automation to merge low-risk PRs.
-5. **Discussions** is enabled, because issue intake and community routing now depend on it.
-6. **Security Advisories** is enabled so private vulnerability reports can be filed correctly.
+3. **OIDC token access** is available to workflows that sign containers keylessly with Sigstore/Cosign.
+4. **Branch protection** requires at least the key checks from `ci.yml`, `codeql.yml`, and `pr-quality.yml` before merge.
+5. **Auto-merge** is enabled if maintainers want the Dependabot automation to merge low-risk PRs.
+6. **Discussions** is enabled, because issue intake and community routing now depend on it.
+7. **Security Advisories** is enabled so private vulnerability reports can be filed correctly.
+
+Consumers who deploy the published GHCR images should verify signatures and attestations before promotion. The concrete `cosign verify` and `cosign verify-attestation` examples are documented in `INSTALL.md`.
 
 ---
 

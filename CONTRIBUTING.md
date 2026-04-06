@@ -35,8 +35,12 @@ Use [GitHub Discussions](https://github.com/thanhan92-f1/hitechclaw-ai/discussio
 	- `npm run test:setup`
 5. Run local verification:
 	- `npm run check:local`
+	- `npm run check:local:api` / `check:local:ui` / `check:local:mobile` / `check:local:edge` when you only need one suite slice
 	- `npm run check:pre-push` for a stronger gate before pushing
+	- `npm run check:pre-push:api` / `check:pre-push:ui` / `check:pre-push:mobile` / `check:pre-push:edge` for focused pre-push verification
 6. Optional: install the tracked Git hook template with `npm run hooks:install`
+	- the hook defaults to `npm run check:pre-push`
+	- for temporary local focus you can set `HITECHCLAW_PRE_PUSH_COMMAND=check:pre-push:api` (or `:ui`, `:mobile`, `:edge`) before pushing
 7. Commit with a clear message: `fix: prevent duplicate threat alerts within cooldown window`
 8. Open a PR against `main`
 
@@ -50,7 +54,9 @@ Recommended commands:
 - `npm run dev` — start the Next.js app locally
 - `npm run test:setup` — start and migrate the isolated test database
 - `npm run test:e2e:managed` — run Playwright with managed app startup
+- `npm run test:e2e:api` / `test:e2e:ui` / `test:e2e:mobile` / `test:e2e:edge` — run one categorized Playwright slice
 - `npm run test:e2e:ci-local` — reset and run a CI-like local test pass
+- `npm run check:local:api` / `check:local:ui` / `check:local:mobile` / `check:local:edge` — lint + one focused Playwright slice
 - `npm run check:pre-push` — full local gate before pushing
 - `npm run clean:all` — remove local DBs and generated artifacts
 
@@ -65,6 +71,14 @@ npm run hooks:install
 ```
 
 The hook runs `npm run check:pre-push` before every push.
+
+If you need a temporary focused gate for one categorized suite slice, set `HITECHCLAW_PRE_PUSH_COMMAND` to one of:
+
+- `check:pre-push`
+- `check:pre-push:api`
+- `check:pre-push:ui`
+- `check:pre-push:mobile`
+- `check:pre-push:edge`
 
 ### Commit messages
 

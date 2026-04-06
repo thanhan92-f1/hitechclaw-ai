@@ -63,6 +63,81 @@ See [.env.example](.env.example) for all optional variables (notifications, gate
 docker compose up -d
 ```
 
+If you prefer the prebuilt GitHub Container Registry image, pull it directly:
+
+```bash
+docker pull ghcr.io/thanhan92-f1/hitechclaw-ai:latest
+```
+
+The repository also publishes branch and SHA-scoped package tags automatically on pushes to `main` when container-impacting files change. Tagged releases such as `v0.1.0` publish matching versioned GHCR image tags through the release workflow.
+
+Published GHCR images are multi-arch and currently include `linux/amd64` and `linux/arm64` manifests.
+
+Published GHCR images also include provenance and SBOM attestations to support downstream supply-chain verification.
+
+Published GHCR images are also keylessly signed with Sigstore/Cosign through GitHub OIDC, so downstream environments can verify both origin and integrity.
+
+### Verify container signatures and attestations
+
+Install `cosign` first, then verify the published image against GitHub's OIDC issuer and this repository's publish workflows:
+
+```bash
+cosign verify ghcr.io/thanhan92-f1/hitechclaw-ai:latest \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp 'https://github.com/thanhan92-f1/hitechclaw-ai/.github/workflows/(docker-publish|release)\.yml@.*'
+```
+
+Verify the provenance attestation:
+
+```bash
+cosign verify-attestation ghcr.io/thanhan92-f1/hitechclaw-ai:latest \
+  --type slsaprovenance \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp 'https://github.com/thanhan92-f1/hitechclaw-ai/.github/workflows/(docker-publish|release)\.yml@.*'
+```
+
+Verify the SBOM attestation:
+
+```bash
+cosign verify-attestation ghcr.io/thanhan92-f1/hitechclaw-ai:latest \
+  --type spdxjson \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp 'https://github.com/thanhan92-f1/hitechclaw-ai/.github/workflows/(docker-publish|release)\.yml@.*'
+```
+
+For stricter production pinning, replace `:latest` with a version tag such as `:v0.1.0` or an immutable digest reference.
+
+You can also run the bundled helper locally:
+
+```bash
+npm run verify:ghcr
+```
+
+The helper script defaults to `ghcr.io/thanhan92-f1/hitechclaw-ai:latest` and runs signature, provenance, and SBOM verification in sequence.
+
+To verify a specific tag or digest, pass it through after `--`:
+
+```bash
+npm run verify:ghcr -- ghcr.io/thanhan92-f1/hitechclaw-ai:v0.1.0
+```
+
+To override the OIDC issuer or workflow identity pattern explicitly, call the helper script directly:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File ./scripts/verify-ghcr-image.ps1 `
+  -ImageRef ghcr.io/thanhan92-f1/hitechclaw-ai:v0.1.0 `
+  -Issuer https://token.actions.githubusercontent.com `
+  -Identity 'https://github.com/thanhan92-f1/hitechclaw-ai/.github/workflows/(docker-publish|release)\.yml@.*'
+```
+
+For CI or audit tooling, request JSON output:
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File ./scripts/verify-ghcr-image.ps1 `
+  -ImageRef ghcr.io/thanhan92-f1/hitechclaw-ai:v0.1.0 `
+  -OutputMode json
+```
+
 This starts:
 - **hitechclaw-ai** — The application on port 3000
 - **db** — TimescaleDB (PostgreSQL) on port 5432
