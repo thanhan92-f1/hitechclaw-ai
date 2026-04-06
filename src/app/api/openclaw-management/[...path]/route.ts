@@ -20,6 +20,8 @@ const ALLOWED_ROUTE_PATTERNS: Record<string, RegExp[]> = {
     /^\/api\/config\/(test-key|apply)$/,
     /^\/api\/backup\/(create|verify)$/,
     /^\/api\/channels\/resolve$/,
+    /^\/api\/hooks\/[^/]+\/(enable|disable)$/,
+    /^\/api\/models\/(aliases|fallbacks|image-fallbacks)$/,
     /^\/api\/skills\/update$/,
     /^\/api\/secrets\/reload$/,
   ],
@@ -27,6 +29,7 @@ const ALLOWED_ROUTE_PATTERNS: Record<string, RegExp[]> = {
     /^\/api\/config\/(provider|api-key|raw|custom-provider)$/,
     /^\/api\/domain$/,
     /^\/api\/channels\/[^/]+$/,
+    /^\/api\/models\/(default|image-default|auth-order)$/,
     /^\/api\/(hooks|plugins)\/[^/]+$/,
   ],
   PATCH: [
@@ -35,6 +38,9 @@ const ALLOWED_ROUTE_PATTERNS: Record<string, RegExp[]> = {
   DELETE: [
     /^\/api\/config\/(api-key|unset|custom-provider)$/,
     /^\/api\/channels\/[^/]+$/,
+    /^\/api\/models\/(auth-order|fallbacks|image-fallbacks)$/,
+    /^\/api\/models\/aliases\/[^/]+$/,
+    /^\/api\/models\/(fallbacks|image-fallbacks)\/[^/]+$/,
     /^\/api\/(hooks|plugins)\/[^/]+$/,
   ],
 };
@@ -47,6 +53,8 @@ const HIGH_RISK_PATTERNS: RegExp[] = [
   /^\/api\/backup\/create$/,
   /^\/api\/domain$/,
   /^\/api\/channels\/[^/]+$/,
+  /^\/api\/hooks\/[^/]+\/(enable|disable)$/,
+  /^\/api\/models\/(default|image-default|auth-order|aliases|fallbacks|image-fallbacks)(?:\/[^/]+)?$/,
   /^\/api\/skills\/update$/,
   /^\/api\/(hooks|plugins)\/[^/]+$/,
 ];

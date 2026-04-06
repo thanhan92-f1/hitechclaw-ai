@@ -14,6 +14,7 @@ import {
   Loader2,
   MessageSquare,
   Play,
+  Puzzle,
   RefreshCcw,
   Server,
   ShieldCheck,
@@ -208,6 +209,165 @@ interface ChannelsInfo {
   channels?: Record<string, ChannelRecord>;
 }
 
+interface HookEntry {
+  name?: string;
+  title?: string;
+  description?: string;
+  enabled?: boolean;
+  eligible?: boolean;
+  active?: boolean;
+  source?: string;
+  status?: string;
+  [key: string]: unknown;
+}
+
+interface HooksInfo {
+  ok?: boolean;
+  hooks?: HookEntry[] | Record<string, HookEntry>;
+  items?: HookEntry[];
+  data?: HookEntry[];
+  [key: string]: unknown;
+}
+
+interface HookCheckInfo {
+  ok?: boolean;
+  hooks?: HookEntry[] | Record<string, HookEntry>;
+  results?: HookEntry[];
+  eligible?: HookEntry[];
+  blocked?: HookEntry[];
+  [key: string]: unknown;
+}
+
+interface HookDetailInfo {
+  ok?: boolean;
+  hook?: HookEntry;
+  [key: string]: unknown;
+}
+
+interface SkillEntry {
+  skillKey?: string;
+  title?: string;
+  description?: string;
+  source?: string;
+  requiredBins?: string[];
+  enabled?: boolean;
+  metadata?: Record<string, unknown>;
+  content?: string;
+  env?: Record<string, unknown>;
+  config?: Record<string, unknown>;
+  apiKey?: string | null;
+  [key: string]: unknown;
+}
+
+interface SkillsInfo {
+  ok?: boolean;
+  agentId?: string;
+  count?: number;
+  skills?: SkillEntry[];
+}
+
+interface SkillsStatusInfo {
+  ok?: boolean;
+  agentId?: string;
+  workspaceSkillsDir?: string;
+  managedSkillsDir?: string;
+  watch?: boolean;
+  watchDebounceMs?: number;
+  totalSkills?: number;
+  enabledSkills?: number;
+  disabledSkills?: string[];
+  [key: string]: unknown;
+}
+
+interface SkillBinsInfo {
+  ok?: boolean;
+  agentId?: string;
+  bins?: string[];
+  count?: number;
+}
+
+interface SkillDetailInfo {
+  ok?: boolean;
+  skill?: SkillEntry;
+}
+
+interface SkillSearchInfo {
+  ok?: boolean;
+  results?: Array<Record<string, unknown>>;
+  skills?: SkillEntry[];
+  [key: string]: unknown;
+}
+
+interface DirectorySelfInfo {
+  ok?: boolean;
+  self?: Record<string, unknown>;
+  account?: Record<string, unknown>;
+  profile?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface DirectoryPeersInfo {
+  ok?: boolean;
+  peers?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface DirectoryGroupsInfo {
+  ok?: boolean;
+  groups?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface DirectoryMembersInfo {
+  ok?: boolean;
+  members?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ModelsCatalogInfo {
+  ok?: boolean;
+  models?: Array<string | { id?: string; name?: string; model?: string; label?: string }>;
+  [key: string]: unknown;
+}
+
+interface ModelsStatusInfo {
+  ok?: boolean;
+  defaultModel?: string;
+  imageDefaultModel?: string;
+  currentModel?: string;
+  activeModel?: string;
+  [key: string]: unknown;
+}
+
+interface ModelAuthOrderInfo {
+  ok?: boolean;
+  provider?: string;
+  agentId?: string;
+  order?: string[];
+  [key: string]: unknown;
+}
+
+interface ModelAliasesInfo {
+  ok?: boolean;
+  aliases?: Array<Record<string, unknown>> | Record<string, string | Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ModelFallbacksInfo {
+  ok?: boolean;
+  models?: string[];
+  fallbacks?: string[];
+  items?: string[];
+  [key: string]: unknown;
+}
+
 interface OpenClawEnvironmentOption {
   id: string;
   name: string;
@@ -263,6 +423,74 @@ function toModelOptionLabel(model: string | { id?: string; name?: string; model?
 
 function boolLabel(value?: boolean) {
   return value ? "Yes" : "No";
+}
+
+function parseJsonObjectInput(value: string, label: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {} as Record<string, unknown>;
+  }
+
+  const parsed: unknown = JSON.parse(trimmed);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function normalizeHookEntries(value?: HookEntry[] | Record<string, HookEntry> | null) {
+  if (!value) return [] as Array<[string, HookEntry]>;
+  if (Array.isArray(value)) {
+    return value.map((hook, index) => [String(hook.name ?? hook.title ?? `hook-${index + 1}`), hook] as [string, HookEntry]);
+  }
+  return Object.entries(value);
+}
+
+function normalizeRecordItems(value: unknown, keyName: string) {
+  if (!value) return [] as Array<Record<string, unknown>>;
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(([key, entry]) => {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        return { [keyName]: key, ...(entry as Record<string, unknown>) };
+      }
+      return { [keyName]: key, value: entry };
+    });
+  }
+  return [] as Array<Record<string, unknown>>;
+}
+
+function normalizeStringItems(value: unknown) {
+  if (!value) return [] as string[];
+  if (Array.isArray(value)) {
+    return value.map((entry) => String(entry)).filter(Boolean);
+  }
+  return [] as string[];
+}
+
+function normalizeAliasEntries(value: unknown) {
+  if (!value) return [] as Array<{ alias: string; model: string }>;
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+      .map((entry, index) => ({
+        alias: String(entry.alias ?? entry.name ?? entry.id ?? `alias-${index + 1}`),
+        model: String(entry.model ?? entry.target ?? entry.value ?? ""),
+      }));
+  }
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, string | Record<string, unknown>>).map(([alias, entry]) => ({
+      alias,
+      model:
+        typeof entry === "string"
+          ? entry
+          : String(entry.model ?? entry.target ?? entry.value ?? ""),
+    }));
+  }
+  return [] as Array<{ alias: string; model: string }>;
 }
 
 async function requestOpenClaw<T>(path: string, init?: RequestInit): Promise<T> {
@@ -372,6 +600,30 @@ export function OpenClawManagement() {
   const providers = useOpenClawFetch<ProvidersInfo>("/providers", 45000, openClawSection === "config");
   const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, 45000, openClawSection === "config" && Boolean(provider));
   const channels = useOpenClawFetch<ChannelsInfo>("/channels", 45000, openClawSection === "config");
+  const hooks = useOpenClawFetch<HooksInfo>("/hooks?eligible=true&verbose=true", 45000, openClawSection === "config");
+  const hookCheck = useOpenClawFetch<HookCheckInfo>("/hooks/check", 45000, openClawSection === "config");
+
+  const [skillAgentId, setSkillAgentId] = useState("main");
+  const skills = useOpenClawFetch<SkillsInfo>(`/skills?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
+  const skillsStatus = useOpenClawFetch<SkillsStatusInfo>(`/skills/status?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
+  const skillBins = useOpenClawFetch<SkillBinsInfo>(`/skills/bins?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
+  const [directoryChannel, setDirectoryChannel] = useState("slack");
+  const [directoryPeerQuery, setDirectoryPeerQuery] = useState("");
+  const [directoryLimit, setDirectoryLimit] = useState(20);
+  const [selectedDirectoryGroup, setSelectedDirectoryGroup] = useState("");
+  const directorySelf = useOpenClawFetch<DirectorySelfInfo>(`/directory/self?channel=${encodeURIComponent(directoryChannel)}`, 45000, openClawSection === "config");
+  const directoryPeers = useOpenClawFetch<DirectoryPeersInfo>(`/directory/peers?channel=${encodeURIComponent(directoryChannel)}&query=${encodeURIComponent(directoryPeerQuery)}&limit=${directoryLimit}`, 45000, openClawSection === "config");
+  const directoryGroups = useOpenClawFetch<DirectoryGroupsInfo>(`/directory/groups?channel=${encodeURIComponent(directoryChannel)}&limit=${directoryLimit}`, 45000, openClawSection === "config");
+  const directoryMembers = useOpenClawFetch<DirectoryMembersInfo>(`/directory/groups/${encodeURIComponent(selectedDirectoryGroup)}/members?channel=${encodeURIComponent(directoryChannel)}&limit=50`, 45000, openClawSection === "config" && Boolean(selectedDirectoryGroup));
+
+  const [modelAgentId, setModelAgentId] = useState("main");
+  const [authProvider, setAuthProvider] = useState("anthropic");
+  const modelsCatalog = useOpenClawFetch<ModelsCatalogInfo>("/models", 45000, openClawSection === "config");
+  const modelsStatus = useOpenClawFetch<ModelsStatusInfo>(`/models/status?agentId=${encodeURIComponent(modelAgentId)}&probe=true`, 45000, openClawSection === "config");
+  const modelAuthOrder = useOpenClawFetch<ModelAuthOrderInfo>(`/models/auth-order?provider=${encodeURIComponent(authProvider)}&agentId=${encodeURIComponent(modelAgentId)}`, 45000, openClawSection === "config" && Boolean(authProvider));
+  const modelAliases = useOpenClawFetch<ModelAliasesInfo>("/models/aliases", 45000, openClawSection === "config");
+  const modelFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/fallbacks", 45000, openClawSection === "config");
+  const imageFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/image-fallbacks", 45000, openClawSection === "config");
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainEmail, setDomainEmail] = useState("");
@@ -389,6 +641,29 @@ export function OpenClawManagement() {
   const [channelAppToken, setChannelAppToken] = useState("");
   const [channelDmPolicy, setChannelDmPolicy] = useState("pairing");
   const [channelBusy, setChannelBusy] = useState<string | null>(null);
+  const [selectedHook, setSelectedHook] = useState("");
+  const [hookBusy, setHookBusy] = useState<string | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState("");
+  const [skillSearchQuery, setSkillSearchQuery] = useState("");
+  const [skillSearchResults, setSkillSearchResults] = useState<Array<Record<string, unknown>>>([]);
+  const [skillSearchBusy, setSkillSearchBusy] = useState(false);
+  const [skillUpdateBusy, setSkillUpdateBusy] = useState(false);
+  const [skillEnabled, setSkillEnabled] = useState(true);
+  const [skillApiKey, setSkillApiKey] = useState("");
+  const [skillEnvText, setSkillEnvText] = useState("{}");
+  const [skillConfigText, setSkillConfigText] = useState("{}");
+  const [skillRestart, setSkillRestart] = useState(false);
+  const [modelBusy, setModelBusy] = useState<string | null>(null);
+  const [defaultModelDraft, setDefaultModelDraft] = useState("");
+  const [imageModelDraft, setImageModelDraft] = useState("");
+  const [authOrderText, setAuthOrderText] = useState("");
+  const [aliasName, setAliasName] = useState("");
+  const [aliasModel, setAliasModel] = useState("");
+  const [fallbackModel, setFallbackModel] = useState("");
+  const [imageFallbackModel, setImageFallbackModel] = useState("");
+
+  const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, 45000, openClawSection === "config" && Boolean(selectedHook));
+  const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config" && Boolean(selectedSkill));
 
   const refreshEnvironments = useCallback(async () => {
     setEnvironmentLoading(true);
@@ -441,6 +716,76 @@ export function OpenClawManagement() {
     }
   }, [channels.data?.channels, selectedChannel]);
 
+  const hookEntries = useMemo(
+    () => normalizeHookEntries(hooks.data?.hooks ?? hooks.data?.items ?? hooks.data?.data ?? null),
+    [hooks.data?.data, hooks.data?.hooks, hooks.data?.items],
+  );
+
+  useEffect(() => {
+    if (!hookEntries.some(([name]) => name === selectedHook)) {
+      setSelectedHook(hookEntries[0]?.[0] ?? "");
+    }
+  }, [hookEntries, selectedHook]);
+
+  useEffect(() => {
+    const skillEntries = skills.data?.skills ?? [];
+    if (!skillEntries.some((entry) => entry.skillKey === selectedSkill)) {
+      setSelectedSkill(skillEntries[0]?.skillKey ?? "");
+    }
+  }, [selectedSkill, skills.data?.skills]);
+
+  const directoryGroupItems = useMemo(
+    () => normalizeRecordItems(directoryGroups.data?.groups ?? directoryGroups.data?.results ?? directoryGroups.data?.items ?? null, "groupId"),
+    [directoryGroups.data?.groups, directoryGroups.data?.items, directoryGroups.data?.results],
+  );
+
+  useEffect(() => {
+    if (!directoryGroupItems.some((group) => String(group.groupId ?? group.id ?? group.name ?? "") === selectedDirectoryGroup)) {
+      const firstGroup = directoryGroupItems[0];
+      setSelectedDirectoryGroup(String(firstGroup?.groupId ?? firstGroup?.id ?? firstGroup?.name ?? ""));
+    }
+  }, [directoryGroupItems, selectedDirectoryGroup]);
+
+  useEffect(() => {
+    if (!defaultModelDraft) {
+      setDefaultModelDraft(
+        modelsStatus.data?.defaultModel ??
+          modelsStatus.data?.currentModel ??
+          modelsStatus.data?.activeModel ??
+          config.data?.model ??
+          model,
+      );
+    }
+  }, [config.data?.model, defaultModelDraft, model, modelsStatus.data?.activeModel, modelsStatus.data?.currentModel, modelsStatus.data?.defaultModel]);
+
+  useEffect(() => {
+    if (!imageModelDraft) {
+      setImageModelDraft(modelsStatus.data?.imageDefaultModel ?? "");
+    }
+  }, [imageModelDraft, modelsStatus.data?.imageDefaultModel]);
+
+  useEffect(() => {
+    if (provider && authProvider === "anthropic") {
+      setAuthProvider(provider);
+    }
+  }, [provider, authProvider]);
+
+  useEffect(() => {
+    setAuthOrderText((modelAuthOrder.data?.order ?? []).join("\n"));
+  }, [modelAuthOrder.data?.order]);
+
+  useEffect(() => {
+    const listSkill = (skills.data?.skills ?? []).find((entry) => entry.skillKey === selectedSkill);
+    const detailSkill = skillDetail.data?.skill;
+    const sourceSkill = detailSkill?.skillKey === selectedSkill ? detailSkill : listSkill;
+    if (!sourceSkill || !selectedSkill) return;
+
+    setSkillEnabled(sourceSkill.enabled ?? true);
+    setSkillApiKey(typeof sourceSkill.apiKey === "string" ? sourceSkill.apiKey : "");
+    setSkillEnvText(JSON.stringify(sourceSkill.env ?? {}, null, 2));
+    setSkillConfigText(JSON.stringify(sourceSkill.config ?? sourceSkill.metadata ?? {}, null, 2));
+  }, [selectedSkill, skillDetail.data?.skill, skills.data?.skills]);
+
   const refreshAll = useCallback(async () => {
     await Promise.all([
       info.refresh(),
@@ -456,8 +801,25 @@ export function OpenClawManagement() {
       providers.refresh(),
       providerModels.refresh(),
       channels.refresh(),
+      hooks.refresh(),
+      hookCheck.refresh(),
+      hookDetail.refresh(),
+      skills.refresh(),
+      skillsStatus.refresh(),
+      skillBins.refresh(),
+      skillDetail.refresh(),
+      directorySelf.refresh(),
+      directoryPeers.refresh(),
+      directoryGroups.refresh(),
+      directoryMembers.refresh(),
+      modelsCatalog.refresh(),
+      modelsStatus.refresh(),
+      modelAuthOrder.refresh(),
+      modelAliases.refresh(),
+      modelFallbacks.refresh(),
+      imageFallbacks.refresh(),
     ]);
-  }, [channels, config, domain, domainIssuer, info, logs, providerModels, providers, sessions, status, system, upstream, version]);
+  }, [channels, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, providerModels, providers, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, upstream, version]);
 
   const performRuntimeAction = useCallback(async (action: "start" | "restart" | "rebuild" | "stop") => {
     setRuntimeBusy(action);
@@ -707,6 +1069,242 @@ export function OpenClawManagement() {
     }
   }, [channels, logs, selectedChannel, status]);
 
+  const handleToggleHook = useCallback(async (enabled: boolean) => {
+    if (!selectedHook) {
+      toast.error("Choose a hook first");
+      return;
+    }
+
+    setHookBusy(enabled ? "enable" : "disable");
+    try {
+      await requestOpenClaw(`/hooks/${encodeURIComponent(selectedHook)}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
+      });
+      toast.success(`Hook ${selectedHook} ${enabled ? "enabled" : "disabled"}`);
+      await Promise.all([hooks.refresh(), hookCheck.refresh(), hookDetail.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} hook`);
+    } finally {
+      setHookBusy(null);
+    }
+  }, [hookCheck, hookDetail, hooks, selectedHook]);
+
+  const handleSkillSearch = useCallback(async () => {
+    setSkillSearchBusy(true);
+    try {
+      const query = new URLSearchParams();
+      if (skillSearchQuery.trim()) {
+        query.set("query", skillSearchQuery.trim());
+      }
+      query.set("limit", "10");
+
+      const result = await requestOpenClaw<SkillSearchInfo>(`/skills/search?${query.toString()}`);
+      const nextResults = result.results ?? result.skills ?? [];
+      setSkillSearchResults(nextResults as Array<Record<string, unknown>>);
+      toast.success(`Found ${nextResults.length} skill search results`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Skill search failed");
+    } finally {
+      setSkillSearchBusy(false);
+    }
+  }, [skillSearchQuery]);
+
+  const handleUpdateSkill = useCallback(async () => {
+    if (!selectedSkill) {
+      toast.error("Choose a skill first");
+      return;
+    }
+
+    setSkillUpdateBusy(true);
+    try {
+      const env = parseJsonObjectInput(skillEnvText, "Skill env");
+      const configValues = parseJsonObjectInput(skillConfigText, "Skill config");
+
+      await requestOpenClaw("/skills/update", {
+        method: "POST",
+        body: JSON.stringify({
+          skillKey: selectedSkill,
+          enabled: skillEnabled,
+          apiKey: skillApiKey.trim(),
+          env,
+          config: configValues,
+          restart: skillRestart,
+        }),
+      });
+
+      toast.success(`Skill ${selectedSkill} updated`);
+      await Promise.all([skills.refresh(), skillsStatus.refresh(), skillBins.refresh(), skillDetail.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Skill update failed");
+    } finally {
+      setSkillUpdateBusy(false);
+    }
+  }, [selectedSkill, skillApiKey, skillBins, skillConfigText, skillDetail, skillEnabled, skillEnvText, skillRestart, skills, skillsStatus]);
+
+  const handleSetModel = useCallback(async (endpoint: "/models/default" | "/models/image-default", value: string, action: string) => {
+    if (!value.trim()) {
+      toast.error("Enter a model first");
+      return;
+    }
+
+    setModelBusy(action);
+    try {
+      await requestOpenClaw(endpoint, {
+        method: "PUT",
+        body: JSON.stringify({ model: value.trim() }),
+      });
+      toast.success(`${action === "default" ? "Default" : "Image"} model updated`);
+      await Promise.all([modelsCatalog.refresh(), modelsStatus.refresh(), config.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Model update failed");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [config, modelsCatalog, modelsStatus]);
+
+  const handleSaveAuthOrder = useCallback(async () => {
+    const order = authOrderText
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (!authProvider.trim()) {
+      toast.error("Enter a provider first");
+      return;
+    }
+
+    if (order.length === 0) {
+      toast.error("Enter at least one auth order entry");
+      return;
+    }
+
+    setModelBusy("auth-order");
+    try {
+      await requestOpenClaw("/models/auth-order", {
+        method: "PUT",
+        body: JSON.stringify({
+          provider: authProvider.trim(),
+          agentId: modelAgentId.trim() || "main",
+          order,
+        }),
+      });
+      toast.success("Model auth order updated");
+      await modelAuthOrder.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save auth order");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [authOrderText, authProvider, modelAgentId, modelAuthOrder]);
+
+  const handleClearAuthOrder = useCallback(async () => {
+    if (!authProvider.trim()) {
+      toast.error("Enter a provider first");
+      return;
+    }
+
+    setModelBusy("auth-order-clear");
+    try {
+      await requestOpenClaw("/models/auth-order", {
+        method: "DELETE",
+        body: JSON.stringify({
+          provider: authProvider.trim(),
+          agentId: modelAgentId.trim() || "main",
+        }),
+      });
+      toast.success("Model auth order cleared");
+      setAuthOrderText("");
+      await modelAuthOrder.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to clear auth order");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [authProvider, modelAgentId, modelAuthOrder]);
+
+  const handleSaveAlias = useCallback(async () => {
+    if (!aliasName.trim() || !aliasModel.trim()) {
+      toast.error("Enter both alias and target model");
+      return;
+    }
+
+    setModelBusy("alias-save");
+    try {
+      await requestOpenClaw("/models/aliases", {
+        method: "POST",
+        body: JSON.stringify({ alias: aliasName.trim(), model: aliasModel.trim() }),
+      });
+      toast.success(`Alias ${aliasName.trim()} saved`);
+      setAliasName("");
+      setAliasModel("");
+      await modelAliases.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save alias");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [aliasModel, aliasName, modelAliases]);
+
+  const handleDeleteAlias = useCallback(async (alias: string) => {
+    setModelBusy(`alias-delete-${alias}`);
+    try {
+      await requestOpenClaw(`/models/aliases/${encodeURIComponent(alias)}`, { method: "DELETE" });
+      toast.success(`Alias ${alias} removed`);
+      await modelAliases.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove alias");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [modelAliases]);
+
+  const handleAddFallback = useCallback(async (kind: "fallbacks" | "image-fallbacks", value: string) => {
+    if (!value.trim()) {
+      toast.error("Enter a fallback model first");
+      return;
+    }
+
+    setModelBusy(`add-${kind}`);
+    try {
+      await requestOpenClaw(`/models/${kind}`, {
+        method: "POST",
+        body: JSON.stringify({ model: value.trim() }),
+      });
+      toast.success(`${kind === "fallbacks" ? "Fallback" : "Image fallback"} added`);
+      if (kind === "fallbacks") {
+        setFallbackModel("");
+        await modelFallbacks.refresh();
+      } else {
+        setImageFallbackModel("");
+        await imageFallbacks.refresh();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add fallback");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [imageFallbacks, modelFallbacks]);
+
+  const handleRemoveFallback = useCallback(async (kind: "fallbacks" | "image-fallbacks", value?: string) => {
+    setModelBusy(`remove-${kind}`);
+    try {
+      await requestOpenClaw(
+        value ? `/models/${kind}/${encodeURIComponent(value)}` : `/models/${kind}`,
+        { method: "DELETE" },
+      );
+      toast.success(`${kind === "fallbacks" ? "Fallback" : "Image fallback"} removed`);
+      if (kind === "fallbacks") {
+        await modelFallbacks.refresh();
+      } else {
+        await imageFallbacks.refresh();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove fallback");
+    } finally {
+      setModelBusy(null);
+    }
+  }, [imageFallbacks, modelFallbacks]);
+
   const sessionRows = sessions.data?.result?.sessions ?? [];
   const sessionColumns = useMemo<Array<ColumnDef<(typeof sessionRows)[number]>>>(() => [
     {
@@ -746,6 +1344,56 @@ export function OpenClawManagement() {
     [channels.data?.channels],
   );
 
+  const hookCheckEntries = useMemo(
+    () => normalizeHookEntries(hookCheck.data?.hooks ?? hookCheck.data?.results ?? null),
+    [hookCheck.data?.hooks, hookCheck.data?.results],
+  );
+
+  const selectedHookData = useMemo(() => {
+    const listMatch = hookEntries.find(([name]) => name === selectedHook)?.[1];
+    return hookDetail.data?.hook ?? listMatch ?? null;
+  }, [hookDetail.data?.hook, hookEntries, selectedHook]);
+
+  const selectedSkillData = useMemo(() => {
+    const listMatch = (skills.data?.skills ?? []).find((entry) => entry.skillKey === selectedSkill);
+    return skillDetail.data?.skill ?? listMatch ?? null;
+  }, [selectedSkill, skillDetail.data?.skill, skills.data?.skills]);
+
+  const directorySelfData = useMemo(
+    () => directorySelf.data?.self ?? directorySelf.data?.account ?? directorySelf.data?.profile ?? null,
+    [directorySelf.data?.account, directorySelf.data?.profile, directorySelf.data?.self],
+  );
+
+  const directoryPeerItems = useMemo(
+    () => normalizeRecordItems(directoryPeers.data?.peers ?? directoryPeers.data?.results ?? directoryPeers.data?.items ?? null, "peerId"),
+    [directoryPeers.data?.items, directoryPeers.data?.peers, directoryPeers.data?.results],
+  );
+
+  const directoryMemberItems = useMemo(
+    () => normalizeRecordItems(directoryMembers.data?.members ?? directoryMembers.data?.results ?? directoryMembers.data?.items ?? null, "memberId"),
+    [directoryMembers.data?.items, directoryMembers.data?.members, directoryMembers.data?.results],
+  );
+
+  const modelCatalogOptions = useMemo(
+    () => (modelsCatalog.data?.models ?? []).map((entry) => toModelOptionLabel(entry)),
+    [modelsCatalog.data?.models],
+  );
+
+  const aliasEntries = useMemo(
+    () => normalizeAliasEntries(modelAliases.data?.aliases ?? modelAliases.data?.items ?? null),
+    [modelAliases.data?.aliases, modelAliases.data?.items],
+  );
+
+  const fallbackEntries = useMemo(
+    () => normalizeStringItems(modelFallbacks.data?.models ?? modelFallbacks.data?.fallbacks ?? modelFallbacks.data?.items ?? null),
+    [modelFallbacks.data?.fallbacks, modelFallbacks.data?.items, modelFallbacks.data?.models],
+  );
+
+  const imageFallbackEntries = useMemo(
+    () => normalizeStringItems(imageFallbacks.data?.models ?? imageFallbacks.data?.fallbacks ?? imageFallbacks.data?.items ?? null),
+    [imageFallbacks.data?.fallbacks, imageFallbacks.data?.items, imageFallbacks.data?.models],
+  );
+
   const errors = [
     info.error,
     status.error,
@@ -760,6 +1408,23 @@ export function OpenClawManagement() {
     providers.error,
     providerModels.error,
     channels.error,
+    hooks.error,
+    hookCheck.error,
+    hookDetail.error,
+    skills.error,
+    skillsStatus.error,
+    skillBins.error,
+    skillDetail.error,
+    directorySelf.error,
+    directoryPeers.error,
+    directoryGroups.error,
+    directoryMembers.error,
+    modelsCatalog.error,
+    modelsStatus.error,
+    modelAuthOrder.error,
+    modelAliases.error,
+    modelFallbacks.error,
+    imageFallbacks.error,
   ].filter(Boolean);
 
   return (
@@ -1361,6 +2026,648 @@ export function OpenClawManagement() {
                 >
                   {channelBusy === "delete" ? "Removing…" : "Remove Channel"}
                 </button>
+              </div>
+            </DetailCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DetailCard title="Skills" icon={Puzzle}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Agent</span>
+                  <input
+                    value={skillAgentId}
+                    onChange={(event) => setSkillAgentId(event.target.value || "main")}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Skill</span>
+                  <select
+                    value={selectedSkill}
+                    onChange={(event) => setSelectedSkill(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {(skills.data?.skills ?? []).map((entry) => {
+                      const value = entry.skillKey ?? "";
+                      return (
+                        <option key={value} value={value}>
+                          {entry.title ?? value}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Total Skills</p>
+                  <p className="mt-1 text-sm text-[var(--text-primary)]">{skillsStatus.data?.totalSkills ?? skills.data?.count ?? 0}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Enabled</p>
+                  <p className="mt-1 text-sm text-[var(--text-primary)]">{skillsStatus.data?.enabledSkills ?? 0}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Watch Mode</p>
+                  <p className="mt-1 text-sm text-[var(--text-primary)]">{boolLabel(skillsStatus.data?.watch)}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  value={skillSearchQuery}
+                  onChange={(event) => setSkillSearchQuery(event.target.value)}
+                  placeholder="Search ClawHub skills"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSkillSearch()}
+                  disabled={skillSearchBusy}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {skillSearchBusy ? "Searching…" : "Search Skills"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                <div className="flex flex-wrap gap-2">
+                  {(skillBins.data?.bins ?? []).length > 0 ? (
+                    (skillBins.data?.bins ?? []).map((bin) => (
+                      <span key={bin} className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[11px] text-[var(--text-primary)]">
+                        {bin}
+                      </span>
+                    ))
+                  ) : (
+                    <span>No declared binary dependencies.</span>
+                  )}
+                </div>
+                {(skillsStatus.data?.disabledSkills ?? []).length > 0 ? (
+                  <p className="mt-3 text-xs text-[var(--warning)]">
+                    Disabled: {(skillsStatus.data?.disabledSkills ?? []).join(", ")}
+                  </p>
+                ) : null}
+              </div>
+
+              {selectedSkillData ? (
+                <>
+                  <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-[var(--text-primary)]">{selectedSkillData.title ?? selectedSkillData.skillKey ?? "Selected skill"}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{selectedSkillData.source ?? "workspace"}</p>
+                      </div>
+                      <span className={`text-xs ${selectedSkillData.enabled ? "text-[var(--accent)]" : "text-[var(--warning)]"}`}>
+                        {selectedSkillData.enabled ? "enabled" : "disabled"}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-[var(--text-secondary)]">{selectedSkillData.description ?? "No skill description returned."}</p>
+                  </div>
+
+                  <label className="mt-4 flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={skillEnabled} onChange={(event) => setSkillEnabled(event.target.checked)} />
+                    Enabled in active environment
+                  </label>
+
+                  <label className="mt-4 block space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Skill API key</span>
+                    <textarea
+                      value={skillApiKey}
+                      onChange={(event) => setSkillApiKey(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="Optional skill-specific secret"
+                    />
+                  </label>
+
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Env Overrides (JSON)</span>
+                      <textarea
+                        value={skillEnvText}
+                        onChange={(event) => setSkillEnvText(event.target.value)}
+                        rows={8}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Config Overrides (JSON)</span>
+                      <textarea
+                        value={skillConfigText}
+                        onChange={(event) => setSkillConfigText(event.target.value)}
+                        rows={8}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-4 flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={skillRestart} onChange={(event) => setSkillRestart(event.target.checked)} />
+                    Restart OpenClaw after saving
+                  </label>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleUpdateSkill()}
+                      disabled={skillUpdateBusy}
+                      className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {skillUpdateBusy ? "Saving…" : "Save Skill Config"}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Skill Content Preview</p>
+                    <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                      {selectedSkillData.content ?? "No raw SKILL.md content returned for this skill."}
+                    </pre>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                  No skills available for the selected agent.
+                </div>
+              )}
+
+              {skillSearchResults.length > 0 ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Search Results</p>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {skillSearchResults.slice(0, 5).map((result, index) => (
+                      <div key={`${String(result["skillKey"] ?? result["id"] ?? index)}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                        <p className="font-medium text-[var(--text-primary)]">{String(result["title"] ?? result["skillKey"] ?? result["id"] ?? "skill")}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(result["description"] ?? result["summary"] ?? "No description")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </DetailCard>
+
+            <DetailCard title="Hooks" icon={Wrench}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Hook</span>
+                  <select
+                    value={selectedHook}
+                    onChange={(event) => setSelectedHook(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {hookEntries.map(([name, entry]) => (
+                      <option key={name} value={name}>
+                        {entry.title ?? name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Eligible Hooks</p>
+                  <p className="mt-1 text-[var(--text-primary)]">{hookEntries.filter(([, hook]) => hook.eligible !== false).length}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Enabled Hooks</p>
+                  <p className="mt-1 text-[var(--text-primary)]">{hookEntries.filter(([, hook]) => hook.enabled || hook.active).length}</p>
+                </div>
+              </div>
+
+              {selectedHookData ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-[var(--text-primary)]">{selectedHookData.title ?? selectedHookData.name ?? selectedHook}</p>
+                      <p className="mt-1 text-xs text-[var(--text-tertiary)]">{selectedHookData.source ?? selectedHookData.status ?? "local hook"}</p>
+                    </div>
+                    <span className={`text-xs ${(selectedHookData.enabled || selectedHookData.active) ? "text-[var(--accent)]" : "text-[var(--warning)]"}`}>
+                      {(selectedHookData.enabled || selectedHookData.active) ? "enabled" : "disabled"}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-[var(--text-secondary)]">{selectedHookData.description ?? "No hook description returned."}</p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+                    <div className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Eligible</span>
+                      <p className="mt-1 text-[var(--text-primary)]">{boolLabel(selectedHookData.eligible !== false)}</p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Enabled</span>
+                      <p className="mt-1 text-[var(--text-primary)]">{boolLabel(Boolean(selectedHookData.enabled || selectedHookData.active))}</p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Check Entries</span>
+                      <p className="mt-1 text-[var(--text-primary)]">{hookCheckEntries.length}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                  No hooks were returned by the active OpenClaw environment.
+                </div>
+              )}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleToggleHook(true)}
+                  disabled={hookBusy != null || !selectedHook}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {hookBusy === "enable" ? "Enabling…" : "Enable Hook"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleHook(false)}
+                  disabled={hookBusy != null || !selectedHook}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50"
+                >
+                  {hookBusy === "disable" ? "Disabling…" : "Disable Hook"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Hook Check Snapshot</p>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(hookCheck.data ?? { message: "No hook check data returned." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DetailCard title="Directory" icon={Database}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_120px]">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Channel</span>
+                  <select
+                    value={directoryChannel}
+                    onChange={(event) => setDirectoryChannel(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {["slack", "discord", "telegram", "zalo"].map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Limit</span>
+                  <select
+                    value={directoryLimit}
+                    onChange={(event) => setDirectoryLimit(Number(event.target.value))}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {[10, 20, 50].map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Connected Identity</p>
+                <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(directorySelfData ?? { message: "No channel identity returned." }, null, 2)}
+                </pre>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                <input
+                  value={directoryPeerQuery}
+                  onChange={(event) => setDirectoryPeerQuery(event.target.value)}
+                  placeholder="Search peers or contacts"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    void directoryPeers.refresh();
+                    void directoryGroups.refresh();
+                    void directorySelf.refresh();
+                  }}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                >
+                  Refresh Directory
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Peers</p>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {directoryPeerItems.length === 0 ? (
+                      <p>No peers returned.</p>
+                    ) : (
+                      directoryPeerItems.slice(0, 8).map((peer, index) => (
+                        <div key={`${String(peer.peerId ?? peer.id ?? peer.name ?? index)}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                          <p className="font-medium text-[var(--text-primary)]">{String(peer.name ?? peer.displayName ?? peer.peerId ?? peer.id ?? "peer")}</p>
+                          <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(peer.handle ?? peer.username ?? peer.email ?? peer.id ?? "—")}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Group</span>
+                    <select
+                      value={selectedDirectoryGroup}
+                      onChange={(event) => setSelectedDirectoryGroup(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    >
+                      {directoryGroupItems.map((group, index) => {
+                        const value = String(group.groupId ?? group.id ?? group.name ?? `group-${index + 1}`);
+                        return (
+                          <option key={value} value={value}>
+                            {String(group.name ?? group.title ?? value)}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {directoryMemberItems.length === 0 ? (
+                      <p>No group members returned.</p>
+                    ) : (
+                      directoryMemberItems.slice(0, 8).map((member, index) => (
+                        <div key={`${String(member.memberId ?? member.id ?? member.name ?? index)}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                          <p className="font-medium text-[var(--text-primary)]">{String(member.name ?? member.displayName ?? member.memberId ?? member.id ?? "member")}</p>
+                          <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(member.role ?? member.username ?? member.email ?? "—")}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DetailCard>
+
+            <DetailCard title="Models" icon={Bot}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Agent</span>
+                  <input
+                    value={modelAgentId}
+                    onChange={(event) => setModelAgentId(event.target.value || "main")}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Auth Provider</span>
+                  <input
+                    value={authProvider}
+                    onChange={(event) => setAuthProvider(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Catalog</p>
+                  <p className="mt-1 text-sm text-[var(--text-primary)]">{modelCatalogOptions.length}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Default</p>
+                  <p className="mt-1 truncate text-sm text-[var(--text-primary)]">{modelsStatus.data?.defaultModel ?? modelsStatus.data?.currentModel ?? config.data?.model ?? "—"}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Image Default</p>
+                  <p className="mt-1 truncate text-sm text-[var(--text-primary)]">{modelsStatus.data?.imageDefaultModel ?? "—"}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Default Model</span>
+                  <input
+                    list="openclaw-model-catalog"
+                    value={defaultModelDraft}
+                    onChange={(event) => setDefaultModelDraft(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Image Model</span>
+                  <input
+                    list="openclaw-model-catalog"
+                    value={imageModelDraft}
+                    onChange={(event) => setImageModelDraft(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+              </div>
+
+              <datalist id="openclaw-model-catalog">
+                {modelCatalogOptions.map((modelName) => (
+                  <option key={modelName} value={modelName} />
+                ))}
+              </datalist>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSetModel("/models/default", defaultModelDraft, "default")}
+                  disabled={modelBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {modelBusy === "default" ? "Saving…" : "Set Default"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSetModel("/models/image-default", imageModelDraft, "image-default")}
+                  disabled={modelBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {modelBusy === "image-default" ? "Saving…" : "Set Image Model"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Auth Order</p>
+                <textarea
+                  value={authOrderText}
+                  onChange={(event) => setAuthOrderText(event.target.value)}
+                  rows={5}
+                  className="mt-3 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                  placeholder="anthropic:default\nanthropic:manual"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAuthOrder()}
+                    disabled={modelBusy != null}
+                    className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                  >
+                    {modelBusy === "auth-order" ? "Saving…" : "Save Auth Order"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleClearAuthOrder()}
+                    disabled={modelBusy != null}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--warning)]/40 disabled:opacity-50"
+                  >
+                    {modelBusy === "auth-order-clear" ? "Clearing…" : "Clear Auth Order"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Aliases</p>
+                  <div className="mt-3 grid grid-cols-1 gap-2">
+                    <input
+                      value={aliasName}
+                      onChange={(event) => setAliasName(event.target.value)}
+                      placeholder="fast-chat"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                    />
+                    <input
+                      list="openclaw-model-catalog"
+                      value={aliasModel}
+                      onChange={(event) => setAliasModel(event.target.value)}
+                      placeholder="anthropic/claude-sonnet-4"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveAlias()}
+                      disabled={modelBusy != null}
+                      className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {modelBusy === "alias-save" ? "Saving…" : "Save Alias"}
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {aliasEntries.length === 0 ? (
+                      <p>No aliases configured.</p>
+                    ) : (
+                      aliasEntries.slice(0, 8).map((entry) => (
+                        <div key={entry.alias} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                          <div>
+                            <p className="font-medium text-[var(--text-primary)]">{entry.alias}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{entry.model || "—"}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteAlias(entry.alias)}
+                            disabled={modelBusy != null}
+                            className="text-xs font-medium text-[var(--danger)] disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Fallbacks</p>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        list="openclaw-model-catalog"
+                        value={fallbackModel}
+                        onChange={(event) => setFallbackModel(event.target.value)}
+                        placeholder="openai/gpt-4.1-mini"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleAddFallback("fallbacks", fallbackModel)}
+                        disabled={modelBusy != null}
+                        className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                      {fallbackEntries.length === 0 ? (
+                        <p>No fallback models configured.</p>
+                      ) : (
+                        fallbackEntries.map((entry) => (
+                          <div key={entry} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                            <span className="text-[var(--text-primary)]">{entry}</span>
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveFallback("fallbacks", entry)}
+                              disabled={modelBusy != null}
+                              className="text-xs font-medium text-[var(--danger)] disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {fallbackEntries.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveFallback("fallbacks")}
+                        disabled={modelBusy != null}
+                        className="mt-3 text-xs font-medium text-[var(--warning)] disabled:opacity-50"
+                      >
+                        Clear all fallbacks
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Image Fallbacks</p>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        list="openclaw-model-catalog"
+                        value={imageFallbackModel}
+                        onChange={(event) => setImageFallbackModel(event.target.value)}
+                        placeholder="openai/gpt-image-1"
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleAddFallback("image-fallbacks", imageFallbackModel)}
+                        disabled={modelBusy != null}
+                        className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                      {imageFallbackEntries.length === 0 ? (
+                        <p>No image fallback models configured.</p>
+                      ) : (
+                        imageFallbackEntries.map((entry) => (
+                          <div key={entry} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                            <span className="text-[var(--text-primary)]">{entry}</span>
+                            <button
+                              type="button"
+                              onClick={() => void handleRemoveFallback("image-fallbacks", entry)}
+                              disabled={modelBusy != null}
+                              className="text-xs font-medium text-[var(--danger)] disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {imageFallbackEntries.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveFallback("image-fallbacks")}
+                        disabled={modelBusy != null}
+                        className="mt-3 text-xs font-medium text-[var(--warning)] disabled:opacity-50"
+                      >
+                        Clear all image fallbacks
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
             </DetailCard>
           </div>
