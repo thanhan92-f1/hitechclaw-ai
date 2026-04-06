@@ -11,6 +11,7 @@ export type WorkspaceMode = "hitechclaw" | "openclaw";
 export type OpenClawSection =
   | "overview"
   | "runtime"
+  | "update"
   | "mcp"
   | "gateway"
   | "bindings"
@@ -79,6 +80,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         if (
           storedSection === "overview" ||
           storedSection === "runtime" ||
+          storedSection === "update" ||
           storedSection === "mcp" ||
           storedSection === "gateway" ||
           storedSection === "bindings" ||

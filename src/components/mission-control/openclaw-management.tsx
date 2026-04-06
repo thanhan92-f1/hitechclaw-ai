@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Archive,
   Brain,
   Bot,
@@ -131,6 +132,24 @@ interface VersionInfo {
   version?: string;
   clawVersion?: string;
   message?: string;
+}
+
+interface UpdateStatusInfo {
+  ok?: boolean;
+  channel?: string;
+  currentVersion?: string;
+  installedVersion?: string;
+  latestVersion?: string;
+  availableVersion?: string;
+  updateAvailable?: boolean;
+  [key: string]: unknown;
+}
+
+interface UpdateRunResult {
+  ok?: boolean;
+  status?: string;
+  message?: string;
+  [key: string]: unknown;
 }
 
 interface DomainConfig {
@@ -393,6 +412,17 @@ interface SkillBinsInfo {
   count?: number;
 }
 
+interface SkillsCheckInfo {
+  ok?: boolean;
+  summary?: string;
+  checks?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  ready?: Array<Record<string, unknown>>;
+  missing?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
 interface SkillDetailInfo {
   ok?: boolean;
   skill?: SkillEntry;
@@ -402,6 +432,35 @@ interface SkillSearchInfo {
   ok?: boolean;
   results?: Array<Record<string, unknown>>;
   skills?: SkillEntry[];
+  [key: string]: unknown;
+}
+
+interface CustomSkillRecord {
+  skillKey?: string;
+  title?: string;
+  description?: string;
+  summary?: string;
+  content?: string;
+  path?: string;
+  updatedAt?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+interface CustomSkillsInfo {
+  ok?: boolean;
+  agentId?: string;
+  skills?: CustomSkillRecord[];
+  items?: CustomSkillRecord[];
+  results?: CustomSkillRecord[];
+  [key: string]: unknown;
+}
+
+interface CustomSkillDetailInfo {
+  ok?: boolean;
+  skill?: CustomSkillRecord;
+  item?: CustomSkillRecord;
+  data?: CustomSkillRecord;
   [key: string]: unknown;
 }
 
@@ -1103,6 +1162,7 @@ export function OpenClawManagement() {
   const isConfigSection = configSections.includes(openClawSection);
   const isMcpSection = openClawSection === "mcp";
   const isGatewaySection = openClawSection === "gateway";
+  const isUpdateSection = openClawSection === "update";
   const isProviderSection = openClawSection === "provider";
   const isCredentialsSection = openClawSection === "credentials";
   const isDomainSection = openClawSection === "domain";
@@ -1138,6 +1198,8 @@ export function OpenClawManagement() {
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "runtime");
   const version = useOpenClawFetch<VersionInfo>("/version", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || openClawSection === "runtime");
+  const [updateChannel, setUpdateChannel] = useState("stable");
+  const updateStatus = useOpenClawFetch<UpdateStatusInfo>(`/update/status?channel=${encodeURIComponent(updateChannel)}`, OPENCLAW_SYNC_PASSIVE_MS, isUpdateSection);
   const domain = useOpenClawFetch<DomainConfig>("/domain", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isDomainSection);
   const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", OPENCLAW_SYNC_PASSIVE_MS, isDomainSection);
   const providers = useOpenClawFetch<ProvidersInfo>("/providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
@@ -1155,6 +1217,8 @@ export function OpenClawManagement() {
   const skills = useOpenClawFetch<SkillsInfo>(`/skills?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
   const skillsStatus = useOpenClawFetch<SkillsStatusInfo>(`/skills/status?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
   const skillBins = useOpenClawFetch<SkillBinsInfo>(`/skills/bins?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
+  const skillsCheck = useOpenClawFetch<SkillsCheckInfo>("/skills/check", OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
+  const customSkills = useOpenClawFetch<CustomSkillsInfo>(`/skills/custom?agentId=${encodeURIComponent(skillAgentId)}&includeContent=false`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
   const [directoryChannel, setDirectoryChannel] = useState("slack");
   const [directoryPeerQuery, setDirectoryPeerQuery] = useState("");
   const [directoryLimit, setDirectoryLimit] = useState(20);
@@ -1246,6 +1310,7 @@ export function OpenClawManagement() {
   const [mcpBusy, setMcpBusy] = useState<string | null>(null);
   const [selectedPlugin, setSelectedPlugin] = useState("");
   const [pluginBusy, setPluginBusy] = useState<string | null>(null);
+  const pluginInspectDetail = useOpenClawFetch<PluginInspectInfo>(`/plugins/inspect?id=${encodeURIComponent(selectedPlugin)}`, OPENCLAW_SYNC_PASSIVE_MS, isPluginsSection && Boolean(selectedPlugin));
   const [selectedNode, setSelectedNode] = useState("");
   const [systemEventText, setSystemEventText] = useState("manual-health-check");
   const [systemEventMode, setSystemEventMode] = useState<"now" | "next-heartbeat">("now");
@@ -1261,6 +1326,28 @@ export function OpenClawManagement() {
   const [skillSearchResults, setSkillSearchResults] = useState<Array<Record<string, unknown>>>([]);
   const [skillSearchBusy, setSkillSearchBusy] = useState(false);
   const [skillUpdateBusy, setSkillUpdateBusy] = useState(false);
+  const [selectedCustomSkill, setSelectedCustomSkill] = useState("");
+  const [customSkillPayloadText, setCustomSkillPayloadText] = useState(`{
+  "agentId": "main",
+  "skillKey": "custom-vps-audit",
+  "title": "Custom VPS Audit",
+  "description": "Detailed custom skill for auditing OpenClaw deployments.",
+  "summary": "Use this skill when the user asks for a structured OpenClaw VPS audit.",
+  "workflow": [
+    "Review service status and recent logs.",
+    "Inspect providers, channels, bindings, and runtime config.",
+    "Return a prioritized remediation plan."
+  ],
+  "safetyNotes": [
+    "Mask all keys and secrets.",
+    "Ask before any destructive change."
+  ]
+}`);
+  const [customSkillValidateContent, setCustomSkillValidateContent] = useState("");
+  const [customSkillBusy, setCustomSkillBusy] = useState<string | null>(null);
+  const [customSkillActionResult, setCustomSkillActionResult] = useState<Record<string, unknown> | null>(null);
+  const [customSkillValidateResult, setCustomSkillValidateResult] = useState<Record<string, unknown> | null>(null);
+  const [customSkillRenderResult, setCustomSkillRenderResult] = useState<Record<string, unknown> | null>(null);
   const [skillEnabled, setSkillEnabled] = useState(true);
   const [skillApiKey, setSkillApiKey] = useState("");
   const [skillEnvText, setSkillEnvText] = useState("{}");
@@ -1302,6 +1389,7 @@ export function OpenClawManagement() {
   const [resetConfirmText, setResetConfirmText] = useState("");
   const [configAdvancedBusy, setConfigAdvancedBusy] = useState<string | null>(null);
   const [configLookupPath, setConfigLookupPath] = useState("gateway.auth.token");
+  const [configGetResult, setConfigGetResult] = useState<Record<string, unknown> | null>(null);
   const [configLookupResult, setConfigLookupResult] = useState<Record<string, unknown> | null>(null);
   const [configValidationResult, setConfigValidationResult] = useState<Record<string, unknown> | null>(null);
   const [configPatchText, setConfigPatchText] = useState(`{
@@ -1336,9 +1424,15 @@ export function OpenClawManagement() {
   const [cliResult, setCliResult] = useState<CliProxyResult | null>(null);
   const [selfUpdateBusy, setSelfUpdateBusy] = useState(false);
   const [selfUpdateResult, setSelfUpdateResult] = useState<SelfUpdateResult | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateNote, setUpdateNote] = useState("Manual maintenance update");
+  const [updateRestartDelayMs, setUpdateRestartDelayMs] = useState("5000");
+  const [updateTimeoutMs, setUpdateTimeoutMs] = useState("120000");
+  const [updateRunResult, setUpdateRunResult] = useState<UpdateRunResult | null>(null);
 
   const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, OPENCLAW_SYNC_PASSIVE_MS, isHooksSection && Boolean(selectedHook));
   const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
+  const customSkillDetail = useOpenClawFetch<CustomSkillDetailInfo>(`/skills/custom/${encodeURIComponent(selectedCustomSkill)}?agentId=${encodeURIComponent(skillAgentId)}&includeContent=true`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedCustomSkill));
   const mcpServerDetail = useOpenClawFetch<McpServerDetailInfo>(`/mcp/${encodeURIComponent(selectedMcpServer)}`, OPENCLAW_SYNC_PASSIVE_MS, isMcpSection && Boolean(selectedMcpServer));
   const nodeDetail = useOpenClawFetch<NodeDetailInfo>(`/nodes/${encodeURIComponent(selectedNode)}?timeoutMs=10000`, OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection && Boolean(selectedNode));
   const channelCapabilities = useOpenClawFetch<ChannelCapabilitiesInfo>(`/channels/capabilities?channel=${encodeURIComponent(selectedChannel)}&account=${encodeURIComponent(channelAccount)}`, OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection && Boolean(selectedChannel));
@@ -1496,6 +1590,17 @@ export function OpenClawManagement() {
     }
   }, [selectedSkill, skills.data?.skills]);
 
+  const customSkillItems = useMemo(
+    () => normalizeRecordItems(customSkills.data?.skills ?? customSkills.data?.items ?? customSkills.data?.results ?? null, "skillKey"),
+    [customSkills.data?.items, customSkills.data?.results, customSkills.data?.skills],
+  );
+
+  useEffect(() => {
+    if (!customSkillItems.some((item) => String(item.skillKey ?? item.id ?? item.name ?? "") === selectedCustomSkill)) {
+      setSelectedCustomSkill(String(customSkillItems[0]?.skillKey ?? customSkillItems[0]?.id ?? customSkillItems[0]?.name ?? ""));
+    }
+  }, [customSkillItems, selectedCustomSkill]);
+
   const directoryGroupItems = useMemo(
     () => normalizeRecordItems(directoryGroups.data?.groups ?? directoryGroups.data?.results ?? directoryGroups.data?.items ?? null, "groupId"),
     [directoryGroups.data?.groups, directoryGroups.data?.items, directoryGroups.data?.results],
@@ -1624,6 +1729,13 @@ export function OpenClawManagement() {
     setSkillConfigText(JSON.stringify(sourceSkill.config ?? sourceSkill.metadata ?? {}, null, 2));
   }, [selectedSkill, skillDetail.data?.skill, skills.data?.skills]);
 
+  useEffect(() => {
+    const detail = customSkillDetail.data?.skill ?? customSkillDetail.data?.item ?? customSkillDetail.data?.data;
+    if (typeof detail?.content === "string") {
+      setCustomSkillValidateContent(detail.content);
+    }
+  }, [customSkillDetail.data?.data, customSkillDetail.data?.item, customSkillDetail.data?.skill, selectedCustomSkill]);
+
   const refreshAll = useCallback(async (forceFresh = false) => {
     await Promise.all([
       info.refresh({ refresh: forceFresh }),
@@ -1641,6 +1753,7 @@ export function OpenClawManagement() {
       sessions.refresh({ refresh: forceFresh }),
       logs.refresh({ refresh: forceFresh }),
       version.refresh({ refresh: forceFresh }),
+      updateStatus.refresh({ refresh: forceFresh }),
       domain.refresh({ refresh: forceFresh }),
       domainIssuer.refresh({ refresh: forceFresh }),
       providers.refresh({ refresh: forceFresh }),
@@ -1653,13 +1766,17 @@ export function OpenClawManagement() {
       channelLogs.refresh({ refresh: forceFresh }),
       plugins.refresh({ refresh: forceFresh }),
       pluginsInspect.refresh({ refresh: forceFresh }),
+      pluginInspectDetail.refresh({ refresh: forceFresh }),
       hooks.refresh({ refresh: forceFresh }),
       hookCheck.refresh({ refresh: forceFresh }),
       hookDetail.refresh({ refresh: forceFresh }),
       skills.refresh({ refresh: forceFresh }),
       skillsStatus.refresh({ refresh: forceFresh }),
+      skillsCheck.refresh({ refresh: forceFresh }),
       skillBins.refresh({ refresh: forceFresh }),
       skillDetail.refresh({ refresh: forceFresh }),
+      customSkills.refresh({ refresh: forceFresh }),
+      customSkillDetail.refresh({ refresh: forceFresh }),
       directorySelf.refresh({ refresh: forceFresh }),
       directoryPeers.refresh({ refresh: forceFresh }),
       directoryGroups.refresh({ refresh: forceFresh }),
@@ -1691,7 +1808,7 @@ export function OpenClawManagement() {
       agentFiles.refresh({ refresh: forceFresh }),
       agentFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, bindings, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, customSkillDetail, customSkills, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, environmentVariables, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, pluginInspectDetail, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsCheck, skillsStatus, status, system, systemHeartbeatLast, systemPresence, updateStatus, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1710,6 +1827,7 @@ export function OpenClawManagement() {
       sessions.fetchedAt,
       logs.fetchedAt,
       version.fetchedAt,
+      updateStatus.fetchedAt,
       domain.fetchedAt,
       domainIssuer.fetchedAt,
       providers.fetchedAt,
@@ -1722,13 +1840,17 @@ export function OpenClawManagement() {
       channelLogs.fetchedAt,
       plugins.fetchedAt,
       pluginsInspect.fetchedAt,
+      pluginInspectDetail.fetchedAt,
       hooks.fetchedAt,
       hookCheck.fetchedAt,
       hookDetail.fetchedAt,
       skills.fetchedAt,
       skillsStatus.fetchedAt,
+      skillsCheck.fetchedAt,
       skillBins.fetchedAt,
       skillDetail.fetchedAt,
+      customSkills.fetchedAt,
+      customSkillDetail.fetchedAt,
       directorySelf.fetchedAt,
       directoryPeers.fetchedAt,
       directoryGroups.fetchedAt,
@@ -1793,6 +1915,8 @@ export function OpenClawManagement() {
     logs.fetchedAt,
     mcpServerDetail.fetchedAt,
     mcpServers.fetchedAt,
+    customSkillDetail.fetchedAt,
+    customSkills.fetchedAt,
     modelAliases.fetchedAt,
     modelAuthOrder.fetchedAt,
     modelFallbacks.fetchedAt,
@@ -1802,6 +1926,7 @@ export function OpenClawManagement() {
     nodesList.fetchedAt,
     nodesStatus.fetchedAt,
     plugins.fetchedAt,
+    pluginInspectDetail.fetchedAt,
     pluginsInspect.fetchedAt,
     providerModels.fetchedAt,
     providers.fetchedAt,
@@ -1809,11 +1934,13 @@ export function OpenClawManagement() {
     skillBins.fetchedAt,
     skillDetail.fetchedAt,
     skills.fetchedAt,
+    skillsCheck.fetchedAt,
     skillsStatus.fetchedAt,
     status.fetchedAt,
     system.fetchedAt,
     systemHeartbeatLast.fetchedAt,
     systemPresence.fetchedAt,
+    updateStatus.fetchedAt,
     secretsAudit.fetchedAt,
     securityAudit.fetchedAt,
     authUser.fetchedAt,
@@ -1851,6 +1978,7 @@ export function OpenClawManagement() {
       sessions.cacheStatus,
       logs.cacheStatus,
       version.cacheStatus,
+      updateStatus.cacheStatus,
       domain.cacheStatus,
       domainIssuer.cacheStatus,
       providers.cacheStatus,
@@ -1863,13 +1991,17 @@ export function OpenClawManagement() {
       channelLogs.cacheStatus,
       plugins.cacheStatus,
       pluginsInspect.cacheStatus,
+      pluginInspectDetail.cacheStatus,
       hooks.cacheStatus,
       hookCheck.cacheStatus,
       hookDetail.cacheStatus,
       skills.cacheStatus,
       skillsStatus.cacheStatus,
+      skillsCheck.cacheStatus,
       skillBins.cacheStatus,
       skillDetail.cacheStatus,
+      customSkills.cacheStatus,
+      customSkillDetail.cacheStatus,
       directorySelf.cacheStatus,
       directoryPeers.cacheStatus,
       directoryGroups.cacheStatus,
@@ -1930,6 +2062,8 @@ export function OpenClawManagement() {
     logs.cacheStatus,
     mcpServerDetail.cacheStatus,
     mcpServers.cacheStatus,
+    customSkillDetail.cacheStatus,
+    customSkills.cacheStatus,
     modelAliases.cacheStatus,
     modelAuthOrder.cacheStatus,
     modelFallbacks.cacheStatus,
@@ -1939,6 +2073,7 @@ export function OpenClawManagement() {
     nodesList.cacheStatus,
     nodesStatus.cacheStatus,
     plugins.cacheStatus,
+    pluginInspectDetail.cacheStatus,
     pluginsInspect.cacheStatus,
     providerModels.cacheStatus,
     providers.cacheStatus,
@@ -1946,11 +2081,13 @@ export function OpenClawManagement() {
     skillBins.cacheStatus,
     skillDetail.cacheStatus,
     skills.cacheStatus,
+    skillsCheck.cacheStatus,
     skillsStatus.cacheStatus,
     status.cacheStatus,
     system.cacheStatus,
     systemHeartbeatLast.cacheStatus,
     systemPresence.cacheStatus,
+    updateStatus.cacheStatus,
     secretsAudit.cacheStatus,
     securityAudit.cacheStatus,
     authUser.cacheStatus,
@@ -1998,6 +2135,37 @@ export function OpenClawManagement() {
       setRuntimeBusy(null);
     }
   }, [logs, status, version]);
+
+  const handleRunManagedUpdate = useCallback(async () => {
+    setUpdateBusy(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (updateNote.trim()) {
+        payload.note = updateNote.trim();
+      }
+      const restartDelayMs = Number(updateRestartDelayMs);
+      if (Number.isFinite(restartDelayMs) && restartDelayMs >= 0) {
+        payload.restartDelayMs = restartDelayMs;
+      }
+      const timeoutMs = Number(updateTimeoutMs);
+      if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+        payload.timeoutMs = timeoutMs;
+      }
+
+      const result = await requestOpenClaw<UpdateRunResult>("/update/run", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setUpdateRunResult(result);
+      toast.success(result.message ?? "Managed update started");
+      await Promise.all([updateStatus.refresh({ refresh: true }), status.refresh({ refresh: true }), version.refresh({ refresh: true }), logs.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to run managed update");
+    } finally {
+      setUpdateBusy(false);
+    }
+  }, [logs, status, updateNote, updateRestartDelayMs, updateStatus, updateTimeoutMs, version]);
 
   const handleApplyProvider = useCallback(async () => {
     setConfigBusy(true);
@@ -2618,13 +2786,13 @@ export function OpenClawManagement() {
         method: "POST",
       });
       toast.success(`Plugin ${selectedPlugin.trim()} ${enabled ? "enabled" : "disabled"}`);
-      await Promise.all([plugins.refresh(), pluginsInspect.refresh()]);
+      await Promise.all([plugins.refresh(), pluginsInspect.refresh(), pluginInspectDetail.refresh()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} plugin`);
     } finally {
       setPluginBusy(null);
     }
-  }, [plugins, pluginsInspect, selectedPlugin]);
+  }, [pluginInspectDetail, plugins, pluginsInspect, selectedPlugin]);
 
   const handlePostSystemEvent = useCallback(async () => {
     if (!systemEventText.trim()) {
@@ -2856,6 +3024,24 @@ export function OpenClawManagement() {
     }
   }, [configLookupPath]);
 
+  const handleGetConfigValue = useCallback(async () => {
+    if (!configLookupPath.trim()) {
+      toast.error("Enter a config path first");
+      return;
+    }
+
+    setConfigAdvancedBusy("get");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/config/get?path=${encodeURIComponent(configLookupPath.trim())}`);
+      setConfigGetResult(result);
+      toast.success("Config value loaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load config value");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [configLookupPath]);
+
   const handleValidateConfig = useCallback(async () => {
     setConfigAdvancedBusy("validate");
     try {
@@ -2917,6 +3103,30 @@ export function OpenClawManagement() {
       setConfigAdvancedBusy(null);
     }
   }, [config, configFile, configRawPath, configRawRemove, configRawValueText, configSchema]);
+
+  const handleUnsetConfigValue = useCallback(async () => {
+    if (!configRawPath.trim()) {
+      toast.error("Enter a config path first");
+      return;
+    }
+
+    setConfigAdvancedBusy("unset");
+    try {
+      await requestOpenClaw("/config/unset", {
+        method: "DELETE",
+        body: JSON.stringify({
+          path: configRawPath.trim(),
+          restart: false,
+        }),
+      });
+      toast.success(`Config path ${configRawPath.trim()} removed`);
+      await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to unset config value");
+    } finally {
+      setConfigAdvancedBusy(null);
+    }
+  }, [config, configFile, configRawPath, configSchema]);
 
   const handleApplyConfig = useCallback(async () => {
     setConfigAdvancedBusy("apply");
@@ -3436,6 +3646,123 @@ export function OpenClawManagement() {
     }
   }, [selectedSkill, skillApiKey, skillBins, skillConfigText, skillDetail, skillEnabled, skillEnvText, skillRestart, skills, skillsStatus]);
 
+  const handleCreateCustomSkill = useCallback(async () => {
+    setCustomSkillBusy("create");
+    try {
+      const payload = parseJsonObjectInput(customSkillPayloadText, "Custom skill payload");
+      payload.agentId = String(payload.agentId ?? skillAgentId ?? "main");
+
+      const result = await requestOpenClaw<Record<string, unknown>>("/skills/custom", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setCustomSkillActionResult(result);
+      setSelectedCustomSkill(String(result.skillKey ?? payload.skillKey ?? ""));
+      toast.success(String(result.message ?? "Custom skill created successfully."));
+      await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create custom skill");
+    } finally {
+      setCustomSkillBusy(null);
+    }
+  }, [customSkillDetail, customSkillPayloadText, customSkills, skillAgentId, skills, skillsStatus]);
+
+  const handleUpdateCustomSkill = useCallback(async () => {
+    if (!selectedCustomSkill.trim()) {
+      toast.error("Choose a custom skill first");
+      return;
+    }
+
+    setCustomSkillBusy("update");
+    try {
+      const payload = parseJsonObjectInput(customSkillPayloadText, "Custom skill payload");
+      payload.agentId = String(payload.agentId ?? skillAgentId ?? "main");
+
+      const result = await requestOpenClaw<Record<string, unknown>>(`/skills/custom/${encodeURIComponent(selectedCustomSkill.trim())}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      setCustomSkillActionResult(result);
+      toast.success(`Custom skill ${selectedCustomSkill.trim()} updated`);
+      await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update custom skill");
+    } finally {
+      setCustomSkillBusy(null);
+    }
+  }, [customSkillDetail, customSkillPayloadText, customSkills, selectedCustomSkill, skillAgentId, skills, skillsStatus]);
+
+  const handleDeleteCustomSkill = useCallback(async () => {
+    if (!selectedCustomSkill.trim()) {
+      toast.error("Choose a custom skill first");
+      return;
+    }
+
+    if (!window.confirm(`Delete custom skill ${selectedCustomSkill.trim()}?`)) {
+      return;
+    }
+
+    setCustomSkillBusy("delete");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>(`/skills/custom/${encodeURIComponent(selectedCustomSkill.trim())}?agentId=${encodeURIComponent(skillAgentId || "main")}`, {
+        method: "DELETE",
+      });
+
+      setCustomSkillActionResult(result);
+      setSelectedCustomSkill("");
+      toast.success(`Custom skill ${selectedCustomSkill.trim()} deleted`);
+      await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete custom skill");
+    } finally {
+      setCustomSkillBusy(null);
+    }
+  }, [customSkillDetail, customSkills, selectedCustomSkill, skillAgentId, skills, skillsStatus]);
+
+  const handleValidateCustomSkill = useCallback(async () => {
+    const payload = parseJsonObjectInput(customSkillPayloadText, "Custom skill payload");
+    const skillKey = String(payload.skillKey ?? selectedCustomSkill ?? "").trim();
+    if (!skillKey || !customSkillValidateContent.trim()) {
+      toast.error("Provide a custom skill key and markdown content");
+      return;
+    }
+
+    setCustomSkillBusy("validate");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>("/skills/custom/validate", {
+        method: "POST",
+        body: JSON.stringify({ skillKey, content: customSkillValidateContent }),
+      });
+
+      setCustomSkillValidateResult(result);
+      toast.success(`Validation completed for ${skillKey}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to validate custom skill markdown");
+    } finally {
+      setCustomSkillBusy(null);
+    }
+  }, [customSkillPayloadText, customSkillValidateContent, selectedCustomSkill]);
+
+  const handleRenderCustomSkill = useCallback(async () => {
+    setCustomSkillBusy("render");
+    try {
+      const payload = parseJsonObjectInput(customSkillPayloadText, "Custom skill payload");
+      const result = await requestOpenClaw<Record<string, unknown>>("/skills/custom/render", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      setCustomSkillRenderResult(result);
+      toast.success("Custom skill markdown rendered");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to render custom skill markdown");
+    } finally {
+      setCustomSkillBusy(null);
+    }
+  }, [customSkillPayloadText]);
+
   const handleSetModel = useCallback(async (endpoint: "/models/default" | "/models/image-default", value: string, action: string) => {
     if (!value.trim()) {
       toast.error("Enter a model first");
@@ -3672,6 +3999,16 @@ export function OpenClawManagement() {
     return skillDetail.data?.skill ?? listMatch ?? null;
   }, [selectedSkill, skillDetail.data?.skill, skills.data?.skills]);
 
+  const skillCheckItems = useMemo(
+    () => normalizeRecordItems(skillsCheck.data?.checks ?? skillsCheck.data?.results ?? skillsCheck.data?.items ?? null, "skillKey"),
+    [skillsCheck.data?.checks, skillsCheck.data?.items, skillsCheck.data?.results],
+  );
+
+  const selectedCustomSkillData = useMemo(
+    () => customSkillDetail.data?.skill ?? customSkillDetail.data?.item ?? customSkillDetail.data?.data ?? customSkillItems.find((item) => String(item.skillKey ?? item.id ?? item.name ?? "") === selectedCustomSkill) ?? null,
+    [customSkillDetail.data?.data, customSkillDetail.data?.item, customSkillDetail.data?.skill, customSkillItems, selectedCustomSkill],
+  );
+
   const directorySelfData = useMemo(
     () => directorySelf.data?.self ?? directorySelf.data?.account ?? directorySelf.data?.profile ?? null,
     [directorySelf.data?.account, directorySelf.data?.profile, directorySelf.data?.self],
@@ -3698,6 +4035,11 @@ export function OpenClawManagement() {
   );
 
   const selectedPluginData = useMemo(() => {
+    const directInspect = pluginInspectDetail.data?.plugin ?? pluginInspectDetail.data?.item;
+    if (directInspect && String(directInspect.id ?? directInspect.name ?? directInspect.title ?? "") === selectedPlugin) {
+      return directInspect;
+    }
+
     const inspected = pluginsInspect.data?.plugin ?? pluginsInspect.data?.item;
     if (inspected && String(inspected.id ?? inspected.name ?? inspected.title ?? "") === selectedPlugin) {
       return inspected;
@@ -3713,7 +4055,7 @@ export function OpenClawManagement() {
     }
 
     return pluginItems.find((item) => String(item.id ?? item.name ?? item.title ?? "") === selectedPlugin) ?? null;
-  }, [pluginItems, pluginsInspect.data?.data, pluginsInspect.data?.item, pluginsInspect.data?.plugin, pluginsInspect.data?.plugins, selectedPlugin]);
+  }, [pluginInspectDetail.data?.item, pluginInspectDetail.data?.plugin, pluginItems, pluginsInspect.data?.data, pluginsInspect.data?.item, pluginsInspect.data?.plugin, pluginsInspect.data?.plugins, selectedPlugin]);
 
   const selectedMcpServerData = useMemo(
     () => mcpServerDetail.data?.server ?? mcpServerDetail.data?.item ?? mcpServerDetail.data?.data ?? null,
@@ -3828,6 +4170,7 @@ export function OpenClawManagement() {
     sessions.error,
     logs.error,
     version.error,
+    updateStatus.error,
     domain.error,
     domainIssuer.error,
     providers.error,
@@ -3839,13 +4182,17 @@ export function OpenClawManagement() {
     channelLogs.error,
     plugins.error,
     pluginsInspect.error,
+    pluginInspectDetail.error,
     hooks.error,
     hookCheck.error,
     hookDetail.error,
     skills.error,
     skillsStatus.error,
+    skillsCheck.error,
     skillBins.error,
     skillDetail.error,
+    customSkills.error,
+    customSkillDetail.error,
     directorySelf.error,
     directoryPeers.error,
     directoryGroups.error,
@@ -3921,6 +4268,84 @@ export function OpenClawManagement() {
           Syncing OpenClaw management data…
         </div>
       ) : null}
+
+          {isUpdateSection ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <StatCard label="Channel" value={String(updateStatus.data?.channel ?? updateChannel)} subtitle="Upstream release stream" icon={RefreshCcw} />
+                <StatCard label="Installed" value={String(updateStatus.data?.installedVersion ?? updateStatus.data?.currentVersion ?? version.data?.clawVersion ?? "—")} subtitle="Current OpenClaw release" icon={Wrench} />
+                <StatCard label="Availability" value={updateStatus.data?.updateAvailable ? "update available" : "up to date"} subtitle={String(updateStatus.data?.latestVersion ?? updateStatus.data?.availableVersion ?? "No newer version reported")} icon={AlertTriangle} />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <DetailCard title="Managed Update Pipeline" icon={RefreshCcw}>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Channel</span>
+                      <select
+                        value={updateChannel}
+                        onChange={(event) => setUpdateChannel(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      >
+                        {['stable', 'latest', 'beta'].map((channel) => (
+                          <option key={channel} value={channel}>{channel}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Restart Delay (ms)</span>
+                      <input
+                        value={updateRestartDelayMs}
+                        onChange={(event) => setUpdateRestartDelayMs(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                      <span>Maintenance Note</span>
+                      <input
+                        value={updateNote}
+                        onChange={(event) => setUpdateNote(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="Manual maintenance update"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                      <span>Timeout (ms)</span>
+                      <input
+                        value={updateTimeoutMs}
+                        onChange={(event) => setUpdateTimeoutMs(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleRunManagedUpdate()}
+                      disabled={updateBusy}
+                      className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {updateBusy ? 'Running…' : 'Run Update'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void updateStatus.refresh({ refresh: true })}
+                      className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                    >
+                      Refresh Status
+                    </button>
+                  </div>
+                </DetailCard>
+
+                <DetailCard title="Update Status" icon={Activity}>
+                  <pre className="max-h-[420px] overflow-auto rounded-xl bg-[var(--bg-primary)] p-4 font-mono text-xs leading-6 text-[var(--text-secondary)]">
+                    {JSON.stringify(updateStatus.data ?? updateRunResult ?? { message: 'No update status loaded yet.' }, null, 2)}
+                  </pre>
+                </DetailCard>
+              </div>
+            </div>
+          ) : null}
 
       {isBindingsSection ? (
         <div className="space-y-4">
@@ -4669,6 +5094,14 @@ export function OpenClawManagement() {
                 <div className="flex items-end gap-2">
                   <button
                     type="button"
+                    onClick={() => void handleGetConfigValue()}
+                    disabled={configAdvancedBusy != null}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {configAdvancedBusy === "get" ? "Loading…" : "Get Value"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => void handleLookupConfig()}
                     disabled={configAdvancedBusy != null}
                     className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
@@ -4706,7 +5139,7 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Lookup / Validation</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(configLookupResult ?? configValidationResult ?? { message: "Run a lookup or validation." }, null, 2)}
+                    {JSON.stringify(configGetResult ?? configLookupResult ?? configValidationResult ?? { message: "Run get, lookup, or validation." }, null, 2)}
                   </pre>
                 </div>
               </div>
@@ -4770,6 +5203,14 @@ export function OpenClawManagement() {
                   className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
                 >
                   {configAdvancedBusy === "raw" ? "Saving…" : "Set Raw Path"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleUnsetConfigValue()}
+                  disabled={configAdvancedBusy != null}
+                  className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+                >
+                  {configAdvancedBusy === "unset" ? "Removing…" : "Unset Value"}
                 </button>
                 <select
                   value={configApplyTarget}
@@ -6019,6 +6460,55 @@ export function OpenClawManagement() {
                 ) : null}
               </div>
 
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Skills Check</p>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">Direct readiness check from upstream skill validation.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--text-secondary)]">{skillCheckItems.length} item(s)</span>
+                      <button
+                        type="button"
+                        onClick={() => void skillsCheck.refresh({ refresh: true })}
+                        className="rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                      >
+                        Refresh Check
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-[var(--text-primary)]">{String(skillsCheck.data?.summary ?? "No skills check summary returned.")}</p>
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(skillsCheck.data ?? { message: "No skills check result returned." }, null, 2)}
+                  </pre>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Check Entries</p>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
+                    {skillCheckItems.length === 0 ? (
+                      <p>No skill check entries returned.</p>
+                    ) : (
+                      skillCheckItems.slice(0, 8).map((item, index) => {
+                        const label = String(item.skillKey ?? item.name ?? item.id ?? `skill-check-${index + 1}`);
+                        const status = String(item.status ?? item.state ?? item.readiness ?? item.result ?? "unknown");
+                        const detail = String(item.summary ?? item.message ?? item.reason ?? item.missing ?? "No detail returned.");
+                        return (
+                          <div key={label} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-medium text-[var(--text-primary)]">{label}</p>
+                              <span className={`text-xs ${statusTone(status)}`}>{status}</span>
+                            </div>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{detail}</p>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {selectedSkillData ? (
                 <>
                   <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
@@ -6113,6 +6603,124 @@ export function OpenClawManagement() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Custom Skills</p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">Create, validate, render, and manage workspace custom skill packages.</p>
+                  </div>
+                  <div className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-primary)]">
+                    {customSkillItems.length} custom skill{customSkillItems.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.75fr_1.25fr]">
+                  <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    {customSkillItems.length === 0 ? (
+                      <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">No custom skills found for this agent.</div>
+                    ) : (
+                      customSkillItems.map((item) => {
+                        const key = String(item.skillKey ?? item.id ?? item.name ?? "");
+                        const active = key === selectedCustomSkill;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedCustomSkill(key)}
+                            className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                              active
+                                ? "border-[var(--accent)]/40 bg-[rgba(0,212,126,0.08)]"
+                                : "border-[var(--border)]/60 bg-[var(--bg-surface)] hover:border-[var(--accent)]/30"
+                            }`}
+                          >
+                            <p className="font-medium text-[var(--text-primary)]">{item.title ?? key}</p>
+                            <p className="mt-1 text-xs text-[var(--text-tertiary)]">{String(item.description ?? item.summary ?? item.path ?? "No custom skill summary")}</p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                        <span>Custom Skill Payload (JSON)</span>
+                        <textarea
+                          value={customSkillPayloadText}
+                          onChange={(event) => setCustomSkillPayloadText(event.target.value)}
+                          rows={12}
+                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                        <span>Markdown Validate Content</span>
+                        <textarea
+                          value={customSkillValidateContent}
+                          onChange={(event) => setCustomSkillValidateContent(event.target.value)}
+                          rows={10}
+                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-xs text-[var(--text-primary)] outline-none"
+                          placeholder="Paste SKILL.md content to validate"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateCustomSkill()}
+                        disabled={customSkillBusy != null}
+                        className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                      >
+                        {customSkillBusy === "create" ? "Creating…" : "Create Custom Skill"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleUpdateCustomSkill()}
+                        disabled={customSkillBusy != null || !selectedCustomSkill}
+                        className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                      >
+                        {customSkillBusy === "update" ? "Saving…" : "Update Selected"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteCustomSkill()}
+                        disabled={customSkillBusy != null || !selectedCustomSkill}
+                        className="rounded-xl border border-[var(--danger)]/40 px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[rgba(239,68,68,0.08)] disabled:opacity-50"
+                      >
+                        {customSkillBusy === "delete" ? "Deleting…" : "Delete Selected"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleValidateCustomSkill()}
+                        disabled={customSkillBusy != null}
+                        className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                      >
+                        {customSkillBusy === "validate" ? "Validating…" : "Validate Markdown"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRenderCustomSkill()}
+                        disabled={customSkillBusy != null}
+                        className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                      >
+                        {customSkillBusy === "render" ? "Rendering…" : "Render Markdown"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected Custom Skill</p>
+                        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">{JSON.stringify(selectedCustomSkillData ?? { message: 'No custom skill selected.' }, null, 2)}</pre>
+                      </div>
+                      <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Action / Validation</p>
+                        <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">{JSON.stringify(customSkillValidateResult ?? customSkillRenderResult ?? customSkillActionResult ?? { message: 'No custom skill action executed yet.' }, null, 2)}</pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </DetailCard>
             ) : null}
 

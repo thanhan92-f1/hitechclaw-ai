@@ -163,6 +163,7 @@ const moreSheetItems: NavItem[] = [
 const openClawNavItems: OpenClawNavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
   { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
+  { key: "update", label: "Update", icon: RefreshCcw, subtitle: "Upstream update pipeline and release status" },
   { key: "mcp", label: "MCP", icon: Plug, subtitle: "MCP server inventory" },
   { key: "gateway", label: "Gateway", icon: Network, subtitle: "Gateway discovery & nodes" },
   { key: "bindings", label: "Bindings", icon: Wrench, subtitle: "Routing bindings and agent match rules" },
