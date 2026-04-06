@@ -6,12 +6,11 @@ import {
   encryptSecret,
 } from "@/lib/notification-secrets";
 
-const SECRET_FIELDS = ["managementApiKey", "gatewayToken", "authToken"] as const;
 const DEFAULT_OPENCLAW_ENVIRONMENT_ID = "default";
 const OPENCLAW_REQUEST_TIMEOUT_MIN_MS = 1000;
 const OPENCLAW_REQUEST_TIMEOUT_MAX_MS = 300000;
 
-export type OpenClawEnvironmentSecretField = (typeof SECRET_FIELDS)[number];
+export type OpenClawEnvironmentSecretField = "managementApiKey" | "gatewayToken" | "authToken";
 
 export interface OpenClawEnvironmentConfig {
   notes?: string;

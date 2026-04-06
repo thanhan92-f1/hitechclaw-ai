@@ -19,6 +19,9 @@ permissions:
   contents: read
   issues: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sync_labels:
     name: Sync repository labels from source control
@@ -26,7 +29,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Synchronize labels
         uses: EndBug/label-sync@v2

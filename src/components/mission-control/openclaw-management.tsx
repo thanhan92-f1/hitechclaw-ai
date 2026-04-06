@@ -2162,10 +2162,12 @@ export function OpenClawManagement() {
     secretsAudit.fetchedAt,
     securityAudit.fetchedAt,
     authUser.fetchedAt,
+    bindings.fetchedAt,
     cronStatus.fetchedAt,
     cronJobs.fetchedAt,
     configSchema.fetchedAt,
     configFile.fetchedAt,
+    environmentVariables.fetchedAt,
     memoryStatus.fetchedAt,
     doctorMemoryStatus.fetchedAt,
     devicesLegacy.fetchedAt,
@@ -2442,31 +2444,6 @@ export function OpenClawManagement() {
       setConfigBusy(false);
     }
   }, [apiKey, config, provider]);
-
-  const handleDeleteApiKey = useCallback(async () => {
-    if (!provider.trim()) {
-      toast.error("Enter a provider first");
-      return;
-    }
-
-    if (!window.confirm(`Delete API key for ${provider.trim()} in the active environment?`)) {
-      return;
-    }
-
-    setConfigBusy(true);
-    try {
-      await requestOpenClaw("/config/api-key", {
-        method: "DELETE",
-        body: JSON.stringify({ provider: provider.trim(), agentId: "main" }),
-      });
-      toast.success(`API key removed for ${provider.trim()}`);
-      await config.refresh({ refresh: true });
-    } catch (error) {
-      toast.error(formatOpenClawActionError(error, "Failed to remove API key"));
-    } finally {
-      setConfigBusy(false);
-    }
-  }, [config, provider]);
 
   const handleCreateCustomProvider = useCallback(async () => {
     if (!customProviderBaseUrl.trim() || !customProviderModel.trim()) {
@@ -4209,7 +4186,7 @@ export function OpenClawManagement() {
       accessor: (row) => fmtDate(row.updatedAt),
       sortValue: (row) => row.updatedAt ?? "",
     },
-  ], [sessionRows]);
+  ], []);
 
   const providerEntries = useMemo(
     () => Object.entries(providers.data?.providers ?? {}),

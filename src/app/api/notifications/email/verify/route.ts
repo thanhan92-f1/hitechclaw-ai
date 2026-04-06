@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { verifyNotificationEmailConfig } from "@/lib/notification-email";
 
 /**
  * POST /api/notifications/email/verify — verify SMTP connectivity for the email channel
  */
-export async function POST(_req: NextRequest) {
+export async function POST() {
   const tenantId = "default";
 
   const result = await query(

@@ -152,9 +152,6 @@ export function WizardShell({ children, onComplete }: WizardShellProps) {
     setStepIndex(0);
   }, []);
 
-  // Progress bar
-  const progress = steps.length > 1 ? ((stepIndex) / (steps.length - 1)) * 100 : 0;
-
   return (
     <div className="max-w-2xl mx-auto">
       {/* Progress Bar */}

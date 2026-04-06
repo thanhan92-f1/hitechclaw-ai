@@ -38,88 +38,11 @@ type SshOptions = {
   keyPath?: string;
 };
 
-type SetupRetryDeployInput = {
-  agent_id?: string;
-  framework?: string;
-  token?: string;
-  install_mode?: string;
-  config_path?: string;
-  service_name?: string;
-  ssh_host?: string;
-  ssh_user?: string;
-  ssh_port?: number | string;
-  ssh_key_path?: string;
-};
-
-type DeploymentResult = {
-  ok: boolean;
-  mode: InstallMode;
-  output?: string;
-  error?: string;
-};
-
 function slugify(value: string) {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") || `agent-${randomBytes(4).toString("hex")}`;
-}
-
-async function executeDeployment(args: {
-  installMode: InstallMode;
-  installSnippet: string;
-  sshHost?: string;
-  sshUser?: string;
-  sshPort?: number;
-  sshKeyPath?: string;
-}): Promise<DeploymentResult> {
-  const { installMode, installSnippet, sshHost, sshUser, sshPort, sshKeyPath } = args;
-
-  if ((installMode === "remote" || installMode === "both") && sshHost && sshUser) {
-    try {
-      const connection = await testRemoteConnection({
-        host: sshHost,
-        user: sshUser,
-        port: sshPort,
-        keyPath: sshKeyPath,
-      });
-      const remote = await runRemoteInstall(
-        {
-          host: sshHost,
-          user: sshUser,
-          port: sshPort,
-          keyPath: sshKeyPath,
-        },
-        installSnippet
-      );
-      return {
-        ok: true,
-        mode: installMode,
-        output:
-          [connection.stdout, remote.stdout, remote.stderr].filter(Boolean).join("\n") ||
-          "Configuration applied",
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        mode: installMode,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  if (installMode !== "script") {
-    return {
-      ok: false,
-      mode: installMode,
-      error: "SSH host and SSH user are required for remote deployment",
-    };
-  }
-
-  return {
-    ok: true,
-    mode: installMode,
-  };
 }
 
 function normalizeFramework(value: string | undefined): SetupFramework {
@@ -172,12 +95,6 @@ ${serviceName ? `systemctl --user restart ${serviceName}` : `# Reload your NemoC
   -H "Authorization: Bearer ${token}" \\
   -H "Content-Type: application/json" \\
   -d '{"event_type":"message_sent","content":"Hello from ${agentId}"}'`;
-}
-
-async function runRemoteCommand(host: string, user: string, command: string) {
-  const sshCommand = `ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${user}@${host} ${JSON.stringify(command)}`;
-  const { stdout, stderr } = await execAsync(sshCommand, { timeout: 30000 });
-  return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
 function normalizeSshPort(value: number | string | undefined) {

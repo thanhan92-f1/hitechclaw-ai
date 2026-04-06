@@ -3,7 +3,6 @@ import { createClient } from "redis";
 type AppRedisClient = ReturnType<typeof createClient>;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __hitechclawRedisClientPromise: Promise<AppRedisClient | null> | undefined;
 }
 

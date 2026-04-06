@@ -22,8 +22,10 @@ For local host-based development where only the database runs in Docker, see [do
 If you only need the JavaScript client library, install the published SDK instead of the full application:
 
 ```bash
-npm install @hitechclaw-ai/sdk
+npm install @hitechclaw-ai/sdk@0.1.0
 ```
+
+For SDK usage examples, troubleshooting, and package-specific release notes, see [`packages/sdk/README.md`](packages/sdk/README.md) and [`packages/sdk/CHANGELOG.md`](packages/sdk/CHANGELOG.md).
 
 Repository maintainers can build the SDK package locally with:
 

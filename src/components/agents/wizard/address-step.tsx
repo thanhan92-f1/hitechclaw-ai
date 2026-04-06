@@ -22,16 +22,7 @@ export function AddressStep({ address, port, onUpdate, config }: AddressStepProp
   const addressField = config?.fields?.address;
   const portField = config?.fields?.port;
   const defaultPort = config?.defaultPort ?? 0;
-
-  // Auto-probe when both address and port are filled
-  useEffect(() => {
-    if (address && port > 0) {
-      const timer = setTimeout(() => {
-        runProbe();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [address, port]); // eslint-disable-line react-hooks/exhaustive-deps
+  const frameworkId = config?.id ?? "custom";
 
   const runProbe = useCallback(async () => {
     if (!address || port <= 0) return;
@@ -45,7 +36,7 @@ export function AddressStep({ address, port, onUpdate, config }: AddressStepProp
         body: JSON.stringify({
           host: address,
           port,
-          framework: config?.id ?? "custom",
+          framework: frameworkId,
         }),
       });
       const data = await res.json();
@@ -61,7 +52,17 @@ export function AddressStep({ address, port, onUpdate, config }: AddressStepProp
       setProbeStatus("error");
       setProbeMessage("Probe request failed — check that HiTechClaw AI is running");
     }
-  }, [address, port, config?.id]);
+  }, [address, frameworkId, port]);
+
+  // Auto-probe when both address and port are filled
+  useEffect(() => {
+    if (address && port > 0) {
+      const timer = setTimeout(() => {
+        void runProbe();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [address, port, runProbe]);
 
   const handleCopy = useCallback(async (text: string, key: string) => {
     try {

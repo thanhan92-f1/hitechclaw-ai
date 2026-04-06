@@ -127,6 +127,14 @@ Prefer a prebuilt container instead of building locally? Pull the GitHub Contain
 docker pull ghcr.io/thanhan92-f1/hitechclaw-ai:latest
 ```
 
+Need only the JavaScript client package instead of the full platform?
+
+```bash
+npm install @hitechclaw-ai/sdk@0.1.0
+```
+
+SDK release notes and consumer guidance live under `packages/sdk/README.md` and `packages/sdk/CHANGELOG.md`.
+
 Publishing model:
 
 - pushes to `main` refresh the moving `latest`, `main`, and SHA-scoped GHCR tags when container inputs change
@@ -158,6 +166,8 @@ See it appear on your dashboard in real time.
 **Requirements:** Docker and 2GB RAM. That's it.
 
 For the full installation guide with environment configuration, troubleshooting, and upgrade instructions, see [INSTALL.md](INSTALL.md).
+
+For SDK-only installation, release notes, and troubleshooting guidance, see [`packages/sdk/README.md`](packages/sdk/README.md) and [`packages/sdk/CHANGELOG.md`](packages/sdk/CHANGELOG.md).
 
 For split-host OpenClaw or NemoClaw production deployments, see [docs/openclaw-production-setup.md](docs/openclaw-production-setup.md).
 
