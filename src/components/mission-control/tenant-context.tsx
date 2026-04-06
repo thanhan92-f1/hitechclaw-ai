@@ -13,8 +13,11 @@ export type OpenClawSection =
   | "runtime"
   | "mcp"
   | "gateway"
+  | "auth"
   | "provider"
   | "credentials"
+  | "cron"
+  | "config-advanced"
   | "domain"
   | "backup"
   | "channels"
@@ -71,8 +74,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           storedSection === "runtime" ||
           storedSection === "mcp" ||
           storedSection === "gateway" ||
+          storedSection === "auth" ||
           storedSection === "provider" ||
           storedSection === "credentials" ||
+          storedSection === "cron" ||
+          storedSection === "config-advanced" ||
           storedSection === "domain" ||
           storedSection === "backup" ||
           storedSection === "channels" ||

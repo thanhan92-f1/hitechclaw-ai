@@ -112,8 +112,11 @@ type OpenClawNavItem = {
     | "runtime"
     | "mcp"
     | "gateway"
+    | "auth"
     | "provider"
     | "credentials"
+    | "cron"
+    | "config-advanced"
     | "domain"
     | "backup"
     | "channels"
@@ -151,8 +154,11 @@ const openClawNavItems: OpenClawNavItem[] = [
   { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
   { key: "mcp", label: "MCP", icon: Plug, subtitle: "MCP server inventory" },
   { key: "gateway", label: "Gateway", icon: Network, subtitle: "Gateway discovery & nodes" },
+  { key: "auth", label: "Auth", icon: Lock, subtitle: "Management login control" },
   { key: "provider", label: "Provider", icon: Bot, subtitle: "Provider and model control" },
   { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
+  { key: "cron", label: "Cron", icon: Workflow, subtitle: "Scheduler jobs and runs" },
+  { key: "config-advanced", label: "Config Advanced", icon: Settings, subtitle: "Schema, patch, and raw file" },
   { key: "domain", label: "Domain", icon: Globe, subtitle: "Domain and SSL" },
   { key: "backup", label: "Backup", icon: Archive, subtitle: "Snapshots and verify" },
   { key: "channels", label: "Channels", icon: MessageSquare, subtitle: "Messaging connectors" },

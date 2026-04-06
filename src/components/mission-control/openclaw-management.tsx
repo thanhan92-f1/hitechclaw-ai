@@ -224,6 +224,33 @@ interface ChannelsInfo {
   channels?: Record<string, ChannelRecord>;
 }
 
+interface ChannelCapabilitiesInfo {
+  ok?: boolean;
+  channel?: string;
+  account?: string;
+  capabilities?: Record<string, unknown> | Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ChannelResolveInfo {
+  ok?: boolean;
+  resolved?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface ChannelLogsInfo {
+  ok?: boolean;
+  channel?: string;
+  lines?: number;
+  logs?: string;
+  entries?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
 interface HookEntry {
   name?: string;
   title?: string;
@@ -479,6 +506,24 @@ interface SystemPresenceInfo {
   ok?: boolean;
   presence?: Array<Record<string, unknown>>;
   entries?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface SecretsAuditInfo {
+  ok?: boolean;
+  summary?: string;
+  findings?: Array<Record<string, unknown>>;
+  issues?: Array<Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+interface SecurityAuditInfo {
+  ok?: boolean;
+  summary?: string;
+  findings?: Array<Record<string, unknown>>;
+  issues?: Array<Record<string, unknown>>;
   items?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
@@ -819,6 +864,7 @@ export function OpenClawManagement() {
   const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, OPENCLAW_SYNC_PASSIVE_MS, isProviderSection && Boolean(provider));
   const channels = useOpenClawFetch<ChannelsInfo>("/channels", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
   const channelsStatus = useOpenClawFetch<ChannelsInfo>("/channels/status?probe=true", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
+  const channelsUpstream = useOpenClawFetch<ChannelsInfo>("/channels/upstream?usage=true", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
   const plugins = useOpenClawFetch<PluginsInfo>("/plugins?enabled=false&verbose=false", OPENCLAW_SYNC_PASSIVE_MS, isPluginsSection);
   const pluginsInspect = useOpenClawFetch<PluginInspectInfo>("/plugins/inspect?all=true", OPENCLAW_SYNC_PASSIVE_MS, isPluginsSection);
   const hooks = useOpenClawFetch<HooksInfo>("/hooks?eligible=true&verbose=true", OPENCLAW_SYNC_PASSIVE_MS, isHooksSection);
@@ -864,6 +910,11 @@ export function OpenClawManagement() {
   const [channelAppToken, setChannelAppToken] = useState("");
   const [channelDmPolicy, setChannelDmPolicy] = useState("pairing");
   const [channelBusy, setChannelBusy] = useState<string | null>(null);
+  const [channelAccount, setChannelAccount] = useState("default");
+  const [channelLogLines, setChannelLogLines] = useState(200);
+  const [channelResolveText, setChannelResolveText] = useState("@openclaw_ops\n123456789");
+  const [channelResolveKind, setChannelResolveKind] = useState("auto");
+  const [channelResolveResult, setChannelResolveResult] = useState<ChannelResolveInfo | null>(null);
   const [selectedMcpServer, setSelectedMcpServer] = useState("");
   const [mcpValueText, setMcpValueText] = useState('{\n  "command": "",\n  "args": []\n}');
   const [mcpBusy, setMcpBusy] = useState<string | null>(null);
@@ -873,6 +924,10 @@ export function OpenClawManagement() {
   const [systemEventText, setSystemEventText] = useState("manual-health-check");
   const [systemEventMode, setSystemEventMode] = useState<"now" | "next-heartbeat">("now");
   const [systemBusy, setSystemBusy] = useState<string | null>(null);
+  const [secretAllowExec, setSecretAllowExec] = useState(false);
+  const [secretBusy, setSecretBusy] = useState<string | null>(null);
+  const [secretReloadResult, setSecretReloadResult] = useState<Record<string, unknown> | null>(null);
+  const [securityAuditDeep, setSecurityAuditDeep] = useState(false);
   const [selectedHook, setSelectedHook] = useState("");
   const [hookBusy, setHookBusy] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState("");
@@ -898,6 +953,10 @@ export function OpenClawManagement() {
   const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
   const mcpServerDetail = useOpenClawFetch<McpServerDetailInfo>(`/mcp/${encodeURIComponent(selectedMcpServer)}`, OPENCLAW_SYNC_PASSIVE_MS, isMcpSection && Boolean(selectedMcpServer));
   const nodeDetail = useOpenClawFetch<NodeDetailInfo>(`/nodes/${encodeURIComponent(selectedNode)}?timeoutMs=10000`, OPENCLAW_SYNC_PASSIVE_MS, isGatewaySection && Boolean(selectedNode));
+  const channelCapabilities = useOpenClawFetch<ChannelCapabilitiesInfo>(`/channels/capabilities?channel=${encodeURIComponent(selectedChannel)}&account=${encodeURIComponent(channelAccount)}`, OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection && Boolean(selectedChannel));
+  const channelLogs = useOpenClawFetch<ChannelLogsInfo>(`/channels/logs?channel=${encodeURIComponent(selectedChannel || "all")}&lines=${channelLogLines}`, OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
+  const secretsAudit = useOpenClawFetch<SecretsAuditInfo>(`/secrets/audit?check=false&allowExec=${secretAllowExec ? "true" : "false"}&timeoutMs=30000`, OPENCLAW_SYNC_PASSIVE_MS, isCredentialsSection);
+  const securityAudit = useOpenClawFetch<SecurityAuditInfo>(`/security/audit?deep=${securityAuditDeep ? "true" : "false"}&timeoutMs=60000`, OPENCLAW_SYNC_PASSIVE_MS, isSystemSection);
 
   const refreshEnvironments = useCallback(async () => {
     try {
@@ -1104,6 +1163,9 @@ export function OpenClawManagement() {
       providerModels.refresh({ refresh: forceFresh }),
       channels.refresh({ refresh: forceFresh }),
       channelsStatus.refresh({ refresh: forceFresh }),
+      channelsUpstream.refresh({ refresh: forceFresh }),
+      channelCapabilities.refresh({ refresh: forceFresh }),
+      channelLogs.refresh({ refresh: forceFresh }),
       plugins.refresh({ refresh: forceFresh }),
       pluginsInspect.refresh({ refresh: forceFresh }),
       hooks.refresh({ refresh: forceFresh }),
@@ -1125,8 +1187,10 @@ export function OpenClawManagement() {
       imageFallbacks.refresh({ refresh: forceFresh }),
       systemHeartbeatLast.refresh({ refresh: forceFresh }),
       systemPresence.refresh({ refresh: forceFresh }),
+      secretsAudit.refresh({ refresh: forceFresh }),
+      securityAudit.refresh({ refresh: forceFresh }),
     ]);
-  }, [channels, channelsStatus, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, directoryGroups, directoryMembers, directoryPeers, directorySelf, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1151,6 +1215,9 @@ export function OpenClawManagement() {
       providerModels.fetchedAt,
       channels.fetchedAt,
       channelsStatus.fetchedAt,
+      channelsUpstream.fetchedAt,
+      channelCapabilities.fetchedAt,
+      channelLogs.fetchedAt,
       plugins.fetchedAt,
       pluginsInspect.fetchedAt,
       hooks.fetchedAt,
@@ -1172,6 +1239,8 @@ export function OpenClawManagement() {
       imageFallbacks.fetchedAt,
       systemHeartbeatLast.fetchedAt,
       systemPresence.fetchedAt,
+      secretsAudit.fetchedAt,
+      securityAudit.fetchedAt,
     ]
       .filter((value): value is string => Boolean(value))
       .map((value) => new Date(value).getTime())
@@ -1185,6 +1254,9 @@ export function OpenClawManagement() {
   }, [
     channels.fetchedAt,
     channelsStatus.fetchedAt,
+    channelsUpstream.fetchedAt,
+    channelCapabilities.fetchedAt,
+    channelLogs.fetchedAt,
     config.fetchedAt,
     directoryGroups.fetchedAt,
     directoryMembers.fetchedAt,
@@ -1223,6 +1295,8 @@ export function OpenClawManagement() {
     system.fetchedAt,
     systemHeartbeatLast.fetchedAt,
     systemPresence.fetchedAt,
+    secretsAudit.fetchedAt,
+    securityAudit.fetchedAt,
     upstream.fetchedAt,
     version.fetchedAt,
   ]);
@@ -1250,6 +1324,9 @@ export function OpenClawManagement() {
       providerModels.cacheStatus,
       channels.cacheStatus,
       channelsStatus.cacheStatus,
+      channelsUpstream.cacheStatus,
+      channelCapabilities.cacheStatus,
+      channelLogs.cacheStatus,
       plugins.cacheStatus,
       pluginsInspect.cacheStatus,
       hooks.cacheStatus,
@@ -1271,6 +1348,8 @@ export function OpenClawManagement() {
       imageFallbacks.cacheStatus,
       systemHeartbeatLast.cacheStatus,
       systemPresence.cacheStatus,
+      secretsAudit.cacheStatus,
+      securityAudit.cacheStatus,
     ].filter((value): value is string => Boolean(value));
 
     if (statuses.includes("stale-if-error")) return "Showing cached fallback data";
@@ -1280,6 +1359,9 @@ export function OpenClawManagement() {
   }, [
     channels.cacheStatus,
     channelsStatus.cacheStatus,
+    channelsUpstream.cacheStatus,
+    channelCapabilities.cacheStatus,
+    channelLogs.cacheStatus,
     config.cacheStatus,
     directoryGroups.cacheStatus,
     directoryMembers.cacheStatus,
@@ -1318,6 +1400,8 @@ export function OpenClawManagement() {
     system.cacheStatus,
     systemHeartbeatLast.cacheStatus,
     systemPresence.cacheStatus,
+    secretsAudit.cacheStatus,
+    securityAudit.cacheStatus,
     upstream.cacheStatus,
     version.cacheStatus,
   ]);
@@ -1570,6 +1654,32 @@ export function OpenClawManagement() {
     }
   }, [channels, logs, selectedChannel, status]);
 
+  const handleResolveChannelTargets = useCallback(async () => {
+    const entries = channelResolveText
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (!selectedChannel.trim() || entries.length === 0) {
+      toast.error("Enter at least one channel target to resolve");
+      return;
+    }
+
+    setChannelBusy("resolve");
+    try {
+      const result = await requestOpenClaw<ChannelResolveInfo>("/channels/resolve", {
+        method: "POST",
+        body: JSON.stringify({ channel: selectedChannel.trim(), entries, kind: channelResolveKind }),
+      });
+      setChannelResolveResult(result);
+      toast.success(`Resolved ${entries.length} channel target${entries.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resolve channel targets");
+    } finally {
+      setChannelBusy(null);
+    }
+  }, [channelResolveKind, channelResolveText, selectedChannel]);
+
   const handleSaveMcpServer = useCallback(async () => {
     if (!selectedMcpServer.trim()) {
       toast.error("Enter an MCP server name first");
@@ -1666,6 +1776,35 @@ export function OpenClawManagement() {
       setSystemBusy(null);
     }
   }, [systemHeartbeatLast, systemPresence]);
+
+  const handleReloadSecrets = useCallback(async () => {
+    setSecretBusy("reload");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>("/secrets/reload", {
+        method: "POST",
+        body: JSON.stringify({ timeoutMs: 30000 }),
+      });
+      setSecretReloadResult(result);
+      toast.success(String(result.message ?? "Secrets reloaded"));
+      await secretsAudit.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reload secrets");
+    } finally {
+      setSecretBusy(null);
+    }
+  }, [secretsAudit]);
+
+  const handleRefreshSecurityAudit = useCallback(async () => {
+    setSystemBusy("security-audit");
+    try {
+      await securityAudit.refresh({ refresh: true });
+      toast.success("Security audit refreshed");
+    } catch {
+      toast.error("Failed to refresh security audit");
+    } finally {
+      setSystemBusy(null);
+    }
+  }, [securityAudit]);
 
   const handleToggleHook = useCallback(async (enabled: boolean) => {
     if (!selectedHook) {
@@ -2015,6 +2154,21 @@ export function OpenClawManagement() {
     [systemPresence.data?.entries, systemPresence.data?.items, systemPresence.data?.presence],
   );
 
+  const channelUpstreamItems = useMemo(
+    () => normalizeRecordItems(channelsUpstream.data?.channels ?? null, "channel"),
+    [channelsUpstream.data?.channels],
+  );
+
+  const secretsFindingItems = useMemo(
+    () => normalizeRecordItems(secretsAudit.data?.findings ?? secretsAudit.data?.issues ?? secretsAudit.data?.items ?? null, "finding"),
+    [secretsAudit.data?.findings, secretsAudit.data?.issues, secretsAudit.data?.items],
+  );
+
+  const securityFindingItems = useMemo(
+    () => normalizeRecordItems(securityAudit.data?.findings ?? securityAudit.data?.issues ?? securityAudit.data?.items ?? null, "finding"),
+    [securityAudit.data?.findings, securityAudit.data?.issues, securityAudit.data?.items],
+  );
+
   const fallbackEntries = useMemo(
     () => normalizeStringItems(modelFallbacks.data?.models ?? modelFallbacks.data?.fallbacks ?? modelFallbacks.data?.items ?? null),
     [modelFallbacks.data?.fallbacks, modelFallbacks.data?.items, modelFallbacks.data?.models],
@@ -2047,6 +2201,9 @@ export function OpenClawManagement() {
     providerModels.error,
     channels.error,
     channelsStatus.error,
+    channelsUpstream.error,
+    channelCapabilities.error,
+    channelLogs.error,
     plugins.error,
     pluginsInspect.error,
     hooks.error,
@@ -2068,6 +2225,8 @@ export function OpenClawManagement() {
     imageFallbacks.error,
     systemHeartbeatLast.error,
     systemPresence.error,
+    secretsAudit.error,
+    securityAudit.error,
   ].filter(Boolean);
 
   return (
@@ -2524,6 +2683,58 @@ export function OpenClawManagement() {
                   </div>
                 ))}
               </div>
+
+              <div className="mt-5 border-t border-[var(--border)]/60 pt-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">Secrets</p>
+                    <p className="mt-1 text-xs text-[var(--text-secondary)]">Reload runtime secret refs and inspect unresolved or plaintext findings.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <input type="checkbox" checked={secretAllowExec} onChange={(event) => setSecretAllowExec(event.target.checked)} />
+                    Allow exec checks
+                  </label>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReloadSecrets()}
+                    disabled={secretBusy != null}
+                    className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                  >
+                    {secretBusy === "reload" ? "Reloading…" : "Reload Secrets"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void secretsAudit.refresh({ refresh: true })}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                  >
+                    Refresh Audit
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Audit Summary</p>
+                    <p className="mt-2 text-sm text-[var(--text-primary)]">{secretsAudit.data?.summary ?? "No secret audit summary returned."}</p>
+                    <p className="mt-2 text-xs text-[var(--text-secondary)]">Findings: {secretsFindingItems.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Reload Result</p>
+                    <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                      {JSON.stringify(secretReloadResult ?? { message: "No secrets reload executed yet." }, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Secrets Audit JSON</p>
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(secretsAudit.data ?? { message: "No secrets audit returned." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
             </ListCard>
             ) : null}
           </div>
@@ -2810,6 +3021,108 @@ export function OpenClawManagement() {
                   {JSON.stringify(channelsStatus.data ?? { message: "No upstream channel status returned." }, null, 2)}
                 </pre>
               </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Inventory</p>
+                    <span className="text-xs text-[var(--text-secondary)]">{channelUpstreamItems.length} item(s)</span>
+                  </div>
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(channelsUpstream.data ?? { message: "No upstream channel inventory returned." }, null, 2)}
+                  </pre>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_140px]">
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Account</span>
+                      <input
+                        value={channelAccount}
+                        onChange={(event) => setChannelAccount(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      />
+                    </label>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => void channelCapabilities.refresh({ refresh: true })}
+                        className="w-full rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                      >
+                        Refresh Caps
+                      </button>
+                    </div>
+                  </div>
+                  <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                    {JSON.stringify(channelCapabilities.data ?? { message: "No channel capabilities returned." }, null, 2)}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_120px_140px]">
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Resolve Entries</span>
+                    <textarea
+                      value={channelResolveText}
+                      onChange={(event) => setChannelResolveText(event.target.value)}
+                      rows={4}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="@openclaw_ops\n123456789"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Kind</span>
+                    <select
+                      value={channelResolveKind}
+                      onChange={(event) => setChannelResolveKind(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    >
+                      <option value="auto">auto</option>
+                      <option value="user">user</option>
+                      <option value="group">group</option>
+                    </select>
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveChannelTargets()}
+                      disabled={channelBusy != null}
+                      className="w-full rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {channelBusy === "resolve" ? "Resolving…" : "Resolve Targets"}
+                    </button>
+                  </div>
+                </div>
+                <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(channelResolveResult ?? { message: "No channel targets resolved yet." }, null, 2)}
+                </pre>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Channel Logs</p>
+                  <select
+                    value={channelLogLines}
+                    onChange={(event) => setChannelLogLines(Number(event.target.value))}
+                    className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]"
+                  >
+                    {[100, 200, 300, 500].map((value) => (
+                      <option key={value} value={value}>{value} lines</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void channelLogs.refresh({ refresh: true })}
+                    className="rounded-xl border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                  >
+                    Refresh Logs
+                  </button>
+                </div>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {channelLogs.data?.logs ?? JSON.stringify(channelLogs.data ?? { message: "No channel logs returned." }, null, 2)}
+                </pre>
+              </div>
             </DetailCard>
             ) : null}
           </div>
@@ -2969,6 +3282,43 @@ export function OpenClawManagement() {
                     {JSON.stringify(systemPresence.data ?? { message: "No system presence returned." }, null, 2)}
                   </pre>
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Security Audit</p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">Inspect security foot-guns without applying fixes.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                      <input type="checkbox" checked={securityAuditDeep} onChange={(event) => setSecurityAuditDeep(event.target.checked)} />
+                      Deep audit
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void handleRefreshSecurityAudit()}
+                      disabled={systemBusy != null}
+                      className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                    >
+                      {systemBusy === "security-audit" ? "Refreshing…" : "Refresh Audit"}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Summary</p>
+                    <p className="mt-2 text-sm text-[var(--text-primary)]">{securityAudit.data?.summary ?? "No security audit summary returned."}</p>
+                    <p className="mt-2 text-xs text-[var(--text-secondary)]">Findings: {securityFindingItems.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Mode</p>
+                    <p className="mt-2 text-sm text-[var(--text-primary)]">{securityAuditDeep ? "Deep checks enabled" : "Standard checks only"}</p>
+                  </div>
+                </div>
+                <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(securityAudit.data ?? { message: "No security audit returned." }, null, 2)}
+                </pre>
               </div>
             </DetailCard>
             ) : null}
