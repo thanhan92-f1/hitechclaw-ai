@@ -1121,6 +1121,14 @@ function shouldHideOpenClawErrorMessage(message: string | null | undefined) {
   ].includes(message);
 }
 
+function formatOpenClawActionError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) {
+    return fallback;
+  }
+
+  return shouldHideOpenClawErrorMessage(error.message) ? fallback : error.message;
+}
+
 export function OpenClawManagement() {
   const {
     openClawSection,
@@ -2117,7 +2125,7 @@ export function OpenClawManagement() {
       toast.success(result.message ?? `${action[0].toUpperCase()}${action.slice(1)} dispatched`);
       await refreshAll();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action}`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${action}`));
     } finally {
       setRuntimeBusy(null);
     }
@@ -2130,7 +2138,7 @@ export function OpenClawManagement() {
       toast.success(result.message ?? "Upgrade started. Monitor status for progress.");
       await Promise.all([status.refresh(), version.refresh(), logs.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start upgrade");
+      toast.error(formatOpenClawActionError(error, "Failed to start upgrade"));
     } finally {
       setRuntimeBusy(null);
     }
@@ -2161,7 +2169,7 @@ export function OpenClawManagement() {
       toast.success(result.message ?? "Managed update started");
       await Promise.all([updateStatus.refresh({ refresh: true }), status.refresh({ refresh: true }), version.refresh({ refresh: true }), logs.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to run managed update");
+      toast.error(formatOpenClawActionError(error, "Failed to run managed update"));
     } finally {
       setUpdateBusy(false);
     }
@@ -2177,7 +2185,7 @@ export function OpenClawManagement() {
       toast.success(`Provider switched to ${result.provider ?? provider}`);
       await Promise.all([config.refresh(), status.refresh(), upstream.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update provider");
+      toast.error(formatOpenClawActionError(error, "Failed to update provider"));
     } finally {
       setConfigBusy(false);
     }
@@ -2196,7 +2204,7 @@ export function OpenClawManagement() {
       });
       toast.success("API key is valid");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "API key validation failed");
+      toast.error(formatOpenClawActionError(error, "API key validation failed"));
     } finally {
       setConfigBusy(false);
     }
@@ -2217,7 +2225,7 @@ export function OpenClawManagement() {
       setApiKey("");
       await config.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update API key");
+      toast.error(formatOpenClawActionError(error, "Failed to update API key"));
     } finally {
       setConfigBusy(false);
     }
@@ -2242,7 +2250,7 @@ export function OpenClawManagement() {
       toast.success(`API key removed for ${provider.trim()}`);
       await config.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove API key");
+      toast.error(formatOpenClawActionError(error, "Failed to remove API key"));
     } finally {
       setConfigBusy(false);
     }
@@ -2292,7 +2300,7 @@ export function OpenClawManagement() {
         upstream.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create custom provider");
+      toast.error(formatOpenClawActionError(error, "Failed to create custom provider"));
     } finally {
       setProviderAdminBusy(null);
     }
@@ -2349,7 +2357,7 @@ export function OpenClawManagement() {
         upstream.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update custom provider");
+      toast.error(formatOpenClawActionError(error, "Failed to update custom provider"));
     } finally {
       setProviderAdminBusy(null);
     }
@@ -2382,7 +2390,7 @@ export function OpenClawManagement() {
         upstream.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete custom provider");
+      toast.error(formatOpenClawActionError(error, "Failed to delete custom provider"));
     } finally {
       setProviderAdminBusy(null);
     }
@@ -2416,7 +2424,7 @@ export function OpenClawManagement() {
         config.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add provider model");
+      toast.error(formatOpenClawActionError(error, "Failed to add provider model"));
     } finally {
       setProviderAdminBusy(null);
     }
@@ -2447,7 +2455,7 @@ export function OpenClawManagement() {
         config.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove provider model");
+      toast.error(formatOpenClawActionError(error, "Failed to remove provider model"));
     } finally {
       setProviderAdminBusy(null);
     }
@@ -2471,7 +2479,7 @@ export function OpenClawManagement() {
       toast.success(`OAuth started for ${chatGptOAuthAgentId.trim()}`);
       await chatGptOAuthStatus.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start ChatGPT OAuth");
+      toast.error(formatOpenClawActionError(error, "Failed to start ChatGPT OAuth"));
     } finally {
       setChatGptOAuthBusy(null);
     }
@@ -2511,7 +2519,7 @@ export function OpenClawManagement() {
         upstream.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to complete ChatGPT OAuth");
+      toast.error(formatOpenClawActionError(error, "Failed to complete ChatGPT OAuth"));
     } finally {
       setChatGptOAuthBusy(null);
     }
@@ -2536,7 +2544,7 @@ export function OpenClawManagement() {
         config.refresh({ refresh: true }),
       ]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to refresh ChatGPT OAuth token");
+      toast.error(formatOpenClawActionError(error, "Failed to refresh ChatGPT OAuth token"));
     } finally {
       setChatGptOAuthBusy(null);
     }
@@ -2552,7 +2560,7 @@ export function OpenClawManagement() {
       toast.success("Session cleanup dry run completed");
       await sessions.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Cleanup failed");
+      toast.error(formatOpenClawActionError(error, "Cleanup failed"));
     } finally {
       setCleanupBusy(false);
     }
@@ -2575,7 +2583,7 @@ export function OpenClawManagement() {
       setDomainPreflight(result);
       toast.success(result.ready || result.liveReady ? "Domain preflight passed" : "Domain preflight completed with warnings");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Domain preflight failed");
+      toast.error(formatOpenClawActionError(error, "Domain preflight failed"));
     } finally {
       setDomainBusy(null);
     }
@@ -2604,7 +2612,7 @@ export function OpenClawManagement() {
       toast.success(`Domain updated to ${result.domain ?? domainDraft.trim()}`);
       await Promise.all([domain.refresh(), domainIssuer.refresh(), info.refresh(), status.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update domain");
+      toast.error(formatOpenClawActionError(error, "Failed to update domain"));
     } finally {
       setDomainBusy(null);
     }
@@ -2628,7 +2636,7 @@ export function OpenClawManagement() {
       }
       toast.success(result.message ?? "Backup request completed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Backup failed");
+      toast.error(formatOpenClawActionError(error, "Backup failed"));
     } finally {
       setBackupBusy(null);
     }
@@ -2649,7 +2657,7 @@ export function OpenClawManagement() {
       setBackupResult(result);
       toast.success(result.message ?? "Backup verification completed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Backup verification failed");
+      toast.error(formatOpenClawActionError(error, "Backup verification failed"));
     } finally {
       setBackupBusy(null);
     }
@@ -2685,7 +2693,7 @@ export function OpenClawManagement() {
       toast.success(`${selectedChannel} channel updated`);
       await Promise.all([channels.refresh(), status.refresh(), logs.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update channel");
+      toast.error(formatOpenClawActionError(error, "Failed to update channel"));
     } finally {
       setChannelBusy(null);
     }
@@ -2702,7 +2710,7 @@ export function OpenClawManagement() {
       toast.success(`${selectedChannel} channel removed`);
       await Promise.all([channels.refresh(), status.refresh(), logs.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove channel");
+      toast.error(formatOpenClawActionError(error, "Failed to remove channel"));
     } finally {
       setChannelBusy(null);
     }
@@ -2728,7 +2736,7 @@ export function OpenClawManagement() {
       setChannelResolveResult(result);
       toast.success(`Resolved ${entries.length} channel target${entries.length === 1 ? "" : "s"}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to resolve channel targets");
+      toast.error(formatOpenClawActionError(error, "Failed to resolve channel targets"));
     } finally {
       setChannelBusy(null);
     }
@@ -2750,7 +2758,7 @@ export function OpenClawManagement() {
       toast.success(`MCP server ${selectedMcpServer.trim()} saved`);
       await Promise.all([mcpServers.refresh(), mcpServerDetail.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save MCP server");
+      toast.error(formatOpenClawActionError(error, "Failed to save MCP server"));
     } finally {
       setMcpBusy(null);
     }
@@ -2768,7 +2776,7 @@ export function OpenClawManagement() {
       toast.success(`MCP server ${selectedMcpServer.trim()} removed`);
       await Promise.all([mcpServers.refresh(), mcpServerDetail.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove MCP server");
+      toast.error(formatOpenClawActionError(error, "Failed to remove MCP server"));
     } finally {
       setMcpBusy(null);
     }
@@ -2788,7 +2796,7 @@ export function OpenClawManagement() {
       toast.success(`Plugin ${selectedPlugin.trim()} ${enabled ? "enabled" : "disabled"}`);
       await Promise.all([plugins.refresh(), pluginsInspect.refresh(), pluginInspectDetail.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} plugin`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${enabled ? "enable" : "disable"} plugin`));
     } finally {
       setPluginBusy(null);
     }
@@ -2809,7 +2817,7 @@ export function OpenClawManagement() {
       toast.success(result.message ?? "System event posted");
       await Promise.all([systemHeartbeatLast.refresh(), systemPresence.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to post system event");
+      toast.error(formatOpenClawActionError(error, "Failed to post system event"));
     } finally {
       setSystemBusy(null);
     }
@@ -2825,7 +2833,7 @@ export function OpenClawManagement() {
       toast.success(`Heartbeat ${enabled ? "enabled" : "disabled"}`);
       await Promise.all([systemHeartbeatLast.refresh(), systemPresence.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} heartbeat`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${enabled ? "enable" : "disable"} heartbeat`));
     } finally {
       setSystemBusy(null);
     }
@@ -2842,7 +2850,7 @@ export function OpenClawManagement() {
       toast.success(String(result.message ?? "Secrets reloaded"));
       await secretsAudit.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reload secrets");
+      toast.error(formatOpenClawActionError(error, "Failed to reload secrets"));
     } finally {
       setSecretBusy(null);
     }
@@ -2876,7 +2884,7 @@ export function OpenClawManagement() {
       setResetConfirmText("");
       await refreshAll(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to reset service");
+      toast.error(formatOpenClawActionError(error, "Failed to reset service"));
     } finally {
       setRuntimeBusy(null);
     }
@@ -2898,7 +2906,7 @@ export function OpenClawManagement() {
       setAuthPassword("");
       await authUser.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create login user");
+      toast.error(formatOpenClawActionError(error, "Failed to create login user"));
     } finally {
       setAuthBusy(null);
     }
@@ -2920,7 +2928,7 @@ export function OpenClawManagement() {
       setAuthNewPassword("");
       await authUser.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update password");
+      toast.error(formatOpenClawActionError(error, "Failed to update password"));
     } finally {
       setAuthBusy(null);
     }
@@ -2940,7 +2948,7 @@ export function OpenClawManagement() {
       setAuthPassword("");
       await authUser.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete login user");
+      toast.error(formatOpenClawActionError(error, "Failed to delete login user"));
     } finally {
       setAuthBusy(null);
     }
@@ -2957,7 +2965,7 @@ export function OpenClawManagement() {
       toast.success("Cron job created");
       await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create cron job");
+      toast.error(formatOpenClawActionError(error, "Failed to create cron job"));
     } finally {
       setCronBusy(null);
     }
@@ -2979,7 +2987,7 @@ export function OpenClawManagement() {
       toast.success(`Cron job ${selectedCronJob.trim()} updated`);
       await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to patch cron job");
+      toast.error(formatOpenClawActionError(error, "Failed to patch cron job"));
     } finally {
       setCronBusy(null);
     }
@@ -3000,7 +3008,7 @@ export function OpenClawManagement() {
       toast.success(`Cron job ${selectedCronJob.trim()} executed`);
       await Promise.all([cronStatus.refresh({ refresh: true }), cronJobs.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to run cron job");
+      toast.error(formatOpenClawActionError(error, "Failed to run cron job"));
     } finally {
       setCronBusy(null);
     }
@@ -3018,7 +3026,7 @@ export function OpenClawManagement() {
       setConfigLookupResult(result);
       toast.success("Config path loaded");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to lookup config path");
+      toast.error(formatOpenClawActionError(error, "Failed to lookup config path"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3036,7 +3044,7 @@ export function OpenClawManagement() {
       setConfigGetResult(result);
       toast.success("Config value loaded");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load config value");
+      toast.error(formatOpenClawActionError(error, "Failed to load config value"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3049,7 +3057,7 @@ export function OpenClawManagement() {
       setConfigValidationResult(result);
       toast.success("Config validation completed");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Config validation failed");
+      toast.error(formatOpenClawActionError(error, "Config validation failed"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3066,7 +3074,7 @@ export function OpenClawManagement() {
       toast.success("Config patch applied");
       await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to patch config");
+      toast.error(formatOpenClawActionError(error, "Failed to patch config"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3098,7 +3106,7 @@ export function OpenClawManagement() {
       toast.success(`Config path ${configRawPath.trim()} updated`);
       await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update raw config path");
+      toast.error(formatOpenClawActionError(error, "Failed to update raw config path"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3122,7 +3130,7 @@ export function OpenClawManagement() {
       toast.success(`Config path ${configRawPath.trim()} removed`);
       await Promise.all([config.refresh({ refresh: true }), configSchema.refresh({ refresh: true }), configFile.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to unset config value");
+      toast.error(formatOpenClawActionError(error, "Failed to unset config value"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3138,7 +3146,7 @@ export function OpenClawManagement() {
       toast.success(`Configuration applied (${configApplyTarget})`);
       await refreshAll(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to apply config");
+      toast.error(formatOpenClawActionError(error, "Failed to apply config"));
     } finally {
       setConfigAdvancedBusy(null);
     }
@@ -3156,7 +3164,7 @@ export function OpenClawManagement() {
       toast.success("Binding created");
       await bindings.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create binding");
+      toast.error(formatOpenClawActionError(error, "Failed to create binding"));
     } finally {
       setBindingsBusy(null);
     }
@@ -3179,7 +3187,7 @@ export function OpenClawManagement() {
       toast.success(`Binding ${selectedBindingIndex.trim()} updated`);
       await bindings.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update binding");
+      toast.error(formatOpenClawActionError(error, "Failed to update binding"));
     } finally {
       setBindingsBusy(null);
     }
@@ -3203,7 +3211,7 @@ export function OpenClawManagement() {
       toast.success(`Binding ${selectedBindingIndex.trim()} deleted`);
       await bindings.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete binding");
+      toast.error(formatOpenClawActionError(error, "Failed to delete binding"));
     } finally {
       setBindingsBusy(null);
     }
@@ -3225,7 +3233,7 @@ export function OpenClawManagement() {
       toast.success(`Environment variable ${envKeyDraft.trim()} saved`);
       await environmentVariables.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save environment variable");
+      toast.error(formatOpenClawActionError(error, "Failed to save environment variable"));
     } finally {
       setEnvironmentBusy(null);
     }
@@ -3250,7 +3258,7 @@ export function OpenClawManagement() {
       toast.success(`Environment variable ${targetKey} deleted`);
       await environmentVariables.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete environment variable");
+      toast.error(formatOpenClawActionError(error, "Failed to delete environment variable"));
     } finally {
       setEnvironmentBusy(null);
     }
@@ -3275,7 +3283,7 @@ export function OpenClawManagement() {
         toast.success("CLI command completed");
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to run CLI command");
+      toast.error(formatOpenClawActionError(error, "Failed to run CLI command"));
     } finally {
       setCliBusy(false);
     }
@@ -3295,7 +3303,7 @@ export function OpenClawManagement() {
       toast.success(result.message ?? "Self update started");
       await refreshAll(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to run self update");
+      toast.error(formatOpenClawActionError(error, "Failed to run self update"));
     } finally {
       setSelfUpdateBusy(false);
     }
@@ -3316,7 +3324,7 @@ export function OpenClawManagement() {
       toast.success("Memory reindex started");
       await Promise.all([memoryStatus.refresh({ refresh: true }), doctorMemoryStatus.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Memory reindex failed");
+      toast.error(formatOpenClawActionError(error, "Memory reindex failed"));
     } finally {
       setMemoryBusy(null);
     }
@@ -3340,7 +3348,7 @@ export function OpenClawManagement() {
       const count = (result.results ?? result.items ?? result.matches ?? []).length;
       toast.success(`Found ${count} memory result${count === 1 ? "" : "s"}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Memory search failed");
+      toast.error(formatOpenClawActionError(error, "Memory search failed"));
     } finally {
       setMemoryBusy(null);
     }
@@ -3361,7 +3369,7 @@ export function OpenClawManagement() {
       toast.success(`Approved legacy request ${selectedDeviceRequestId.trim()}`);
       await Promise.all([devicesLegacy.refresh({ refresh: true }), devicesPairing.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to approve legacy device request");
+      toast.error(formatOpenClawActionError(error, "Failed to approve legacy device request"));
     } finally {
       setDevicesBusy(null);
     }
@@ -3383,7 +3391,7 @@ export function OpenClawManagement() {
       toast.success(`Pairing request ${action}d`);
       await devicesPairing.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action} pairing request`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${action} pairing request`));
     } finally {
       setDevicesBusy(null);
     }
@@ -3405,7 +3413,7 @@ export function OpenClawManagement() {
       toast.success(`Removed paired device ${selectedDeviceId.trim()}`);
       await devicesPairing.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove paired device");
+      toast.error(formatOpenClawActionError(error, "Failed to remove paired device"));
     } finally {
       setDevicesBusy(null);
     }
@@ -3434,7 +3442,7 @@ export function OpenClawManagement() {
       toast.success(`Device token ${action}d`);
       await devicesPairing.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${action} device token`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${action} device token`));
     } finally {
       setDevicesBusy(null);
     }
@@ -3461,7 +3469,7 @@ export function OpenClawManagement() {
       setSelectedAgentId(agentCreateId.trim());
       await agents.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create agent");
+      toast.error(formatOpenClawActionError(error, "Failed to create agent"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3486,7 +3494,7 @@ export function OpenClawManagement() {
       toast.success(`Agent ${selectedAgentId.trim()} updated`);
       await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update agent");
+      toast.error(formatOpenClawActionError(error, "Failed to update agent"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3507,7 +3515,7 @@ export function OpenClawManagement() {
       toast.success(`Agent ${selectedAgentId.trim()} deleted`);
       await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete agent");
+      toast.error(formatOpenClawActionError(error, "Failed to delete agent"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3525,7 +3533,7 @@ export function OpenClawManagement() {
       toast.success(`Agent ${selectedAgentId.trim()} set as default`);
       await Promise.all([agents.refresh({ refresh: true }), agentDetail.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to set default agent");
+      toast.error(formatOpenClawActionError(error, "Failed to set default agent"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3547,7 +3555,7 @@ export function OpenClawManagement() {
       setAgentApiKeyValue("");
       await agentApiKeys.refresh({ refresh: true });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save agent API key");
+      toast.error(formatOpenClawActionError(error, "Failed to save agent API key"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3568,7 +3576,7 @@ export function OpenClawManagement() {
       toast.success(`Saved ${selectedAgentFileName.trim()}`);
       await Promise.all([agentFiles.refresh({ refresh: true }), agentFile.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save agent workspace file");
+      toast.error(formatOpenClawActionError(error, "Failed to save agent workspace file"));
     } finally {
       setAgentsBusy(null);
     }
@@ -3588,7 +3596,7 @@ export function OpenClawManagement() {
       toast.success(`Hook ${selectedHook} ${enabled ? "enabled" : "disabled"}`);
       await Promise.all([hooks.refresh(), hookCheck.refresh(), hookDetail.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to ${enabled ? "enable" : "disable"} hook`);
+      toast.error(formatOpenClawActionError(error, `Failed to ${enabled ? "enable" : "disable"} hook`));
     } finally {
       setHookBusy(null);
     }
@@ -3608,7 +3616,7 @@ export function OpenClawManagement() {
       setSkillSearchResults(nextResults as Array<Record<string, unknown>>);
       toast.success(`Found ${nextResults.length} skill search results`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Skill search failed");
+      toast.error(formatOpenClawActionError(error, "Skill search failed"));
     } finally {
       setSkillSearchBusy(false);
     }
@@ -3640,7 +3648,7 @@ export function OpenClawManagement() {
       toast.success(`Skill ${selectedSkill} updated`);
       await Promise.all([skills.refresh(), skillsStatus.refresh(), skillBins.refresh(), skillDetail.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Skill update failed");
+      toast.error(formatOpenClawActionError(error, "Skill update failed"));
     } finally {
       setSkillUpdateBusy(false);
     }
@@ -3662,7 +3670,7 @@ export function OpenClawManagement() {
       toast.success(String(result.message ?? "Custom skill created successfully."));
       await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create custom skill");
+      toast.error(formatOpenClawActionError(error, "Failed to create custom skill"));
     } finally {
       setCustomSkillBusy(null);
     }
@@ -3688,7 +3696,7 @@ export function OpenClawManagement() {
       toast.success(`Custom skill ${selectedCustomSkill.trim()} updated`);
       await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update custom skill");
+      toast.error(formatOpenClawActionError(error, "Failed to update custom skill"));
     } finally {
       setCustomSkillBusy(null);
     }
@@ -3715,7 +3723,7 @@ export function OpenClawManagement() {
       toast.success(`Custom skill ${selectedCustomSkill.trim()} deleted`);
       await Promise.all([customSkills.refresh({ refresh: true }), customSkillDetail.refresh({ refresh: true }), skills.refresh({ refresh: true }), skillsStatus.refresh({ refresh: true })]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete custom skill");
+      toast.error(formatOpenClawActionError(error, "Failed to delete custom skill"));
     } finally {
       setCustomSkillBusy(null);
     }
@@ -3739,7 +3747,7 @@ export function OpenClawManagement() {
       setCustomSkillValidateResult(result);
       toast.success(`Validation completed for ${skillKey}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to validate custom skill markdown");
+      toast.error(formatOpenClawActionError(error, "Failed to validate custom skill markdown"));
     } finally {
       setCustomSkillBusy(null);
     }
@@ -3757,7 +3765,7 @@ export function OpenClawManagement() {
       setCustomSkillRenderResult(result);
       toast.success("Custom skill markdown rendered");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to render custom skill markdown");
+      toast.error(formatOpenClawActionError(error, "Failed to render custom skill markdown"));
     } finally {
       setCustomSkillBusy(null);
     }
@@ -3778,7 +3786,7 @@ export function OpenClawManagement() {
       toast.success(`${action === "default" ? "Default" : "Image"} model updated`);
       await Promise.all([modelsCatalog.refresh(), modelsStatus.refresh(), config.refresh()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Model update failed");
+      toast.error(formatOpenClawActionError(error, "Model update failed"));
     } finally {
       setModelBusy(null);
     }
@@ -3813,7 +3821,7 @@ export function OpenClawManagement() {
       toast.success("Model auth order updated");
       await modelAuthOrder.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save auth order");
+      toast.error(formatOpenClawActionError(error, "Failed to save auth order"));
     } finally {
       setModelBusy(null);
     }
@@ -3838,7 +3846,7 @@ export function OpenClawManagement() {
       setAuthOrderText("");
       await modelAuthOrder.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to clear auth order");
+      toast.error(formatOpenClawActionError(error, "Failed to clear auth order"));
     } finally {
       setModelBusy(null);
     }
@@ -3861,7 +3869,7 @@ export function OpenClawManagement() {
       setAliasModel("");
       await modelAliases.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save alias");
+      toast.error(formatOpenClawActionError(error, "Failed to save alias"));
     } finally {
       setModelBusy(null);
     }
@@ -3874,7 +3882,7 @@ export function OpenClawManagement() {
       toast.success(`Alias ${alias} removed`);
       await modelAliases.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove alias");
+      toast.error(formatOpenClawActionError(error, "Failed to remove alias"));
     } finally {
       setModelBusy(null);
     }
@@ -3901,7 +3909,7 @@ export function OpenClawManagement() {
         await imageFallbacks.refresh();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add fallback");
+      toast.error(formatOpenClawActionError(error, "Failed to add fallback"));
     } finally {
       setModelBusy(null);
     }
@@ -3921,7 +3929,7 @@ export function OpenClawManagement() {
         await imageFallbacks.refresh();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove fallback");
+      toast.error(formatOpenClawActionError(error, "Failed to remove fallback"));
     } finally {
       setModelBusy(null);
     }
