@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  Archive,
   Bot,
   CheckCircle2,
   Cpu,
   Database,
+  Globe,
   HardDrive,
   KeyRound,
   Loader2,
+  MessageSquare,
   Play,
   RefreshCcw,
   Server,
+  ShieldCheck,
   Square,
   TerminalSquare,
   Wrench,
@@ -110,6 +114,100 @@ interface VersionInfo {
   message?: string;
 }
 
+interface DomainConfig {
+  ok?: boolean;
+  domain?: string;
+  ip?: string;
+  ssl?: boolean | string;
+  selfSignedSSL?: boolean;
+  acmeEmail?: string;
+  sslIssuer?: string;
+  sslIssuerHint?: string;
+  sslFallbackUsed?: boolean;
+}
+
+interface DiagnosticItem {
+  code?: string;
+  severity?: string;
+  message?: string;
+}
+
+interface DiagnosticBlock {
+  status?: string;
+  summary?: string;
+  findings?: DiagnosticItem[];
+  issues?: DiagnosticItem[];
+  suggestedActions?: string[];
+}
+
+interface DomainPreflight {
+  ok?: boolean;
+  requestedDomain?: string;
+  domain?: string;
+  domainValid?: boolean;
+  serverIP?: string;
+  resolvedIPs?: string[];
+  dnsResolved?: boolean;
+  dnsMatchesServer?: boolean;
+  email?: string;
+  emailProvided?: boolean;
+  emailValid?: boolean;
+  acmeEmailCleared?: boolean;
+  ready?: boolean;
+  liveReady?: boolean;
+  issuerOrder?: string[];
+  currentDomainMatch?: boolean;
+  currentSslIssuer?: string;
+  currentSslIssuerHint?: string;
+  warnings?: string[];
+  acmeDiagnostics?: DiagnosticBlock;
+  acmeAssessment?: DiagnosticBlock;
+  recentCaddyAcmeLogs?: string[];
+  liveChecks?: Record<string, unknown>;
+  sslIssuer?: string;
+  sslIssuerHint?: string;
+  sslFallbackUsed?: boolean;
+}
+
+interface BackupResponse {
+  ok?: boolean;
+  message?: string;
+  archive?: string;
+  verified?: boolean;
+  [key: string]: unknown;
+}
+
+interface ProviderRecord {
+  active?: boolean;
+  configured?: boolean;
+  defaultModel?: string;
+  models?: string[];
+  [key: string]: unknown;
+}
+
+interface ProvidersInfo {
+  ok?: boolean;
+  providers?: Record<string, ProviderRecord>;
+}
+
+interface ProviderModelsInfo {
+  ok?: boolean;
+  models?: Array<string | { id?: string; name?: string; model?: string; label?: string }>;
+}
+
+interface ChannelRecord {
+  configured?: boolean;
+  token?: string | null;
+  appToken?: string | null;
+  dmPolicy?: string | null;
+  [key: string]: unknown;
+}
+
+interface ChannelsInfo {
+  ok?: boolean;
+  channels?: Record<string, ChannelRecord>;
+}
+
 interface OpenClawEnvironmentOption {
   id: string;
   name: string;
@@ -156,6 +254,15 @@ function statusTone(status?: string) {
     return "text-[var(--warning)]";
   }
   return "text-[var(--danger)]";
+}
+
+function toModelOptionLabel(model: string | { id?: string; name?: string; model?: string; label?: string }) {
+  if (typeof model === "string") return model;
+  return model.label ?? model.name ?? model.id ?? model.model ?? "unknown-model";
+}
+
+function boolLabel(value?: boolean) {
+  return value ? "Yes" : "No";
 }
 
 async function requestOpenClaw<T>(path: string, init?: RequestInit): Promise<T> {
@@ -260,6 +367,28 @@ export function OpenClawManagement() {
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", 30000, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, 20000, openClawSection === "runtime");
   const version = useOpenClawFetch<VersionInfo>("/version", 60000, openClawSection === "overview" || openClawSection === "runtime");
+  const domain = useOpenClawFetch<DomainConfig>("/domain", 45000, openClawSection === "overview" || openClawSection === "config");
+  const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", 60000, openClawSection === "config");
+  const providers = useOpenClawFetch<ProvidersInfo>("/providers", 45000, openClawSection === "config");
+  const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, 45000, openClawSection === "config" && Boolean(provider));
+  const channels = useOpenClawFetch<ChannelsInfo>("/channels", 45000, openClawSection === "config");
+
+  const [domainDraft, setDomainDraft] = useState("");
+  const [domainEmail, setDomainEmail] = useState("");
+  const [domainBusy, setDomainBusy] = useState<string | null>(null);
+  const [domainPreflight, setDomainPreflight] = useState<DomainPreflight | null>(null);
+  const [backupOutput, setBackupOutput] = useState("/opt/openclaw/backups/openclaw-backup.tgz");
+  const [backupVerifyAfterCreate, setBackupVerifyAfterCreate] = useState(true);
+  const [backupOnlyConfig, setBackupOnlyConfig] = useState(false);
+  const [backupDryRun, setBackupDryRun] = useState(false);
+  const [backupVerifyPath, setBackupVerifyPath] = useState("/opt/openclaw/backups/openclaw-backup.tgz");
+  const [backupBusy, setBackupBusy] = useState<string | null>(null);
+  const [backupResult, setBackupResult] = useState<BackupResponse | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState("telegram");
+  const [channelToken, setChannelToken] = useState("");
+  const [channelAppToken, setChannelAppToken] = useState("");
+  const [channelDmPolicy, setChannelDmPolicy] = useState("pairing");
+  const [channelBusy, setChannelBusy] = useState<string | null>(null);
 
   const refreshEnvironments = useCallback(async () => {
     setEnvironmentLoading(true);
@@ -296,6 +425,22 @@ export function OpenClawManagement() {
     }
   }, [config.data?.model, config.data?.provider]);
 
+  useEffect(() => {
+    if (!domainDraft && domain.data?.domain) {
+      setDomainDraft(domain.data.domain);
+    }
+    if (!domainEmail && domain.data?.acmeEmail) {
+      setDomainEmail(domain.data.acmeEmail);
+    }
+  }, [domain.data?.acmeEmail, domain.data?.domain, domainDraft, domainEmail]);
+
+  useEffect(() => {
+    const currentChannel = channels.data?.channels?.[selectedChannel];
+    if (currentChannel?.dmPolicy) {
+      setChannelDmPolicy(String(currentChannel.dmPolicy));
+    }
+  }, [channels.data?.channels, selectedChannel]);
+
   const refreshAll = useCallback(async () => {
     await Promise.all([
       info.refresh(),
@@ -306,8 +451,13 @@ export function OpenClawManagement() {
       sessions.refresh(),
       logs.refresh(),
       version.refresh(),
+      domain.refresh(),
+      domainIssuer.refresh(),
+      providers.refresh(),
+      providerModels.refresh(),
+      channels.refresh(),
     ]);
-  }, [config, info, logs, sessions, status, system, upstream, version]);
+  }, [channels, config, domain, domainIssuer, info, logs, providerModels, providers, sessions, status, system, upstream, version]);
 
   const performRuntimeAction = useCallback(async (action: "start" | "restart" | "rebuild" | "stop") => {
     setRuntimeBusy(action);
@@ -407,6 +557,156 @@ export function OpenClawManagement() {
     }
   }, [sessions]);
 
+  const handleDomainPreflight = useCallback(async (live = false) => {
+    if (!domainDraft.trim()) {
+      toast.error("Enter a domain first");
+      return;
+    }
+
+    setDomainBusy(live ? "preflight-live" : "preflight");
+    try {
+      const query = new URLSearchParams({ domain: domainDraft.trim() });
+      if (domainEmail.trim()) {
+        query.set("email", domainEmail.trim());
+      }
+
+      const result = await requestOpenClaw<DomainPreflight>(`/domain/preflight${live ? "/live" : ""}?${query.toString()}`);
+      setDomainPreflight(result);
+      toast.success(result.ready || result.liveReady ? "Domain preflight passed" : "Domain preflight completed with warnings");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Domain preflight failed");
+    } finally {
+      setDomainBusy(null);
+    }
+  }, [domainDraft, domainEmail]);
+
+  const handleDomainUpdate = useCallback(async () => {
+    if (!domainDraft.trim()) {
+      toast.error("Enter a domain first");
+      return;
+    }
+
+    if (!window.confirm(`Apply domain ${domainDraft.trim()} to the active OpenClaw environment?`)) {
+      return;
+    }
+
+    setDomainBusy("apply");
+    try {
+      const result = await requestOpenClaw<DomainPreflight>("/domain", {
+        method: "PUT",
+        body: JSON.stringify({
+          domain: domainDraft.trim(),
+          email: domainEmail.trim() || null,
+        }),
+      });
+      setDomainPreflight(result);
+      toast.success(`Domain updated to ${result.domain ?? domainDraft.trim()}`);
+      await Promise.all([domain.refresh(), domainIssuer.refresh(), info.refresh(), status.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update domain");
+    } finally {
+      setDomainBusy(null);
+    }
+  }, [domain, domainDraft, domainEmail, domainIssuer, info, status]);
+
+  const handleCreateBackup = useCallback(async () => {
+    setBackupBusy("create");
+    try {
+      const result = await requestOpenClaw<BackupResponse>("/backup/create", {
+        method: "POST",
+        body: JSON.stringify({
+          output: backupOutput.trim() || undefined,
+          verify: backupVerifyAfterCreate,
+          onlyConfig: backupOnlyConfig,
+          dryRun: backupDryRun,
+        }),
+      });
+      setBackupResult(result);
+      if (typeof result.archive === "string" && result.archive) {
+        setBackupVerifyPath(result.archive);
+      }
+      toast.success(result.message ?? "Backup request completed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Backup failed");
+    } finally {
+      setBackupBusy(null);
+    }
+  }, [backupDryRun, backupOnlyConfig, backupOutput, backupVerifyAfterCreate]);
+
+  const handleVerifyBackup = useCallback(async () => {
+    if (!backupVerifyPath.trim()) {
+      toast.error("Enter an archive path first");
+      return;
+    }
+
+    setBackupBusy("verify");
+    try {
+      const result = await requestOpenClaw<BackupResponse>("/backup/verify", {
+        method: "POST",
+        body: JSON.stringify({ archive: backupVerifyPath.trim() }),
+      });
+      setBackupResult(result);
+      toast.success(result.message ?? "Backup verification completed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Backup verification failed");
+    } finally {
+      setBackupBusy(null);
+    }
+  }, [backupVerifyPath]);
+
+  const handleSaveChannel = useCallback(async () => {
+    if (!channelToken.trim()) {
+      toast.error("Enter the channel token first");
+      return;
+    }
+
+    if (!window.confirm(`Update ${selectedChannel} channel credentials? OpenClaw may restart.`)) {
+      return;
+    }
+
+    setChannelBusy("save");
+    try {
+      const payload: Record<string, unknown> = { token: channelToken.trim() };
+      if (selectedChannel === "slack" && channelAppToken.trim()) {
+        payload.appToken = channelAppToken.trim();
+      }
+      if (selectedChannel === "zalo") {
+        payload.dmPolicy = channelDmPolicy.trim() || "pairing";
+      }
+
+      await requestOpenClaw(`/channels/${encodeURIComponent(selectedChannel)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      setChannelToken("");
+      setChannelAppToken("");
+      toast.success(`${selectedChannel} channel updated`);
+      await Promise.all([channels.refresh(), status.refresh(), logs.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update channel");
+    } finally {
+      setChannelBusy(null);
+    }
+  }, [channelAppToken, channelDmPolicy, channelToken, channels, logs, selectedChannel, status]);
+
+  const handleDeleteChannel = useCallback(async () => {
+    if (!window.confirm(`Remove ${selectedChannel} channel configuration from the active environment?`)) {
+      return;
+    }
+
+    setChannelBusy("delete");
+    try {
+      await requestOpenClaw(`/channels/${encodeURIComponent(selectedChannel)}`, { method: "DELETE" });
+      toast.success(`${selectedChannel} channel removed`);
+      await Promise.all([channels.refresh(), status.refresh(), logs.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove channel");
+    } finally {
+      setChannelBusy(null);
+    }
+  }, [channels, logs, selectedChannel, status]);
+
   const sessionRows = sessions.data?.result?.sessions ?? [];
   const sessionColumns = useMemo<Array<ColumnDef<(typeof sessionRows)[number]>>>(() => [
     {
@@ -431,7 +731,36 @@ export function OpenClawManagement() {
     },
   ], [sessionRows]);
 
-  const errors = [info.error, status.error, system.error, upstream.error, config.error, sessions.error, logs.error, version.error].filter(Boolean);
+  const providerEntries = useMemo(
+    () => Object.entries(providers.data?.providers ?? {}),
+    [providers.data?.providers],
+  );
+
+  const providerModelOptions = useMemo(
+    () => (providerModels.data?.models ?? []).map((entry) => toModelOptionLabel(entry)),
+    [providerModels.data?.models],
+  );
+
+  const channelEntries = useMemo(
+    () => Object.entries(channels.data?.channels ?? {}),
+    [channels.data?.channels],
+  );
+
+  const errors = [
+    info.error,
+    status.error,
+    system.error,
+    upstream.error,
+    config.error,
+    sessions.error,
+    logs.error,
+    version.error,
+    domain.error,
+    domainIssuer.error,
+    providers.error,
+    providerModels.error,
+    channels.error,
+  ].filter(Boolean);
 
   return (
     <div className="space-y-5 pb-24">
@@ -633,83 +962,408 @@ export function OpenClawManagement() {
       ) : null}
 
       {openClawSection === "config" ? (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <DetailCard title="Provider & Model" icon={Bot}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
-                <span>Provider</span>
-                <input
-                  value={provider}
-                  onChange={(event) => setProvider(event.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                />
-              </label>
-              <label className="space-y-2 text-sm text-[var(--text-secondary)]">
-                <span>Model</span>
-                <input
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
-                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                />
-              </label>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleApplyProvider()}
-                disabled={configBusy}
-                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
-              >
-                {configBusy ? "Applying…" : "Apply Provider"}
-              </button>
-            </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <DetailCard title="Provider & Model" icon={Bot}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Provider</span>
+                  {providerEntries.length > 0 ? (
+                    <select
+                      value={provider}
+                      onChange={(event) => setProvider(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    >
+                      {providerEntries.map(([name]) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={provider}
+                      onChange={(event) => setProvider(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    />
+                  )}
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Model</span>
+                  {providerModelOptions.length > 0 ? (
+                    <select
+                      value={model}
+                      onChange={(event) => setModel(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    >
+                      {providerModelOptions.map((modelName) => (
+                        <option key={modelName} value={modelName}>
+                          {modelName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={model}
+                      onChange={(event) => setModel(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    />
+                  )}
+                </label>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleApplyProvider()}
+                  disabled={configBusy}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {configBusy ? "Applying…" : "Apply Provider"}
+                </button>
+              </div>
 
-            <div className="mt-5 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Current Config Snapshot</p>
-              <pre className="mt-3 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                {JSON.stringify(config.data?.config ?? {}, null, 2)}
-              </pre>
-            </div>
-          </DetailCard>
-
-          <ListCard title="Credentials" icon={KeyRound}>
-            <label className="block space-y-2 text-sm text-[var(--text-secondary)]">
-              <span>Provider API key</span>
-              <textarea
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                rows={6}
-                className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                placeholder="Paste provider key from the OpenClaw Postman flow"
-              />
-            </label>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void handleTestApiKey()}
-                disabled={configBusy}
-                className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
-              >
-                Test Key
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleApplyApiKey()}
-                disabled={configBusy}
-                className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
-              >
-                Save Key
-              </button>
-            </div>
-            <div className="mt-4 space-y-2 text-xs text-[var(--text-secondary)]">
-              {Object.entries(config.data?.apiKeys ?? {}).map(([name, masked]) => (
-                <div key={name} className="flex items-center justify-between rounded-lg border border-[var(--border)]/50 px-3 py-2">
-                  <span className="uppercase tracking-[0.2em] text-[var(--text-tertiary)]">{name}</span>
-                  <span className="font-mono text-[var(--text-primary)]">{masked ?? "not set"}</span>
+              {providerEntries.length > 0 ? (
+                <div className="mt-5 grid grid-cols-1 gap-2 md:grid-cols-2">
+                  {providerEntries.slice(0, 8).map(([name, details]) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        setProvider(name);
+                        if (details.defaultModel) {
+                          setModel(details.defaultModel);
+                        }
+                      }}
+                      className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3 text-left transition hover:border-[var(--accent)]/40"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-[var(--text-primary)]">{name}</span>
+                        <span className={`text-xs ${details.active ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"}`}>
+                          {details.active ? "active" : "available"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                        Default: {details.defaultModel ?? "—"} · Configured: {boolLabel(details.configured)}
+                      </p>
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </ListCard>
+              ) : null}
+
+              <div className="mt-5 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Current Config Snapshot</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(config.data?.config ?? {}, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+
+            <ListCard title="Credentials" icon={KeyRound}>
+              <label className="block space-y-2 text-sm text-[var(--text-secondary)]">
+                <span>Provider API key</span>
+                <textarea
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  rows={6}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  placeholder="Paste provider key from the OpenClaw Postman flow"
+                />
+              </label>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleTestApiKey()}
+                  disabled={configBusy}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  Test Key
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleApplyApiKey()}
+                  disabled={configBusy}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  Save Key
+                </button>
+              </div>
+              <div className="mt-4 space-y-2 text-xs text-[var(--text-secondary)]">
+                {Object.entries(config.data?.apiKeys ?? {}).map(([name, masked]) => (
+                  <div key={name} className="flex items-center justify-between rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                    <span className="uppercase tracking-[0.2em] text-[var(--text-tertiary)]">{name}</span>
+                    <span className="font-mono text-[var(--text-primary)]">{masked ?? "not set"}</span>
+                  </div>
+                ))}
+              </div>
+            </ListCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <DetailCard title="Domain & SSL" icon={Globe}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Domain</span>
+                  <input
+                    value={domainDraft}
+                    onChange={(event) => setDomainDraft(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="openclaw.example.com"
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>ACME Email</span>
+                  <input
+                    value={domainEmail}
+                    onChange={(event) => setDomainEmail(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder="admin@example.com"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleDomainPreflight(false)}
+                  disabled={domainBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {domainBusy === "preflight" ? "Checking…" : "Run Preflight"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDomainPreflight(true)}
+                  disabled={domainBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {domainBusy === "preflight-live" ? "Checking…" : "Run Live Check"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDomainUpdate()}
+                  disabled={domainBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {domainBusy === "apply" ? "Applying…" : "Apply Domain"}
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+                {[
+                  ["Current domain", domain.data?.domain ?? info.data?.domain ?? "—"],
+                  ["Server IP", domain.data?.ip ?? info.data?.ip ?? "—"],
+                  ["SSL issuer", domainIssuer.data?.sslIssuer ?? domain.data?.sslIssuer ?? "—"],
+                  ["Fallback active", boolLabel(domainIssuer.data?.sslFallbackUsed ?? domain.data?.sslFallbackUsed)],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">{label}</p>
+                    <p className="mt-1 text-sm text-[var(--text-primary)]">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {domainPreflight || domainIssuer.data ? (
+                <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">ACME Diagnostics</p>
+                  <p className="mt-2 text-[var(--text-primary)]">
+                    {(domainPreflight?.acmeDiagnostics?.summary ?? domainIssuer.data?.acmeDiagnostics?.summary) || "No diagnostics returned."}
+                  </p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <div className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Ready</span>
+                      <p className="mt-1 text-[var(--text-primary)]">{boolLabel(domainPreflight?.ready ?? domainPreflight?.liveReady)}</p>
+                    </div>
+                    <div className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">DNS Matches Server</span>
+                      <p className="mt-1 text-[var(--text-primary)]">{boolLabel(domainPreflight?.dnsMatchesServer)}</p>
+                    </div>
+                  </div>
+                  {(domainPreflight?.warnings?.length ?? 0) > 0 ? (
+                    <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-[var(--warning)]">
+                      {domainPreflight?.warnings?.map((warning) => <li key={warning}>{warning}</li>)}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </DetailCard>
+
+            <DetailCard title="Backup" icon={Archive}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Archive output</span>
+                  <input
+                    value={backupOutput}
+                    onChange={(event) => setBackupOutput(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <input type="checkbox" checked={backupVerifyAfterCreate} onChange={(event) => setBackupVerifyAfterCreate(event.target.checked)} />
+                  Verify after create
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+                  <input type="checkbox" checked={backupOnlyConfig} onChange={(event) => setBackupOnlyConfig(event.target.checked)} />
+                  Config only
+                </label>
+                <label className="flex items-center gap-2 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <input type="checkbox" checked={backupDryRun} onChange={(event) => setBackupDryRun(event.target.checked)} />
+                  Dry run only
+                </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleCreateBackup()}
+                  disabled={backupBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {backupBusy === "create" ? "Creating…" : "Create Backup"}
+                </button>
+              </div>
+
+              <div className="mt-4 border-t border-[var(--border)]/60 pt-4">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Verify archive</span>
+                  <input
+                    value={backupVerifyPath}
+                    onChange={(event) => setBackupVerifyPath(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void handleVerifyBackup()}
+                  disabled={backupBusy != null}
+                  className="mt-3 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                >
+                  {backupBusy === "verify" ? "Verifying…" : "Verify Backup"}
+                </button>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Backup Result</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                  {JSON.stringify(backupResult ?? { message: "No backup request executed yet." }, null, 2)}
+                </pre>
+              </div>
+            </DetailCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ListCard title="Providers Catalog" icon={ShieldCheck}>
+              <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+                {providerEntries.length === 0 ? (
+                  <p>No provider inventory returned.</p>
+                ) : (
+                  providerEntries.map(([name, details]) => (
+                    <div key={name} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProvider(name);
+                            if (details.defaultModel) {
+                              setModel(details.defaultModel);
+                            }
+                          }}
+                          className="text-left font-medium text-[var(--text-primary)] transition hover:text-[var(--accent)]"
+                        >
+                          {name}
+                        </button>
+                        <span className={`text-xs ${details.active ? "text-[var(--accent)]" : "text-[var(--text-tertiary)]"}`}>
+                          {details.active ? "active" : "idle"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs">Default model: {details.defaultModel ?? "—"}</p>
+                      <p className="mt-1 text-xs">Configured: {boolLabel(details.configured)}</p>
+                      {(details.models?.length ?? 0) > 0 ? (
+                        <p className="mt-1 truncate text-xs text-[var(--text-tertiary)]">{details.models?.slice(0, 4).join(" · ")}</p>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </ListCard>
+
+            <DetailCard title="Channels" icon={MessageSquare}>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                  <span>Channel</span>
+                  <select
+                    value={selectedChannel}
+                    onChange={(event) => setSelectedChannel(event.target.value)}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                  >
+                    {(channelEntries.length > 0 ? channelEntries.map(([name]) => name) : ["telegram", "discord", "slack", "zalo"]).map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3 text-sm text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Current Status</p>
+                  <p className="mt-2 text-[var(--text-primary)]">
+                    Configured: {boolLabel(channels.data?.channels?.[selectedChannel]?.configured)}
+                  </p>
+                  <p className="mt-1 break-all font-mono text-xs">{channels.data?.channels?.[selectedChannel]?.token ?? "token not set"}</p>
+                </div>
+                <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                  <span>Token</span>
+                  <textarea
+                    value={channelToken}
+                    onChange={(event) => setChannelToken(event.target.value)}
+                    rows={4}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    placeholder={`Paste ${selectedChannel} token`}
+                  />
+                </label>
+                {selectedChannel === "slack" ? (
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                    <span>Slack app token</span>
+                    <input
+                      value={channelAppToken}
+                      onChange={(event) => setChannelAppToken(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    />
+                  </label>
+                ) : null}
+                {selectedChannel === "zalo" ? (
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                    <span>DM Policy</span>
+                    <select
+                      value={channelDmPolicy}
+                      onChange={(event) => setChannelDmPolicy(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                    >
+                      <option value="pairing">pairing</option>
+                      <option value="open">open</option>
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveChannel()}
+                  disabled={channelBusy != null}
+                  className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                >
+                  {channelBusy === "save" ? "Saving…" : "Save Channel"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteChannel()}
+                  disabled={channelBusy != null}
+                  className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--danger)]/40 disabled:opacity-50"
+                >
+                  {channelBusy === "delete" ? "Removing…" : "Remove Channel"}
+                </button>
+              </div>
+            </DetailCard>
+          </div>
         </div>
       ) : null}
 
