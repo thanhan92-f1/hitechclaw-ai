@@ -153,21 +153,22 @@ const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
 const NAV_COLLAPSED_KEY = "mc-nav-collapsed";
 const DEFAULT_EXPANDED = new Set(["observe", "respond"]);
 
-function loadCollapsedGroups(): Set<string> {
-  if (typeof window === "undefined") return new Set();
+function getDefaultCollapsedGroups(): Set<string> {
+  const collapsed = new Set<string>();
+  for (const g of navGroups) {
+    if (!DEFAULT_EXPANDED.has(g.key)) collapsed.add(g.key);
+  }
+  return collapsed;
+}
+
+function parseCollapsedGroups(raw: string | null): Set<string> {
+  if (!raw) {
+    return getDefaultCollapsedGroups();
+  }
   try {
-    const raw = localStorage.getItem(NAV_COLLAPSED_KEY);
-    if (!raw) {
-      // Default: collapse everything except Monitor and Operate
-      const collapsed = new Set<string>();
-      for (const g of navGroups) {
-        if (!DEFAULT_EXPANDED.has(g.key)) collapsed.add(g.key);
-      }
-      return collapsed;
-    }
     return new Set(JSON.parse(raw) as string[]);
   } catch {
-    return new Set();
+    return getDefaultCollapsedGroups();
   }
 }
 
@@ -219,16 +220,9 @@ export function NotionShell({ children }: { children: ReactNode }) {
   // alertCount removed — NotificationDropdown now self-manages via /api/notifications
   const [isOpen, setIsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => loadCollapsedGroups());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => getDefaultCollapsedGroups());
   const [pinnedDocs, setPinnedDocs] = useState<PinnedDoc[]>([]);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem("hitechclaw-ai-sidebar-collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickKillOpen, setQuickKillOpen] = useState(false);
 
@@ -248,6 +242,29 @@ export function NotionShell({ children }: { children: ReactNode }) {
       .catch(() => {});
     return () => { mounted = false; };
   }, [router, isPublicPage]);
+
+  useEffect(() => {
+    if (isPublicPage) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      try {
+        setCollapsedGroups(parseCollapsedGroups(localStorage.getItem(NAV_COLLAPSED_KEY)));
+      } catch {
+        setCollapsedGroups(getDefaultCollapsedGroups());
+      }
+      if (!active) return;
+      try {
+        setSidebarCollapsed(localStorage.getItem("hitechclaw-ai-sidebar-collapsed") === "true");
+      } catch {
+        setSidebarCollapsed(false);
+      }
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [isPublicPage]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {

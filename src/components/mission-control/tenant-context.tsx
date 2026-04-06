@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 
 const STORAGE_KEY = "hitechclaw-ai-active-tenant";
 
@@ -16,14 +16,23 @@ const TenantContext = createContext<TenantContextValue>({
 });
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const [activeTenant, setActiveTenantRaw] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      return localStorage.getItem(STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [activeTenant, setActiveTenantRaw] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      try {
+        setActiveTenantRaw(localStorage.getItem(STORAGE_KEY));
+      } catch {
+        setActiveTenantRaw(null);
+      }
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   const setActiveTenant = useCallback((id: string | null) => {
     setActiveTenantRaw(id);

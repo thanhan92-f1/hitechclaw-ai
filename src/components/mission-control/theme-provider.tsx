@@ -28,17 +28,8 @@ function getSystemPreference(): "light" | "dark" {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>(() => {
-    if (typeof window === "undefined") return "dark";
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
-      if (stored && ["system", "light", "dark"].includes(stored)) {
-        return stored;
-      }
-    } catch {}
-    return "dark";
-  });
-  const [systemPreference, setSystemPreference] = useState<"light" | "dark">(() => getSystemPreference());
+  const [mode, setModeState] = useState<ThemeMode>("dark");
+  const [systemPreference, setSystemPreference] = useState<"light" | "dark">("dark");
   const resolved = mode === "system" ? systemPreference : mode;
 
   const applyTheme = useCallback((theme: "light" | "dark") => {
@@ -60,11 +51,31 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(resolved);
   }, [applyTheme, resolved]);
 
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
+        if (stored && ["system", "light", "dark"].includes(stored)) {
+          setModeState(stored);
+        }
+      } catch {}
+      if (!active) return;
+      setSystemPreference(getSystemPreference());
+    }, 0);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   // Listen for system preference changes
   useEffect(() => {
-    if (mode !== "system") return;
     const mql = window.matchMedia("(prefers-color-scheme: light)");
     const handler = () => setSystemPreference(getSystemPreference());
+    handler();
+    if (mode !== "system") return;
     mql.addEventListener("change", handler);
     return () => mql.removeEventListener("change", handler);
   }, [mode]);
