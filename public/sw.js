@@ -1,4 +1,4 @@
-const CACHE_NAME = "hitechclaw-ai-shell-v5";
+const CACHE_NAME = "hitechclaw-ai-shell-v6";
 const OFFLINE_CACHE = "hitechclaw-ai-offline-v1";
 
 const APP_SHELL = [

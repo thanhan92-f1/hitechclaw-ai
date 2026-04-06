@@ -1215,8 +1215,18 @@ function SdkStep({
   const preferredTab: InstallTab =
     framework === "openclaw" || framework === "nemoclaw" ? framework : "script";
   const tab: InstallTab = manualTab ?? preferredTab;
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://your-hitechclaw-ai-instance.com";
+  const [baseUrl, setBaseUrl] = useState("https://your-hitechclaw-ai-instance.com");
   const agentLabel = selectedAgent?.name?.trim() || selectedAgent?.agent_id || "your-agent";
+
+  useEffect(() => {
+    const baseUrlTimer = window.setTimeout(() => {
+      setBaseUrl(window.location.origin);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(baseUrlTimer);
+    };
+  }, []);
 
   const snippets: Record<InstallTab, { label: string; code: string; description: string }> = {
     script: {

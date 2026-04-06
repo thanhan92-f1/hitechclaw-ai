@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Urbanist } from "next/font/google";
 import type { ReactNode } from "react";
-import { Suspense } from "react";
 import { Toaster } from "sonner";
-import { NotionShell } from "@/components/mission-control/app-shell";
+import ClientShell from "./client-shell";
 import { ServiceWorkerRegistration } from "@/components/mission-control/service-worker-registration";
 import { ThemeProvider } from "@/components/mission-control/theme-provider";
 import "./globals.css";
@@ -21,6 +20,13 @@ const inter = Inter({
   display: "swap",
   variable: "--font-inter",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0A0A0C",
+};
 
 export const metadata: Metadata = {
   title: "HiTechClaw AI — AI Control Plane",
@@ -51,27 +57,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning className={`${urbanist.variable} ${inter.variable}`}>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#0A0A0C" />
-      </head>
-      <body className="bg-bg-deep text-text antialiased">
+      <body className="bg-bg-deep text-text antialiased" suppressHydrationWarning>
         <ThemeProvider>
-        <ServiceWorkerRegistration />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "var(--bg-surface)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-            },
-          }}
-        />
-        <Suspense fallback={<div className="min-h-screen" style={{ background: "#0A0A0C" }} />}>
-          <NotionShell>{children}</NotionShell>
-        </Suspense>
-      </ThemeProvider>
+          <ServiceWorkerRegistration />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+              },
+            }}
+          />
+          <ClientShell>{children}</ClientShell>
+        </ThemeProvider>
       </body>
     </html>
   );

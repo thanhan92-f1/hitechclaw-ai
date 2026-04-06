@@ -90,11 +90,14 @@ export function useActiveRuns(agentId?: string, pollInterval = 5000) {
   }, []);
 
   useEffect(() => {
-    void poll();
+    const initialPollTimer = setTimeout(() => {
+      void poll();
+    }, 0);
     const timer = setInterval(() => {
       void poll();
     }, pollInterval);
     return () => {
+      clearTimeout(initialPollTimer);
       clearInterval(timer);
       for (const burstTimer of burstTimersRef.current) {
         clearTimeout(burstTimer);

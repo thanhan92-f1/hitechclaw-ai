@@ -612,14 +612,33 @@ function ThreatHealthBar({ total, threats }: { total: number; threats: number })
 const EXPLAINERS_KEY = "hitechclaw-ai-threat-explainers-seen";
 
 function ThreatClassExplainers() {
-  const [open, setOpen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return !localStorage.getItem(EXPLAINERS_KEY);
-  });
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    const explainerTimer = window.setTimeout(() => {
+      try {
+        if (localStorage.getItem(EXPLAINERS_KEY)) {
+          setOpen(false);
+        }
+      } catch {
+        // Silent
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(explainerTimer);
+    };
+  }, []);
 
   function handleToggle() {
     setOpen((prev) => {
-      if (!prev === false) localStorage.setItem(EXPLAINERS_KEY, "1");
+      if (prev) {
+        try {
+          localStorage.setItem(EXPLAINERS_KEY, "1");
+        } catch {
+          // Silent
+        }
+      }
       return !prev;
     });
   }
