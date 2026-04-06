@@ -7,7 +7,7 @@ import {
 } from "@/lib/notification-secrets";
 
 const SECRET_FIELDS = ["managementApiKey", "gatewayToken", "authToken"] as const;
-const ENV_FALLBACK_ID = "default";
+const DEFAULT_OPENCLAW_ENVIRONMENT_ID = "default";
 
 export type OpenClawEnvironmentSecretField = (typeof SECRET_FIELDS)[number];
 
@@ -17,6 +17,7 @@ export interface OpenClawEnvironmentConfig {
   defaultModel?: string;
   region?: string;
   tags?: string[];
+  allowedManagementPaths?: string[];
   allowDestructiveActions?: boolean;
   confirmHighRiskActions?: boolean;
   requestTimeoutMs?: number;
@@ -45,11 +46,11 @@ export interface OpenClawEnvironmentSummary extends Omit<OpenClawEnvironmentReco
   managementApiKeyConfigured: boolean;
   gatewayTokenConfigured: boolean;
   authTokenConfigured: boolean;
-  source: "database" | "environment";
+  source: "database";
 }
 
 export interface OpenClawEnvironmentResolved extends OpenClawEnvironmentRecord {
-  source: "database" | "environment";
+  source: "database";
 }
 
 export interface OpenClawEnvironmentInput {
@@ -158,6 +159,17 @@ function normalizeConfig(value: unknown): OpenClawEnvironmentConfig {
       .slice(0, 20);
   }
 
+  if (config.allowedManagementPaths !== undefined) {
+    if (!Array.isArray(config.allowedManagementPaths)) {
+      throw new Error("config.allowedManagementPaths must be an array of strings.");
+    }
+    config.allowedManagementPaths = config.allowedManagementPaths
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 100);
+  }
+
   if (config.allowDestructiveActions !== undefined) {
     config.allowDestructiveActions = Boolean(config.allowDestructiveActions);
   }
@@ -183,17 +195,6 @@ function decryptStoredSecret(value: string | null): string {
 
 function maskSecret(value: string): boolean {
   return Boolean(value.trim());
-}
-
-function getEnvFallbackBaseUrl() {
-  const configured =
-    process.env.OPENCLAW_MGMT_BASE_URL ??
-    process.env.OPENCLAW_MGMT_URL ??
-    process.env.OPENCLAW_GATEWAY_URL ??
-    process.env.NEXT_PUBLIC_GATEWAY_URL ??
-    "http://localhost:9998";
-
-  return normalizeUrl(configured, "baseUrl", "9998");
 }
 
 function mapRow(row: OpenClawEnvironmentRow): OpenClawEnvironmentResolved {
@@ -238,47 +239,56 @@ function toSummary(record: OpenClawEnvironmentResolved): OpenClawEnvironmentSumm
   };
 }
 
-export function getEnvFallbackEnvironment(): OpenClawEnvironmentResolved {
-  return {
-    id: ENV_FALLBACK_ID,
-    name: process.env.OPENCLAW_DEFAULT_NAME?.trim() || "Default OpenClaw",
-    slug: "default",
-    description: "Derived from process environment variables.",
-    baseUrl: getEnvFallbackBaseUrl(),
-    gatewayUrl: normalizeOptionalString(
-      process.env.OPENCLAW_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL,
-    ),
-    managementApiKey: normalizeSecretValue(
-      process.env.OPENCLAW_MGMT_API_KEY ?? process.env.GATEWAY_HOOK_TOKEN,
-    ),
-    gatewayToken: normalizeSecretValue(process.env.GATEWAY_HOOK_TOKEN),
-    authToken: normalizeSecretValue(process.env.GATEWAY_AUTH_TOKEN),
-    isActive: true,
-    isDefault: true,
-    sortOrder: 0,
-    config: {
-      source: "environment",
-      allowEnvFallback: true,
-      defaultProvider: normalizeOptionalString(process.env.OPENCLAW_DEFAULT_PROVIDER),
-      defaultModel: normalizeOptionalString(process.env.OPENCLAW_DEFAULT_MODEL),
-    },
-    createdAt: new Date(0).toISOString(),
-    updatedAt: new Date(0).toISOString(),
-    source: "environment",
-  };
+async function ensureBootstrapEnvironment() {
+  await query(
+    `INSERT INTO openclaw_environments (
+      id,
+      name,
+      slug,
+      description,
+      base_url,
+      gateway_url,
+      management_api_key,
+      gateway_token,
+      auth_token,
+      is_active,
+      is_default,
+      sort_order,
+      config,
+      updated_at
+    )
+    SELECT
+      $1,
+      'Default OpenClaw',
+      'default',
+      'Bootstrapped default environment. Update it from Settings → OpenClaw.',
+      'http://localhost:9998',
+      NULL,
+      NULL,
+      NULL,
+      NULL,
+      TRUE,
+      TRUE,
+      0,
+      $2::jsonb,
+      NOW()
+    WHERE NOT EXISTS (SELECT 1 FROM openclaw_environments)`,
+    [
+      DEFAULT_OPENCLAW_ENVIRONMENT_ID,
+      JSON.stringify({ source: "database-bootstrap" }),
+    ],
+  );
 }
 
 export async function listOpenClawEnvironments(): Promise<OpenClawEnvironmentSummary[]> {
+  await ensureBootstrapEnvironment();
+
   const result = await query(
     `SELECT * FROM openclaw_environments
      ORDER BY is_default DESC, sort_order ASC, name ASC`,
   );
 
   const environments = (result.rows as OpenClawEnvironmentRow[]).map((row) => toSummary(mapRow(row)));
-  if (environments.length === 0) {
-    return [toSummary(getEnvFallbackEnvironment())];
-  }
-
   return environments;
 }
 
@@ -292,14 +302,12 @@ export async function getOpenClawEnvironmentById(id: string): Promise<OpenClawEn
     return mapRow(row);
   }
 
-  if (normalizedId === ENV_FALLBACK_ID) {
-    return getEnvFallbackEnvironment();
-  }
-
   return null;
 }
 
 export async function getDefaultOpenClawEnvironment(): Promise<OpenClawEnvironmentResolved> {
+  await ensureBootstrapEnvironment();
+
   const result = await query(
     `SELECT * FROM openclaw_environments
      WHERE is_active = TRUE
@@ -307,7 +315,10 @@ export async function getDefaultOpenClawEnvironment(): Promise<OpenClawEnvironme
      LIMIT 1`,
   );
   const row = result.rows[0] as OpenClawEnvironmentRow | undefined;
-  return row ? mapRow(row) : getEnvFallbackEnvironment();
+  if (!row) {
+    throw new Error("No OpenClaw environment configured in database.");
+  }
+  return mapRow(row);
 }
 
 export async function resolveOpenClawEnvironment(id?: string | null): Promise<OpenClawEnvironmentResolved> {

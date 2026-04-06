@@ -43,9 +43,6 @@ export async function PUT(
   if (!existing) {
     return NextResponse.json({ error: "OpenClaw environment not found" }, { status: 404 });
   }
-  if (existing.source !== "database") {
-    return NextResponse.json({ error: "Environment-backed configuration cannot be updated here" }, { status: 400 });
-  }
 
   const body = parseJsonRecord(await req.json()) as Partial<OpenClawEnvironmentInput>;
 
@@ -102,9 +99,6 @@ export async function DELETE(
   const existing = await getOpenClawEnvironmentById(params.id);
   if (!existing) {
     return NextResponse.json({ error: "OpenClaw environment not found" }, { status: 404 });
-  }
-  if (existing.source !== "database") {
-    return NextResponse.json({ error: "Environment-backed configuration cannot be deleted here" }, { status: 400 });
   }
 
   try {

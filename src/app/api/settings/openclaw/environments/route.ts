@@ -5,7 +5,6 @@ import {
   buildOpenClawEnvironmentSummary,
   createOpenClawEnvironment,
   getDefaultOpenClawEnvironment,
-  getEnvFallbackEnvironment,
   listOpenClawEnvironments,
   type OpenClawEnvironmentInput,
 } from "@/lib/openclaw-environments";
@@ -23,7 +22,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     environments,
     defaultEnvironmentId: defaultEnvironment.id,
-    environmentFallback: buildOpenClawEnvironmentSummary(getEnvFallbackEnvironment()),
   });
 }
 

@@ -30,6 +30,12 @@ import {
   PanelLeftClose,
   PanelLeft,
   GitBranch,
+  KeyRound,
+  Globe,
+  Archive,
+  MessageSquare,
+  Puzzle,
+  Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CommandPalette } from "./command-palette";
@@ -47,6 +53,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { getAuthHeaders } from "./api";
 import { WorkspaceModeToggle } from "./workspace-mode-toggle";
 import { OpenClawManagement } from "./openclaw-management";
+import { OpenClawTargetSwitcher } from "./openclaw-target-switcher";
 import { useTenantFilter } from "./tenant-context";
 
 const pageLabels: Record<string, string> = {
@@ -85,6 +92,9 @@ const pageLabels: Record<string, string> = {
   "/settings": "Settings",
   "/settings/appearance": "Appearance",
   "/settings/notifications": "Notifications",
+  "/settings/openclaw": "OpenClaw Targets",
+  "/settings/openclaw/connectivity": "OpenClaw Connectivity",
+  "/settings/openclaw/guardrails": "OpenClaw Guardrails",
   "/help/glossary": "Glossary",
   "/victoryos": "VictoryOS",
 };
@@ -97,7 +107,19 @@ type NavItem = {
 };
 
 type OpenClawNavItem = {
-  key: "overview" | "runtime" | "config" | "sessions";
+  key:
+    | "overview"
+    | "runtime"
+    | "provider"
+    | "credentials"
+    | "domain"
+    | "backup"
+    | "channels"
+    | "skills"
+    | "hooks"
+    | "directory"
+    | "models"
+    | "sessions";
   label: string;
   subtitle: string;
   icon: LucideIcon;
@@ -123,8 +145,22 @@ const moreSheetItems: NavItem[] = [
 const openClawNavItems: OpenClawNavItem[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
   { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
-  { key: "config", label: "Config", icon: Settings, subtitle: "Provider and API key" },
+  { key: "provider", label: "Provider", icon: Bot, subtitle: "Provider and model control" },
+  { key: "credentials", label: "Credentials", icon: KeyRound, subtitle: "API keys and secrets" },
+  { key: "domain", label: "Domain", icon: Globe, subtitle: "Domain and SSL" },
+  { key: "backup", label: "Backup", icon: Archive, subtitle: "Snapshots and verify" },
+  { key: "channels", label: "Channels", icon: MessageSquare, subtitle: "Messaging connectors" },
+  { key: "skills", label: "Skills", icon: Puzzle, subtitle: "Skill inventory and config" },
+  { key: "hooks", label: "Hooks", icon: Wrench, subtitle: "Hook checks and toggles" },
+  { key: "directory", label: "Directory", icon: Database, subtitle: "Peers and groups" },
+  { key: "models", label: "Models", icon: Settings, subtitle: "Aliases and fallbacks" },
   { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
+];
+
+const openClawSettingsItems: NavItem[] = [
+  { href: "/settings/openclaw", label: "Targets", subtitle: "Database-backed environments", icon: Settings },
+  { href: "/settings/openclaw/connectivity", label: "Connectivity", subtitle: "URLs and credentials", icon: Globe },
+  { href: "/settings/openclaw/guardrails", label: "Guardrails", subtitle: "Runtime defaults and policy", icon: Shield },
 ];
 
 const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
@@ -239,6 +275,8 @@ export function NotionShell({ children }: { children: ReactNode }) {
   const [quickKillOpen, setQuickKillOpen] = useState(false);
 
   const isPublicPage = pathname === "/login" || pathname?.startsWith("/setup");
+  const isOpenClawSettingsRoute = Boolean(pathname?.startsWith("/settings/openclaw"));
+  const renderOpenClawRouteChildren = mode === "openclaw" && isOpenClawSettingsRoute;
 
   // First-run detection: redirect to setup wizard if not completed
   useEffect(() => {
@@ -358,10 +396,13 @@ export function NotionShell({ children }: { children: ReactNode }) {
     setMoreOpen(false);
   };
 
-  const handleOpenClawNavSelect = (nextOpenClawSection: "overview" | "runtime" | "config" | "sessions") => {
+  const handleOpenClawNavSelect = (nextOpenClawSection: OpenClawNavItem["key"]) => {
     closeNavigationOverlays();
     if (mode === "openclaw") {
       setOpenClawSection(nextOpenClawSection);
+      if (isOpenClawSettingsRoute) {
+        router.push("/");
+      }
     }
   };
 
@@ -412,7 +453,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                 key={item.key}
                 type="button"
                 onClick={() => {
-                  handleOpenClawNavSelect(item.key as "overview" | "runtime" | "config" | "sessions");
+                  handleOpenClawNavSelect(item.key);
                 }}
                 className={`flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[13px] font-medium transition ${
                   active
@@ -429,6 +470,36 @@ export function NotionShell({ children }: { children: ReactNode }) {
             );
           })}
         </div>
+
+          <div className="mt-4 border-t border-[var(--border)]/50 pt-3">
+            <div className="mb-3 px-3">
+              {!sidebarCollapsed && <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[var(--text-tertiary)]">Settings</p>}
+            </div>
+            <div className="space-y-1">
+              {openClawSettingsItems.map((item) => {
+                const active = isRouteActive(pathname, item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={closeNavigationOverlays}
+                    className={`flex min-h-9 items-center gap-2.5 rounded-xl px-3 py-1.5 text-[13px] font-medium transition ${
+                      active
+                        ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
+                        : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
+                    {!sidebarCollapsed && <div className="min-w-0 flex-1 text-left">
+                      <span>{item.label}</span>
+                      {item.subtitle ? <span className="block truncate text-[10px] font-normal text-[var(--text-tertiary)]">{item.subtitle}</span> : null}
+                    </div>}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
 
         <div className="mt-4 border-t border-[var(--border)]/50 pt-3">
           <button
@@ -618,7 +689,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                     <span suppressHydrationWarning>{typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent) ? "\u2318K" : "Ctrl+K"}</span>
                   </kbd>
                 </button>
-                
+                <OpenClawTargetSwitcher />
                 <ThemeToggle />
                 <TenantSwitcher />
                 <WorkspaceModeToggle />
@@ -632,11 +703,9 @@ export function NotionShell({ children }: { children: ReactNode }) {
 
           <main className="min-w-0 flex-1 px-4 pb-[calc(84px+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6 md:pb-6">
             <div className="mx-auto w-full max-w-6xl">
-              
-                <PageTransitionWrapper pathname={mode === "openclaw" ? "/openclaw" : (pathname ?? "/")}>
-                  {mode === "openclaw" ? <OpenClawManagement /> : children}
-                </PageTransitionWrapper>
-              
+              <PageTransitionWrapper pathname={mode === "openclaw" && !renderOpenClawRouteChildren ? "/openclaw" : (pathname ?? "/")}>
+                {mode === "openclaw" && !renderOpenClawRouteChildren ? <OpenClawManagement /> : children}
+              </PageTransitionWrapper>
             </div>
           </main>
         </div>
@@ -704,6 +773,31 @@ export function NotionShell({ children }: { children: ReactNode }) {
                   })}
                 </div>
 
+                <div className="grid grid-cols-1 gap-1.5 border-t border-[var(--border)]/50 pt-3">
+                  {openClawSettingsItems.map((item) => {
+                    const active = isRouteActive(pathname, item.href);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMoreOpen(false)}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition ${
+                          active
+                            ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
+                            : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
+                        <div className="min-w-0 flex-1">
+                          <div>{item.label}</div>
+                          {item.subtitle ? <div className="truncate text-[10px] font-normal text-[var(--text-tertiary)]">{item.subtitle}</div> : null}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+
                 <div className="grid grid-cols-2 gap-1.5 border-t border-[var(--border)]/50 pt-3">
                   <button
                     type="button"
@@ -722,7 +816,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                       setMoreOpen(false);
                       handleLogout();
                     }}
-                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition hover:bg-red-500/[0.06] hover:text-red-400"
+                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium text-red-400 transition hover:bg-red-500/[0.08]"
                   >
                     <LogOut className="h-4 w-4 shrink-0" />
                     <span>Sign Out</span>
@@ -785,7 +879,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
               );
             }
             if (mode === "openclaw" && tab.href.startsWith("##")) {
-              const sectionKey = tab.href.replace(/#/g, "") as "overview" | "runtime" | "config" | "sessions";
+              const sectionKey = tab.href.replace(/#/g, "") as OpenClawNavItem["key"];
               const active = sectionKey === openClawSection;
               return (
                 <button

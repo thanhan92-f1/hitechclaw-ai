@@ -8,7 +8,19 @@ const OPENCLAW_SECTION_STORAGE_KEY = "hitechclaw-ai-openclaw-section";
 export const OPENCLAW_ENVIRONMENT_STORAGE_KEY = "hitechclaw-ai-openclaw-environment";
 
 export type WorkspaceMode = "hitechclaw" | "openclaw";
-export type OpenClawSection = "overview" | "runtime" | "config" | "sessions";
+export type OpenClawSection =
+  | "overview"
+  | "runtime"
+  | "provider"
+  | "credentials"
+  | "domain"
+  | "backup"
+  | "channels"
+  | "skills"
+  | "hooks"
+  | "directory"
+  | "models"
+  | "sessions";
 
 interface TenantContextValue {
   /** null = "All Tenants" (owner view), string = specific tenant id */
@@ -50,7 +62,20 @@ export function TenantProvider({ children }: { children: ReactNode }) {
           setModeRaw(storedMode);
         }
         const storedSection = localStorage.getItem(OPENCLAW_SECTION_STORAGE_KEY);
-        if (storedSection === "overview" || storedSection === "runtime" || storedSection === "config" || storedSection === "sessions") {
+        if (
+          storedSection === "overview" ||
+          storedSection === "runtime" ||
+          storedSection === "provider" ||
+          storedSection === "credentials" ||
+          storedSection === "domain" ||
+          storedSection === "backup" ||
+          storedSection === "channels" ||
+          storedSection === "skills" ||
+          storedSection === "hooks" ||
+          storedSection === "directory" ||
+          storedSection === "models" ||
+          storedSection === "sessions"
+        ) {
           setOpenClawSectionRaw(storedSection);
         }
         setOpenClawEnvironmentIdRaw(localStorage.getItem(OPENCLAW_ENVIRONMENT_STORAGE_KEY));

@@ -63,6 +63,35 @@ function isAllowed(method: string, path: string) {
   return (ALLOWED_ROUTE_PATTERNS[method] ?? []).some((pattern) => pattern.test(path));
 }
 
+function normalizeCustomManagementPath(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const withApiPrefix = trimmed.startsWith("/api/")
+    ? trimmed
+    : trimmed.startsWith("/")
+      ? `/api${trimmed}`
+      : `/api/${trimmed}`;
+
+  return withApiPrefix.replace(/\/+$/g, "").replace(/\/+/g, "/");
+}
+
+function isAllowedByEnvironment(method: string, path: string, customAllowedPaths: unknown) {
+  if (isAllowed(method, path)) {
+    return true;
+  }
+
+  if (!Array.isArray(customAllowedPaths)) {
+    return false;
+  }
+
+  return customAllowedPaths
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => normalizeCustomManagementPath(entry))
+    .filter(Boolean)
+    .some((entry) => path === entry || path.startsWith(`${entry}/`));
+}
+
 function isHighRisk(path: string) {
   return HIGH_RISK_PATTERNS.some((pattern) => pattern.test(path));
 }
@@ -79,15 +108,15 @@ async function forward(req: NextRequest, context: { params: Promise<{ path: stri
   const normalizedPath = `/api${requestedPath.startsWith("/") ? requestedPath : `/${requestedPath}`}`.replace(/\/+/g, "/");
   const method = req.method.toUpperCase();
 
-  if (!isAllowed(method, normalizedPath)) {
-    return forbidden("Management path not allowed");
-  }
-
   const requestedEnvironmentId =
     req.headers.get("x-openclaw-environment-id") ?? req.nextUrl.searchParams.get("environmentId");
   const environment = await resolveOpenClawEnvironment(requestedEnvironmentId);
   if (requestedEnvironmentId && environment.id !== requestedEnvironmentId) {
     return NextResponse.json({ error: "OpenClaw environment not found" }, { status: 404 });
+  }
+
+  if (!isAllowedByEnvironment(method, normalizedPath, environment.config.allowedManagementPaths)) {
+    return forbidden("Management path not allowed");
   }
 
   const allowDestructiveActions = environment.config.allowDestructiveActions;

@@ -383,12 +383,9 @@ interface OpenClawEnvironmentsPayload {
   defaultEnvironmentId?: string;
 }
 
-const sectionOptions: Array<{ key: OpenClawSection; label: string; icon: typeof Server }> = [
-  { key: "overview", label: "Overview", icon: Server },
-  { key: "runtime", label: "Runtime", icon: Activity },
-  { key: "config", label: "Config", icon: Wrench },
-  { key: "sessions", label: "Sessions", icon: Database },
-];
+const OPENCLAW_SYNC_ACTIVE_MS = 5 * 60 * 1000;
+const OPENCLAW_SYNC_PASSIVE_MS = 10 * 60 * 1000;
+const OPENCLAW_ENVIRONMENTS_SYNC_MS = 10 * 60 * 1000;
 
 function fmtUptime(seconds?: number) {
   if (!seconds || seconds <= 0) return "—";
@@ -567,7 +564,6 @@ function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
 export function OpenClawManagement() {
   const {
     openClawSection,
-    setOpenClawSection,
     openClawEnvironmentId,
     setOpenClawEnvironmentId,
   } = useTenantFilter();
@@ -580,50 +576,70 @@ export function OpenClawManagement() {
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [environmentOptions, setEnvironmentOptions] = useState<OpenClawEnvironmentOption[]>([]);
-  const [environmentLoading, setEnvironmentLoading] = useState(true);
 
   const activeEnvironment = useMemo(
     () => environmentOptions.find((environment) => environment.id === openClawEnvironmentId) ?? null,
     [environmentOptions, openClawEnvironmentId],
   );
+  const configSections: OpenClawSection[] = [
+    "provider",
+    "credentials",
+    "domain",
+    "backup",
+    "channels",
+    "skills",
+    "hooks",
+    "directory",
+    "models",
+  ];
+  const isConfigSection = configSections.includes(openClawSection);
+  const isProviderSection = openClawSection === "provider";
+  const isCredentialsSection = openClawSection === "credentials";
+  const isDomainSection = openClawSection === "domain";
+  const isBackupSection = openClawSection === "backup";
+  const isChannelsSection = openClawSection === "channels";
+  const isSkillsSection = openClawSection === "skills";
+  const isHooksSection = openClawSection === "hooks";
+  const isDirectorySection = openClawSection === "directory";
+  const isModelsSection = openClawSection === "models";
 
-  const info = useOpenClawFetch<ServiceInfo>("/info", 60000);
-  const status = useOpenClawFetch<ServiceStatus>("/status", 20000);
-  const system = useOpenClawFetch<SystemInfo>("/system", 45000);
-  const upstream = useOpenClawFetch<UpstreamStatus>("/openclaw/status?all=true&usage=true&deep=false&timeoutMs=10000", 45000);
-  const config = useOpenClawFetch<ConfigInfo>("/config", 45000, openClawSection === "overview" || openClawSection === "config");
-  const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", 30000, openClawSection === "overview" || openClawSection === "sessions");
-  const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, 20000, openClawSection === "runtime");
-  const version = useOpenClawFetch<VersionInfo>("/version", 60000, openClawSection === "overview" || openClawSection === "runtime");
-  const domain = useOpenClawFetch<DomainConfig>("/domain", 45000, openClawSection === "overview" || openClawSection === "config");
-  const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", 60000, openClawSection === "config");
-  const providers = useOpenClawFetch<ProvidersInfo>("/providers", 45000, openClawSection === "config");
-  const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, 45000, openClawSection === "config" && Boolean(provider));
-  const channels = useOpenClawFetch<ChannelsInfo>("/channels", 45000, openClawSection === "config");
-  const hooks = useOpenClawFetch<HooksInfo>("/hooks?eligible=true&verbose=true", 45000, openClawSection === "config");
-  const hookCheck = useOpenClawFetch<HookCheckInfo>("/hooks/check", 45000, openClawSection === "config");
+  const info = useOpenClawFetch<ServiceInfo>("/info", OPENCLAW_SYNC_PASSIVE_MS);
+  const status = useOpenClawFetch<ServiceStatus>("/status", OPENCLAW_SYNC_ACTIVE_MS);
+  const system = useOpenClawFetch<SystemInfo>("/system", OPENCLAW_SYNC_PASSIVE_MS);
+  const upstream = useOpenClawFetch<UpstreamStatus>("/openclaw/status?all=true&usage=true&deep=false&timeoutMs=10000", OPENCLAW_SYNC_PASSIVE_MS);
+  const config = useOpenClawFetch<ConfigInfo>("/config", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isConfigSection);
+  const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "overview" || openClawSection === "sessions");
+  const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "runtime");
+  const version = useOpenClawFetch<VersionInfo>("/version", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || openClawSection === "runtime");
+  const domain = useOpenClawFetch<DomainConfig>("/domain", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isDomainSection);
+  const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", OPENCLAW_SYNC_PASSIVE_MS, isDomainSection);
+  const providers = useOpenClawFetch<ProvidersInfo>("/providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
+  const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, OPENCLAW_SYNC_PASSIVE_MS, isProviderSection && Boolean(provider));
+  const channels = useOpenClawFetch<ChannelsInfo>("/channels", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
+  const hooks = useOpenClawFetch<HooksInfo>("/hooks?eligible=true&verbose=true", OPENCLAW_SYNC_PASSIVE_MS, isHooksSection);
+  const hookCheck = useOpenClawFetch<HookCheckInfo>("/hooks/check", OPENCLAW_SYNC_PASSIVE_MS, isHooksSection);
 
   const [skillAgentId, setSkillAgentId] = useState("main");
-  const skills = useOpenClawFetch<SkillsInfo>(`/skills?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
-  const skillsStatus = useOpenClawFetch<SkillsStatusInfo>(`/skills/status?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
-  const skillBins = useOpenClawFetch<SkillBinsInfo>(`/skills/bins?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config");
+  const skills = useOpenClawFetch<SkillsInfo>(`/skills?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
+  const skillsStatus = useOpenClawFetch<SkillsStatusInfo>(`/skills/status?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
+  const skillBins = useOpenClawFetch<SkillBinsInfo>(`/skills/bins?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection);
   const [directoryChannel, setDirectoryChannel] = useState("slack");
   const [directoryPeerQuery, setDirectoryPeerQuery] = useState("");
   const [directoryLimit, setDirectoryLimit] = useState(20);
   const [selectedDirectoryGroup, setSelectedDirectoryGroup] = useState("");
-  const directorySelf = useOpenClawFetch<DirectorySelfInfo>(`/directory/self?channel=${encodeURIComponent(directoryChannel)}`, 45000, openClawSection === "config");
-  const directoryPeers = useOpenClawFetch<DirectoryPeersInfo>(`/directory/peers?channel=${encodeURIComponent(directoryChannel)}&query=${encodeURIComponent(directoryPeerQuery)}&limit=${directoryLimit}`, 45000, openClawSection === "config");
-  const directoryGroups = useOpenClawFetch<DirectoryGroupsInfo>(`/directory/groups?channel=${encodeURIComponent(directoryChannel)}&limit=${directoryLimit}`, 45000, openClawSection === "config");
-  const directoryMembers = useOpenClawFetch<DirectoryMembersInfo>(`/directory/groups/${encodeURIComponent(selectedDirectoryGroup)}/members?channel=${encodeURIComponent(directoryChannel)}&limit=50`, 45000, openClawSection === "config" && Boolean(selectedDirectoryGroup));
+  const directorySelf = useOpenClawFetch<DirectorySelfInfo>(`/directory/self?channel=${encodeURIComponent(directoryChannel)}`, OPENCLAW_SYNC_PASSIVE_MS, isDirectorySection);
+  const directoryPeers = useOpenClawFetch<DirectoryPeersInfo>(`/directory/peers?channel=${encodeURIComponent(directoryChannel)}&query=${encodeURIComponent(directoryPeerQuery)}&limit=${directoryLimit}`, OPENCLAW_SYNC_PASSIVE_MS, isDirectorySection);
+  const directoryGroups = useOpenClawFetch<DirectoryGroupsInfo>(`/directory/groups?channel=${encodeURIComponent(directoryChannel)}&limit=${directoryLimit}`, OPENCLAW_SYNC_PASSIVE_MS, isDirectorySection);
+  const directoryMembers = useOpenClawFetch<DirectoryMembersInfo>(`/directory/groups/${encodeURIComponent(selectedDirectoryGroup)}/members?channel=${encodeURIComponent(directoryChannel)}&limit=50`, OPENCLAW_SYNC_PASSIVE_MS, isDirectorySection && Boolean(selectedDirectoryGroup));
 
   const [modelAgentId, setModelAgentId] = useState("main");
   const [authProvider, setAuthProvider] = useState("anthropic");
-  const modelsCatalog = useOpenClawFetch<ModelsCatalogInfo>("/models", 45000, openClawSection === "config");
-  const modelsStatus = useOpenClawFetch<ModelsStatusInfo>(`/models/status?agentId=${encodeURIComponent(modelAgentId)}&probe=true`, 45000, openClawSection === "config");
-  const modelAuthOrder = useOpenClawFetch<ModelAuthOrderInfo>(`/models/auth-order?provider=${encodeURIComponent(authProvider)}&agentId=${encodeURIComponent(modelAgentId)}`, 45000, openClawSection === "config" && Boolean(authProvider));
-  const modelAliases = useOpenClawFetch<ModelAliasesInfo>("/models/aliases", 45000, openClawSection === "config");
-  const modelFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/fallbacks", 45000, openClawSection === "config");
-  const imageFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/image-fallbacks", 45000, openClawSection === "config");
+  const modelsCatalog = useOpenClawFetch<ModelsCatalogInfo>("/models", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
+  const modelsStatus = useOpenClawFetch<ModelsStatusInfo>(`/models/status?agentId=${encodeURIComponent(modelAgentId)}&probe=true`, OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
+  const modelAuthOrder = useOpenClawFetch<ModelAuthOrderInfo>(`/models/auth-order?provider=${encodeURIComponent(authProvider)}&agentId=${encodeURIComponent(modelAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isModelsSection && Boolean(authProvider));
+  const modelAliases = useOpenClawFetch<ModelAliasesInfo>("/models/aliases", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
+  const modelFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/fallbacks", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
+  const imageFallbacks = useOpenClawFetch<ModelFallbacksInfo>("/models/image-fallbacks", OPENCLAW_SYNC_PASSIVE_MS, isModelsSection);
 
   const [domainDraft, setDomainDraft] = useState("");
   const [domainEmail, setDomainEmail] = useState("");
@@ -662,11 +678,10 @@ export function OpenClawManagement() {
   const [fallbackModel, setFallbackModel] = useState("");
   const [imageFallbackModel, setImageFallbackModel] = useState("");
 
-  const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, 45000, openClawSection === "config" && Boolean(selectedHook));
-  const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, 45000, openClawSection === "config" && Boolean(selectedSkill));
+  const hookDetail = useOpenClawFetch<HookDetailInfo>(`/hooks/${encodeURIComponent(selectedHook)}`, OPENCLAW_SYNC_PASSIVE_MS, isHooksSection && Boolean(selectedHook));
+  const skillDetail = useOpenClawFetch<SkillDetailInfo>(`/skills/${encodeURIComponent(selectedSkill)}?agentId=${encodeURIComponent(skillAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isSkillsSection && Boolean(selectedSkill));
 
   const refreshEnvironments = useCallback(async () => {
-    setEnvironmentLoading(true);
     try {
       const response = await fetch("/api/settings/openclaw/environments", {
         headers: getAuthHeaders(),
@@ -682,13 +697,18 @@ export function OpenClawManagement() {
       }
     } catch {
       setEnvironmentOptions([]);
-    } finally {
-      setEnvironmentLoading(false);
     }
   }, [openClawEnvironmentId, setOpenClawEnvironmentId]);
 
   useEffect(() => {
     void refreshEnvironments();
+  }, [refreshEnvironments]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshEnvironments();
+    }, OPENCLAW_ENVIRONMENTS_SYNC_MS);
+    return () => window.clearInterval(timer);
   }, [refreshEnvironments]);
 
   useEffect(() => {
@@ -1447,39 +1467,6 @@ export function OpenClawManagement() {
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        <div className="flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Target</span>
-          <select
-            value={openClawEnvironmentId ?? ""}
-            onChange={(event) => setOpenClawEnvironmentId(event.target.value || null)}
-            className="bg-transparent text-sm font-medium text-[var(--text-primary)] outline-none"
-          >
-            {environmentOptions.map((environment) => (
-              <option key={environment.id} value={environment.id}>
-                {environment.name}
-              </option>
-            ))}
-          </select>
-          {environmentLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--text-tertiary)]" /> : null}
-        </div>
-        {sectionOptions.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setOpenClawSection(key)}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
-              openClawSection === key
-                ? "bg-[rgba(0,212,126,0.15)] text-[var(--accent)]"
-                : "border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <Icon className="h-4 w-4" />
-            {label}
-          </button>
-        ))}
-      </div>
-
       {errors.length > 0 ? (
         <div className="rounded-[16px] border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-400">
           {errors[0]}
@@ -1626,9 +1613,11 @@ export function OpenClawManagement() {
         </div>
       ) : null}
 
-      {openClawSection === "config" ? (
+      {isConfigSection ? (
         <div className="space-y-4">
+          {isProviderSection || isCredentialsSection ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            {isProviderSection ? (
             <DetailCard title="Provider & Model" icon={Bot}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -1722,7 +1711,9 @@ export function OpenClawManagement() {
                 </pre>
               </div>
             </DetailCard>
+            ) : null}
 
+            {isCredentialsSection ? (
             <ListCard title="Credentials" icon={KeyRound}>
               <label className="block space-y-2 text-sm text-[var(--text-secondary)]">
                 <span>Provider API key</span>
@@ -1761,9 +1752,13 @@ export function OpenClawManagement() {
                 ))}
               </div>
             </ListCard>
+            ) : null}
           </div>
+          ) : null}
 
+          {isDomainSection || isBackupSection ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {isDomainSection ? (
             <DetailCard title="Domain & SSL" icon={Globe}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
@@ -1851,7 +1846,9 @@ export function OpenClawManagement() {
                 </div>
               ) : null}
             </DetailCard>
+            ) : null}
 
+            {isBackupSection ? (
             <DetailCard title="Backup" icon={Archive}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
@@ -1913,9 +1910,13 @@ export function OpenClawManagement() {
                 </pre>
               </div>
             </DetailCard>
+            ) : null}
           </div>
+          ) : null}
 
+          {isProviderSection || isChannelsSection ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {isProviderSection ? (
             <ListCard title="Providers Catalog" icon={ShieldCheck}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {providerEntries.length === 0 ? (
@@ -1950,7 +1951,9 @@ export function OpenClawManagement() {
                 )}
               </div>
             </ListCard>
+            ) : null}
 
+            {isChannelsSection ? (
             <DetailCard title="Channels" icon={MessageSquare}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -2028,9 +2031,13 @@ export function OpenClawManagement() {
                 </button>
               </div>
             </DetailCard>
+            ) : null}
           </div>
+          ) : null}
 
+          {isSkillsSection || isHooksSection ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {isSkillsSection ? (
             <DetailCard title="Skills" icon={Puzzle}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -2206,7 +2213,9 @@ export function OpenClawManagement() {
                 </div>
               ) : null}
             </DetailCard>
+            ) : null}
 
+            {isHooksSection ? (
             <DetailCard title="Hooks" icon={Wrench}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
@@ -2293,9 +2302,13 @@ export function OpenClawManagement() {
                 </pre>
               </div>
             </DetailCard>
+            ) : null}
           </div>
+          ) : null}
 
+          {isDirectorySection || isModelsSection ? (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {isDirectorySection ? (
             <DetailCard title="Directory" icon={Database}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_120px]">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -2406,7 +2419,9 @@ export function OpenClawManagement() {
                 </div>
               </div>
             </DetailCard>
+            ) : null}
 
+            {isModelsSection ? (
             <DetailCard title="Models" icon={Bot}>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -2670,7 +2685,9 @@ export function OpenClawManagement() {
                 </div>
               </div>
             </DetailCard>
+            ) : null}
           </div>
+          ) : null}
         </div>
       ) : null}
 
