@@ -47,6 +47,14 @@ git tag sdk-v0.1.0
 git push origin sdk-v0.1.0
 ```
 
+The publish workflow uses npm provenance, so consumers can verify the package origin from GitHub Actions in the npm UI and registry metadata.
+
+For stricter consumption, prefer pinned versions such as:
+
+```bash
+npm install @hitechclaw-ai/sdk@0.1.0
+```
+
 ## License
 
 Source-available under the repository license. Review `LICENSE`, `NOTICE`, and `COMMERCIAL-LICENSE.md` in the repository before use or redistribution.

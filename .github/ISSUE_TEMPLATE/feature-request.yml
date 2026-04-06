@@ -53,6 +53,19 @@ body:
         - Other
     validations:
       required: true
+  - type: textarea
+    id: sdk-release-context
+    attributes:
+      label: SDK context (for API / SDK requests)
+      description: Fill this in when the request touches `@hitechclaw-ai/sdk` or future client packages.
+      placeholder: |
+        Package: @hitechclaw-ai/sdk
+        Current version: 0.1.0
+        Expected install or publish flow impact:
+        - consumer install
+        - package API surface
+        - npm publish automation
+        - release/tagging policy
   - type: dropdown
     id: priority
     attributes:
