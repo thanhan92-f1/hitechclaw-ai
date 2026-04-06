@@ -984,8 +984,12 @@ async function requestOpenClawDetailed<T>(path: string, init?: OpenClawRequestIn
       return "Selected agent workspace file was not found. Choose another file and try again.";
     }
 
-    if (/timed out/i.test(normalized)) {
+    if (/spawnsync\s+openclaw\s+etimedout/i.test(normalized) || /etimedout/i.test(normalized) || /timed out/i.test(normalized)) {
       return "OpenClaw request timed out. Use Refresh to load the latest data again.";
+    }
+
+    if (/unknown option\s+['"]--channel['"]/i.test(normalized)) {
+      return "This OpenClaw target does not support release channel selection for update status.";
     }
 
     if (/pairing required/i.test(normalized)) {
@@ -1108,6 +1112,7 @@ function shouldHideOpenClawErrorMessage(message: string | null | undefined) {
 
   return [
     "OpenClaw request timed out. Use Refresh to load the latest data again.",
+    "This OpenClaw target does not support release channel selection for update status.",
     "Agent workspace file is unavailable right now. Refresh and choose another file if needed.",
     "Selected agent workspace file was not found. Choose another file and try again.",
     "OpenClaw gateway is not paired for the selected target. Pair the gateway first, then try again.",
@@ -1209,8 +1214,7 @@ export function OpenClawManagement() {
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, OPENCLAW_SYNC_ACTIVE_MS, openClawSection === "runtime");
   const version = useOpenClawFetch<VersionInfo>("/version", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || openClawSection === "runtime");
-  const [updateChannel, setUpdateChannel] = useState("stable");
-  const updateStatus = useOpenClawFetch<UpdateStatusInfo>(`/update/status?channel=${encodeURIComponent(updateChannel)}`, OPENCLAW_SYNC_PASSIVE_MS, isUpdateSection);
+  const updateStatus = useOpenClawFetch<UpdateStatusInfo>("/update/status", OPENCLAW_SYNC_PASSIVE_MS, isUpdateSection);
   const domain = useOpenClawFetch<DomainConfig>("/domain", OPENCLAW_SYNC_PASSIVE_MS, openClawSection === "overview" || isDomainSection);
   const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", OPENCLAW_SYNC_PASSIVE_MS, isDomainSection);
   const providers = useOpenClawFetch<ProvidersInfo>("/providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
@@ -4321,7 +4325,7 @@ export function OpenClawManagement() {
           {isUpdateSection ? (
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <StatCard label="Channel" value={String(updateStatus.data?.channel ?? updateChannel)} subtitle="Upstream release stream" icon={RefreshCcw} />
+                <StatCard label="Channel" value={String(updateStatus.data?.channel ?? "default")} subtitle="Upstream release stream" icon={RefreshCcw} />
                 <StatCard label="Installed" value={String(updateStatus.data?.installedVersion ?? updateStatus.data?.currentVersion ?? version.data?.clawVersion ?? "—")} subtitle="Current OpenClaw release" icon={Wrench} />
                 <StatCard label="Availability" value={updateStatus.data?.updateAvailable ? "update available" : "up to date"} subtitle={String(updateStatus.data?.latestVersion ?? updateStatus.data?.availableVersion ?? "No newer version reported")} icon={AlertTriangle} />
               </div>
@@ -4329,18 +4333,6 @@ export function OpenClawManagement() {
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                 <DetailCard title="Managed Update Pipeline" icon={RefreshCcw}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
-                      <span>Channel</span>
-                      <select
-                        value={updateChannel}
-                        onChange={(event) => setUpdateChannel(event.target.value)}
-                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
-                      >
-                        {['stable', 'latest', 'beta'].map((channel) => (
-                          <option key={channel} value={channel}>{channel}</option>
-                        ))}
-                      </select>
-                    </label>
                     <label className="space-y-2 text-sm text-[var(--text-secondary)]">
                       <span>Restart Delay (ms)</span>
                       <input

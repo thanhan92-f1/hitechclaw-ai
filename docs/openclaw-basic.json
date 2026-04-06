@@ -1,0 +1,714 @@
+{
+  "info": {
+    "name": "OpenClaw Management API Basic",
+    "description": "Management API for OpenClaw VPS service. Runs on port 9998.\n\nAuthentication: Bearer token (OPENCLAW_MGMT_API_KEY from .env)\n\nBase URL: http://<VPS_IP>:9998",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{MGMT_API_KEY}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:9998",
+      "type": "string"
+    },
+    {
+      "key": "MGMT_API_KEY",
+      "value": "your_mgmt_api_key_here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Service Info",
+      "item": [
+        {
+          "name": "Get Service Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/info",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "info"]
+            },
+            "description": "Get service info: domain, IP, dashboard URL, gateway token, status, version."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"domain\": \"openclaw.example.com\",\n  \"ip\": \"1.2.3.4\",\n  \"dashboardUrl\": \"https://openclaw.example.com?token=abc123...\",\n  \"gatewayToken\": \"abc123...\",\n  \"mgmtApiKey\": \"abcd1234...wxyz\",\n  \"status\": \"running\",\n  \"version\": \"latest\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Container Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/status",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "status"]
+            },
+            "description": "Get container status for OpenClaw and Caddy, including version and gateway port."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"openclaw\": {\n    \"status\": \"running\",\n    \"startedAt\": \"2025-01-15T10:00:00Z\"\n  },\n  \"caddy\": {\n    \"status\": \"running\"\n  },\n  \"version\": \"latest\",\n  \"gatewayPort\": \"18789\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get System Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/system",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "system"]
+            },
+            "description": "Get system info: hostname, IP, OS, uptime, CPU load, memory, disk usage, Docker/Node versions."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"hostname\": \"openclaw-vps\",\n  \"ip\": \"1.2.3.4\",\n  \"os\": \"Ubuntu 24.04 LTS\",\n  \"uptime\": 86400,\n  \"loadAvg\": [0.5, 0.3, 0.2],\n  \"memory\": {\n    \"total\": \"2048MB\",\n    \"free\": \"1024MB\",\n    \"used\": \"1024MB\"\n  },\n  \"disk\": {\n    \"total\": \"50G\",\n    \"used\": \"10G\",\n    \"available\": \"38G\",\n    \"usagePercent\": \"21%\"\n  },\n  \"nodeVersion\": \"v22.0.0\",\n  \"dockerVersion\": \"Docker version 27.0.0\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Domain & SSL",
+      "item": [
+        {
+          "name": "Get Domain Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/domain",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "domain"]
+            },
+            "description": "Get current domain configuration, SSL status, and Caddyfile content."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"domain\": \"openclaw.example.com\",\n  \"ip\": \"1.2.3.4\",\n  \"ssl\": true,\n  \"selfSignedSSL\": false,\n  \"caddyfile\": \"openclaw.example.com {\\n    tls {\\n        issuer acme ...\\n    }\\n    reverse_proxy openclaw:18789\\n}\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Domain",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"domain\": \"openclaw.example.com\",\n  \"email\": \"admin@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/domain",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "domain"]
+            },
+            "description": "Update domain and configure SSL via Let's Encrypt. DNS must point to server IP. Validates DNS before applying. Rolls back on failure.\n\nParameters:\n- domain (required): Domain name\n- email (optional): Email for Let's Encrypt notifications"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"domain\": \"openclaw.example.com\"\n}"
+            },
+            {
+              "name": "DNS Error",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"ok\": false,\n  \"error\": \"DNS for openclaw.example.com resolves to 5.6.7.8 — does not match server IP (1.2.3.4).\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Version & Update",
+      "item": [
+        {
+          "name": "Get Version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/version",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "version"]
+            },
+            "description": "Get current version, Docker image name, and image digest."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"version\": \"latest\",\n  \"image\": \"ghcr.io/openclaw/openclaw:latest\",\n  \"digest\": \"sha256:abc123...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upgrade",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/upgrade",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "upgrade"]
+            },
+            "description": "Pull latest Docker image and recreate container. Runs asynchronously (returns 202). Check /api/status for progress."
+          },
+          "response": [
+            {
+              "name": "Accepted",
+              "status": "Accepted",
+              "code": 202,
+              "body": "{\n  \"ok\": true,\n  \"message\": \"Upgrade started. Check /api/status for progress.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Service Control",
+      "item": [
+        {
+          "name": "Restart",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/restart",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "restart"]
+            },
+            "description": "Restart the OpenClaw container."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"status\": \"running\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Stop",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/stop",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "stop"]
+            },
+            "description": "Stop the OpenClaw container."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"message\": \"OpenClaw stopped.\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Start",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/start",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "start"]
+            },
+            "description": "Start the OpenClaw container."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"status\": \"running\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Rebuild",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/rebuild",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "rebuild"]
+            },
+            "description": "Full recreate: docker compose down + up -d. Recreates all containers."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"status\": \"running\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm\": \"RESET\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/reset",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "reset"]
+            },
+            "description": "DESTRUCTIVE: Delete all data + config, recreate from defaults. Requires {\"confirm\":\"RESET\"} in body. Keeps .env file (tokens preserved)."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"status\": \"running\",\n  \"message\": \"Reset complete. Config reverted to defaults.\"\n}"
+            },
+            {
+              "name": "Missing Confirmation",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"ok\": false,\n  \"error\": \"Send {\\\"confirm\\\":\\\"RESET\\\"} to confirm destructive action.\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Logs",
+      "item": [
+        {
+          "name": "Get Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/logs?lines=100&service=openclaw",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "logs"],
+              "query": [
+                {
+                  "key": "lines",
+                  "value": "100",
+                  "description": "Number of log lines (1-1000, default 100)"
+                },
+                {
+                  "key": "service",
+                  "value": "openclaw",
+                  "description": "Service name: openclaw or caddy (default: openclaw)"
+                }
+              ]
+            },
+            "description": "Get container logs. Supports query params: lines (1-1000), service (openclaw|caddy)."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"service\": \"openclaw\",\n  \"lines\": 100,\n  \"logs\": \"[2025-01-15 10:00:00] Gateway started on port 18789\\n...\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Config: Model & API Key",
+      "item": [
+        {
+          "name": "Get Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/config",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "config"]
+            },
+            "description": "Get current config: provider, model, API keys (masked), agents/gateway/browser settings."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"provider\": \"anthropic\",\n  \"model\": \"anthropic/claude-opus-4-5\",\n  \"apiKeys\": {\n    \"anthropic\": \"sk-ant-a...wxyz\",\n    \"openai\": null,\n    \"gemini\": null\n  },\n  \"config\": {\n    \"agents\": {\n      \"defaults\": {\n        \"model\": { \"primary\": \"anthropic/claude-opus-4-5\" },\n        \"maxConcurrent\": 4,\n        \"subagents\": { \"maxConcurrent\": 8 }\n      }\n    },\n    \"gateway\": {\n      \"mode\": \"local\",\n      \"bind\": \"0.0.0.0\",\n      \"auth\": { \"token\": \"***\" },\n      \"trustedProxies\": [\"172.16.0.0/12\", \"10.0.0.0/8\", \"192.168.0.0/16\"]\n    },\n    \"browser\": {\n      \"headless\": true,\n      \"defaultProfile\": \"openclaw\",\n      \"noSandbox\": true\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Provider & Model",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"anthropic\",\n  \"model\": \"anthropic/claude-sonnet-4-20250514\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/config/provider",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "config", "provider"]
+            },
+            "description": "Change AI provider and model. Loads provider template config, injects gateway token, applies model override, restarts container.\n\nProviders: anthropic, openai, gemini\n\nModel parameter is optional — if omitted, uses provider's default model."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"provider\": \"anthropic\",\n  \"model\": \"anthropic/claude-sonnet-4-20250514\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change API Key",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"anthropic\",\n  \"apiKey\": \"sk-ant-api03-xxxxx\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/config/api-key",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "config", "api-key"]
+            },
+            "description": "Update API key for a provider. Sets the key in .env and restarts the container.\n\nProviders: anthropic (ANTHROPIC_API_KEY), openai (OPENAI_API_KEY), gemini (GEMINI_API_KEY)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"provider\": \"anthropic\",\n  \"apiKey\": \"sk-ant-a...xxxxx\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Test API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider\": \"anthropic\",\n  \"apiKey\": \"sk-ant-api03-xxxxx\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/config/test-key",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "config", "test-key"]
+            },
+            "description": "Test an API key before applying. Makes a real API call to the provider to verify the key is valid.\n\nProviders: anthropic, openai, gemini"
+          },
+          "response": [
+            {
+              "name": "Key Valid",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"error\": null\n}"
+            },
+            {
+              "name": "Key Invalid",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": false,\n  \"error\": \"API key invalid or expired\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Channels",
+      "item": [
+        {
+          "name": "List Channels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/channels",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "channels"]
+            },
+            "description": "List all messaging channels and their configuration status. Tokens are masked."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"channels\": {\n    \"telegram\": { \"configured\": true, \"token\": \"12345678...wxyz\" },\n    \"discord\": { \"configured\": false, \"token\": null },\n    \"slack\": { \"configured\": false, \"token\": null },\n    \"zalo\": { \"configured\": false, \"token\": null }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Set Channel Token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"123456789:ABCdefGHIjklMNOpqrSTUvwxYZ\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/channels/telegram",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "channels", "telegram"]
+            },
+            "description": "Add or update a messaging channel token. Restarts container after applying.\n\nChannels: telegram, discord, slack, zalo\n\nFor Slack, you can also pass appToken in the body."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"channel\": \"telegram\",\n  \"token\": \"12345678...wxyz\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Remove Channel",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/channels/telegram",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "channels", "telegram"]
+            },
+            "description": "Remove a messaging channel. Deletes the token from .env and restarts container.\n\nChannels: telegram, discord, slack, zalo"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"channel\": \"telegram\",\n  \"removed\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Environment",
+      "item": [
+        {
+          "name": "Get Environment Variables",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/env",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "env"]
+            },
+            "description": "Get all environment variables from .env file. Sensitive values (containing TOKEN, KEY, SECRET, PASSWORD) are masked."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"env\": {\n    \"OPENCLAW_VERSION\": \"latest\",\n    \"OPENCLAW_GATEWAY_PORT\": \"18789\",\n    \"OPENCLAW_GATEWAY_TOKEN\": \"abcd1234...wxyz\",\n    \"OPENCLAW_MGMT_API_KEY\": \"efgh5678...wxyz\",\n    \"ANTHROPIC_API_KEY\": \"sk-ant-a...wxyz\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Set Environment Variable",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"your_value_here\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/env/CUSTOM_ENV_VAR",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "env", "CUSTOM_ENV_VAR"]
+            },
+            "description": "Set an environment variable in .env. Key must be UPPER_SNAKE_CASE. Cannot modify OPENCLAW_MGMT_API_KEY. Restart service for changes to take effect."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"key\": \"CUSTOM_ENV_VAR\",\n  \"applied\": true,\n  \"note\": \"Restart service for changes to take effect\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Environment Variable",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/env/CUSTOM_ENV_VAR",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "env", "CUSTOM_ENV_VAR"]
+            },
+            "description": "Remove an environment variable from .env. Protected keys (OPENCLAW_GATEWAY_TOKEN, OPENCLAW_MGMT_API_KEY, OPENCLAW_VERSION, OPENCLAW_GATEWAY_PORT) cannot be removed."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"key\": \"CUSTOM_ENV_VAR\",\n  \"removed\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CLI Proxy",
+      "item": [
+        {
+          "name": "Execute CLI Command",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"models scan\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/api/cli",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "cli"]
+            },
+            "description": "Execute an OpenClaw CLI command inside the container.\n\nRuns: docker compose exec openclaw node dist/index.js <command>\n\nSecurity: Characters ; & | ` $ ( ) { } are blocked.\n\nExamples:\n- models scan\n- config get\n- config set agents.defaults.model.primary anthropic/claude-sonnet-4\n- channels list\n- gateway status"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"output\": \"Available models:\\n  anthropic/claude-opus-4-5\\n  anthropic/claude-sonnet-4\\n  ...\"\n}"
+            },
+            {
+              "name": "Command Error",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": false,\n  \"output\": \"Error: Unknown command 'invalid'\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Self Update",
+      "item": [
+        {
+          "name": "Self Update Management API",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/api/self-update",
+              "host": ["{{BASE_URL}}"],
+              "path": ["api", "self-update"]
+            },
+            "description": "Download latest Management API (server.js), docker-compose.yml, and config templates from GitHub. Restarts the Management API service after update.\n\nUpdated files:\n- /opt/openclaw-mgmt/server.js\n- /opt/openclaw/docker-compose.yml\n- /etc/openclaw/config/*.json (anthropic, openai, gemini)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"ok\": true,\n  \"message\": \"Update complete. Management API restarting...\",\n  \"files\": [\n    { \"file\": \"/opt/openclaw-mgmt/server.js\", \"ok\": true },\n    { \"file\": \"/opt/openclaw/docker-compose.yml\", \"ok\": true },\n    { \"file\": \"/etc/openclaw/config/anthropic.json\", \"ok\": true },\n    { \"file\": \"/etc/openclaw/config/openai.json\", \"ok\": true },\n    { \"file\": \"/etc/openclaw/config/gemini.json\", \"ok\": true }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
