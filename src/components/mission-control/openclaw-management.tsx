@@ -214,6 +214,31 @@ interface ProviderModelsInfo {
   models?: Array<string | { id?: string; name?: string; model?: string; label?: string }>;
 }
 
+interface CustomProvidersInfo {
+  ok?: boolean;
+  providers?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>>;
+  items?: Array<Record<string, unknown>>;
+  results?: Array<Record<string, unknown>>;
+  templates?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>>;
+  customProviders?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>>;
+  activeProvider?: string;
+  activeModel?: string;
+  [key: string]: unknown;
+}
+
+interface ChatGptOAuthStatusInfo {
+  ok?: boolean;
+  [key: string]: unknown;
+}
+
+interface ChatGptOAuthStartInfo {
+  ok?: boolean;
+  sessionId?: string;
+  oauthUrl?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
 interface ChannelRecord {
   configured?: boolean;
   token?: string | null;
@@ -725,6 +750,11 @@ function toModelOptionLabel(model: string | { id?: string; name?: string; model?
   return model.label ?? model.name ?? model.id ?? model.model ?? "unknown-model";
 }
 
+function toModelOptionValue(model: string | { id?: string; name?: string; model?: string; label?: string }) {
+  if (typeof model === "string") return model;
+  return model.id ?? model.model ?? model.name ?? model.label ?? "unknown-model";
+}
+
 function boolLabel(value?: boolean) {
   return value ? "Yes" : "No";
 }
@@ -993,6 +1023,23 @@ export function OpenClawManagement() {
   const [model, setModel] = useState("anthropic/claude-sonnet-4-20250514");
   const [apiKey, setApiKey] = useState("");
   const [configBusy, setConfigBusy] = useState(false);
+  const [providerAdminBusy, setProviderAdminBusy] = useState<string | null>(null);
+  const [selectedCustomProvider, setSelectedCustomProvider] = useState("");
+  const [customProviderBaseUrl, setCustomProviderBaseUrl] = useState("");
+  const [customProviderApi, setCustomProviderApi] = useState("openai-completions");
+  const [customProviderModel, setCustomProviderModel] = useState("");
+  const [customProviderModelName, setCustomProviderModelName] = useState("");
+  const [customProviderApiKey, setCustomProviderApiKey] = useState("");
+  const [customProviderClearApiKey, setCustomProviderClearApiKey] = useState(false);
+  const [providerModelIdDraft, setProviderModelIdDraft] = useState("");
+  const [providerModelNameDraft, setProviderModelNameDraft] = useState("");
+  const [chatGptOAuthAgentId, setChatGptOAuthAgentId] = useState("main");
+  const [chatGptOAuthModel, setChatGptOAuthModel] = useState("openai-codex/gpt-5.4");
+  const [chatGptOAuthSessionId, setChatGptOAuthSessionId] = useState("");
+  const [chatGptOAuthRedirectUrl, setChatGptOAuthRedirectUrl] = useState("");
+  const [chatGptOAuthSwitchProvider, setChatGptOAuthSwitchProvider] = useState(true);
+  const [chatGptOAuthBusy, setChatGptOAuthBusy] = useState<string | null>(null);
+  const [chatGptOAuthStartResult, setChatGptOAuthStartResult] = useState<ChatGptOAuthStartInfo | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState<string | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [environmentOptions, setEnvironmentOptions] = useState<OpenClawEnvironmentOption[]>([]);
@@ -1054,6 +1101,7 @@ export function OpenClawManagement() {
   const domainIssuer = useOpenClawFetch<DomainPreflight>("/domain/issuer", OPENCLAW_SYNC_PASSIVE_MS, isDomainSection);
   const providers = useOpenClawFetch<ProvidersInfo>("/providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
   const providerModels = useOpenClawFetch<ProviderModelsInfo>(`/providers/${encodeURIComponent(provider)}/models`, OPENCLAW_SYNC_PASSIVE_MS, isProviderSection && Boolean(provider));
+  const customProviders = useOpenClawFetch<CustomProvidersInfo>("/config/custom-providers", OPENCLAW_SYNC_PASSIVE_MS, isProviderSection);
   const channels = useOpenClawFetch<ChannelsInfo>("/channels", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
   const channelsStatus = useOpenClawFetch<ChannelsInfo>("/channels/status?probe=true", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
   const channelsUpstream = useOpenClawFetch<ChannelsInfo>("/channels/upstream?usage=true", OPENCLAW_SYNC_PASSIVE_MS, isChannelsSection);
@@ -1115,6 +1163,7 @@ export function OpenClawManagement() {
   const agentFiles = useOpenClawFetch<AgentFilesInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId));
   const [selectedAgentFileName, setSelectedAgentFileName] = useState("");
   const agentFile = useOpenClawFetch<AgentFileInfo>(`/agents/${encodeURIComponent(selectedAgentId)}/files/${encodeURIComponent(selectedAgentFileName)}`, OPENCLAW_SYNC_PASSIVE_MS, isAgentsSection && Boolean(selectedAgentId) && Boolean(selectedAgentFileName));
+  const chatGptOAuthStatus = useOpenClawFetch<ChatGptOAuthStatusInfo>(`/config/chatgpt-oauth/status?agentId=${encodeURIComponent(chatGptOAuthAgentId)}`, OPENCLAW_SYNC_PASSIVE_MS, isCredentialsSection && Boolean(chatGptOAuthAgentId));
   const [agentsBusy, setAgentsBusy] = useState<string | null>(null);
   const [agentCreateId, setAgentCreateId] = useState("ops");
   const [agentCreateName, setAgentCreateName] = useState("Operations Agent");
@@ -1276,6 +1325,26 @@ export function OpenClawManagement() {
       setModel(config.data.model);
     }
   }, [config.data?.model, config.data?.provider]);
+
+  useEffect(() => {
+    if (!customProviderItems.some((item) => String(item.name ?? item.id ?? item.provider ?? "") === selectedCustomProvider)) {
+      const firstProvider = customProviderItems[0];
+      setSelectedCustomProvider(String(firstProvider?.name ?? firstProvider?.id ?? firstProvider?.provider ?? ""));
+    }
+  }, [customProviderItems, selectedCustomProvider]);
+
+  useEffect(() => {
+    if (!selectedCustomProviderData) {
+      return;
+    }
+
+    setCustomProviderBaseUrl(String(selectedCustomProviderData.baseUrl ?? selectedCustomProviderData.url ?? ""));
+    setCustomProviderApi(String(selectedCustomProviderData.api ?? "openai-completions"));
+    setCustomProviderModel(String(selectedCustomProviderData.model ?? selectedCustomProviderData.defaultModel ?? ""));
+    setCustomProviderModelName(String(selectedCustomProviderData.modelName ?? selectedCustomProviderData.label ?? ""));
+    setCustomProviderApiKey("");
+    setCustomProviderClearApiKey(false);
+  }, [selectedCustomProviderData]);
 
   useEffect(() => {
     if (!domainDraft && domain.data?.domain) {
@@ -1491,6 +1560,7 @@ export function OpenClawManagement() {
       domainIssuer.refresh({ refresh: forceFresh }),
       providers.refresh({ refresh: forceFresh }),
       providerModels.refresh({ refresh: forceFresh }),
+      customProviders.refresh({ refresh: forceFresh }),
       channels.refresh({ refresh: forceFresh }),
       channelsStatus.refresh({ refresh: forceFresh }),
       channelsUpstream.refresh({ refresh: forceFresh }),
@@ -1534,7 +1604,7 @@ export function OpenClawManagement() {
       agentFiles.refresh({ refresh: forceFresh }),
       agentFile.refresh({ refresh: forceFresh }),
     ]);
-  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
+  }, [agentApiKeys, agentDetail, agentFile, agentFiles, agents, authUser, channelCapabilities, channelLogs, channels, channelsStatus, channelsUpstream, config, configFile, configSchema, cronJobs, cronStatus, customProviders, devicesLegacy, devicesPairing, directoryGroups, directoryMembers, directoryPeers, directorySelf, doctorMemoryStatus, domain, domainIssuer, gatewayDiscover, gatewayUsage, hookCheck, hookDetail, hooks, imageFallbacks, info, logs, mcpServerDetail, mcpServers, memoryStatus, modelAliases, modelAuthOrder, modelFallbacks, modelsCatalog, modelsStatus, nodeDetail, nodesList, nodesStatus, plugins, pluginsInspect, providerModels, providers, secretsAudit, securityAudit, sessions, skillBins, skillDetail, skills, skillsStatus, status, system, systemHeartbeatLast, systemPresence, upstream, version]);
 
   const lastUpdatedAt = useMemo(() => {
     const timestamps = [
@@ -1557,6 +1627,7 @@ export function OpenClawManagement() {
       domainIssuer.fetchedAt,
       providers.fetchedAt,
       providerModels.fetchedAt,
+      customProviders.fetchedAt,
       channels.fetchedAt,
       channelsStatus.fetchedAt,
       channelsUpstream.fetchedAt,
@@ -1614,6 +1685,7 @@ export function OpenClawManagement() {
     channelsStatus.fetchedAt,
     channelsUpstream.fetchedAt,
     channelCapabilities.fetchedAt,
+    customProviders.fetchedAt,
     channelLogs.fetchedAt,
     config.fetchedAt,
     directoryGroups.fetchedAt,
@@ -1694,6 +1766,7 @@ export function OpenClawManagement() {
       domainIssuer.cacheStatus,
       providers.cacheStatus,
       providerModels.cacheStatus,
+      customProviders.cacheStatus,
       channels.cacheStatus,
       channelsStatus.cacheStatus,
       channelsUpstream.cacheStatus,
@@ -1747,6 +1820,7 @@ export function OpenClawManagement() {
     channelsStatus.cacheStatus,
     channelsUpstream.cacheStatus,
     channelCapabilities.cacheStatus,
+    customProviders.cacheStatus,
     channelLogs.cacheStatus,
     config.cacheStatus,
     directoryGroups.cacheStatus,
@@ -1912,6 +1986,300 @@ export function OpenClawManagement() {
       setConfigBusy(false);
     }
   }, [config, provider]);
+
+  const handleCreateCustomProvider = useCallback(async () => {
+    if (!customProviderBaseUrl.trim() || !customProviderModel.trim()) {
+      toast.error("Enter both base URL and model");
+      return;
+    }
+
+    setProviderAdminBusy("custom-provider-create");
+    try {
+      const payload: Record<string, unknown> = {
+        baseUrl: customProviderBaseUrl.trim(),
+        model: customProviderModel.trim(),
+        api: customProviderApi.trim() || "openai-completions",
+      };
+
+      if (customProviderModelName.trim()) {
+        payload.modelName = customProviderModelName.trim();
+      }
+      if (customProviderApiKey.trim()) {
+        payload.apiKey = customProviderApiKey.trim();
+      }
+
+      const result = await requestOpenClaw<Record<string, unknown>>("/config/custom-provider", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      const nextProvider = String(result.provider ?? result.name ?? result.slug ?? provider);
+      const nextModel = String(result.model ?? customProviderModel.trim());
+
+      toast.success(`Custom provider ${nextProvider} created`);
+      setProvider(nextProvider);
+      setModel(nextModel);
+      setSelectedCustomProvider(nextProvider);
+      setCustomProviderApiKey("");
+      setCustomProviderClearApiKey(false);
+      await Promise.all([
+        customProviders.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        providerModels.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+        status.refresh({ refresh: true }),
+        upstream.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create custom provider");
+    } finally {
+      setProviderAdminBusy(null);
+    }
+  }, [config, customProviderApi, customProviderApiKey, customProviderBaseUrl, customProviderModel, customProviderModelName, customProviders, provider, providerModels, providers, status, upstream]);
+
+  const handleUpdateCustomProvider = useCallback(async () => {
+    if (!selectedCustomProvider.trim()) {
+      toast.error("Select a custom provider first");
+      return;
+    }
+    if (!customProviderBaseUrl.trim() || !customProviderModel.trim()) {
+      toast.error("Enter both base URL and model");
+      return;
+    }
+
+    setProviderAdminBusy("custom-provider-update");
+    try {
+      const payload: Record<string, unknown> = {
+        baseUrl: customProviderBaseUrl.trim(),
+        model: customProviderModel.trim(),
+        api: customProviderApi.trim() || "openai-completions",
+      };
+
+      if (customProviderModelName.trim()) {
+        payload.modelName = customProviderModelName.trim();
+      }
+      if (customProviderClearApiKey) {
+        payload.apiKey = "";
+      } else if (customProviderApiKey.trim()) {
+        payload.apiKey = customProviderApiKey.trim();
+      }
+
+      const targetProvider = selectedCustomProvider.trim();
+      const result = await requestOpenClaw<Record<string, unknown>>(`/config/custom-provider/${encodeURIComponent(targetProvider)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+
+      const nextProvider = String(result.provider ?? result.name ?? targetProvider);
+      const nextModel = String(result.model ?? customProviderModel.trim());
+
+      toast.success(`Custom provider ${nextProvider} updated`);
+      setProvider(nextProvider);
+      setModel(nextModel);
+      setSelectedCustomProvider(nextProvider);
+      setCustomProviderApiKey("");
+      setCustomProviderClearApiKey(false);
+      await Promise.all([
+        customProviders.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        providerModels.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+        status.refresh({ refresh: true }),
+        upstream.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update custom provider");
+    } finally {
+      setProviderAdminBusy(null);
+    }
+  }, [config, customProviderApi, customProviderApiKey, customProviderBaseUrl, customProviderClearApiKey, customProviderModel, customProviderModelName, customProviders, providerModels, providers, selectedCustomProvider, status, upstream]);
+
+  const handleDeleteCustomProvider = useCallback(async () => {
+    if (!selectedCustomProvider.trim()) {
+      toast.error("Select a custom provider first");
+      return;
+    }
+
+    const targetProvider = selectedCustomProvider.trim();
+    if (!window.confirm(`Delete custom provider ${targetProvider}?`)) {
+      return;
+    }
+
+    setProviderAdminBusy("custom-provider-delete");
+    try {
+      await requestOpenClaw(`/config/custom-provider/${encodeURIComponent(targetProvider)}`, { method: "DELETE" });
+      toast.success(`Custom provider ${targetProvider} deleted`);
+      setSelectedCustomProvider("");
+      setCustomProviderApiKey("");
+      setCustomProviderClearApiKey(false);
+      await Promise.all([
+        customProviders.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        providerModels.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+        status.refresh({ refresh: true }),
+        upstream.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete custom provider");
+    } finally {
+      setProviderAdminBusy(null);
+    }
+  }, [config, customProviders, providerModels, providers, selectedCustomProvider, status, upstream]);
+
+  const handleAddProviderModel = useCallback(async () => {
+    if (!provider.trim() || !providerModelIdDraft.trim()) {
+      toast.error("Enter both provider and model ID");
+      return;
+    }
+
+    setProviderAdminBusy("provider-model-add");
+    try {
+      const payload: Record<string, unknown> = { id: providerModelIdDraft.trim() };
+      if (providerModelNameDraft.trim()) {
+        payload.name = providerModelNameDraft.trim();
+      }
+
+      await requestOpenClaw(`/providers/${encodeURIComponent(provider.trim())}/models`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      toast.success(`Model ${providerModelIdDraft.trim()} added to ${provider.trim()}`);
+      setModel(providerModelIdDraft.trim());
+      setProviderModelIdDraft("");
+      setProviderModelNameDraft("");
+      await Promise.all([
+        providerModels.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add provider model");
+    } finally {
+      setProviderAdminBusy(null);
+    }
+  }, [config, provider, providerModelIdDraft, providerModelNameDraft, providerModels, providers]);
+
+  const handleDeleteProviderModel = useCallback(async () => {
+    if (!provider.trim() || !providerModelIdDraft.trim()) {
+      toast.error("Enter both provider and model ID");
+      return;
+    }
+
+    if (!window.confirm(`Delete model ${providerModelIdDraft.trim()} from ${provider.trim()}?`)) {
+      return;
+    }
+
+    setProviderAdminBusy("provider-model-delete");
+    try {
+      await requestOpenClaw(`/providers/${encodeURIComponent(provider.trim())}/models/${encodeURIComponent(providerModelIdDraft.trim())}`, {
+        method: "DELETE",
+      });
+
+      toast.success(`Model ${providerModelIdDraft.trim()} removed from ${provider.trim()}`);
+      setProviderModelIdDraft("");
+      setProviderModelNameDraft("");
+      await Promise.all([
+        providerModels.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove provider model");
+    } finally {
+      setProviderAdminBusy(null);
+    }
+  }, [config, provider, providerModelIdDraft, providerModels, providers]);
+
+  const handleStartChatGptOAuth = useCallback(async () => {
+    if (!chatGptOAuthAgentId.trim()) {
+      toast.error("Enter an agent ID first");
+      return;
+    }
+
+    setChatGptOAuthBusy("start");
+    try {
+      const result = await requestOpenClaw<ChatGptOAuthStartInfo>("/config/chatgpt-oauth/start", {
+        method: "POST",
+        body: JSON.stringify({ agentId: chatGptOAuthAgentId.trim() }),
+      });
+
+      setChatGptOAuthStartResult(result);
+      setChatGptOAuthSessionId(String(result.sessionId ?? ""));
+      toast.success(`OAuth started for ${chatGptOAuthAgentId.trim()}`);
+      await chatGptOAuthStatus.refresh({ refresh: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to start ChatGPT OAuth");
+    } finally {
+      setChatGptOAuthBusy(null);
+    }
+  }, [chatGptOAuthAgentId, chatGptOAuthStatus]);
+
+  const handleCompleteChatGptOAuth = useCallback(async () => {
+    if (!chatGptOAuthSessionId.trim() || !chatGptOAuthRedirectUrl.trim()) {
+      toast.error("Enter both session ID and redirect URL");
+      return;
+    }
+
+    setChatGptOAuthBusy("complete");
+    try {
+      const result = await requestOpenClaw<Record<string, unknown>>("/config/chatgpt-oauth/complete", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: chatGptOAuthSessionId.trim(),
+          redirectUrl: chatGptOAuthRedirectUrl.trim(),
+          model: chatGptOAuthModel.trim() || undefined,
+          switchProvider: chatGptOAuthSwitchProvider,
+        }),
+      });
+
+      toast.success(`ChatGPT OAuth completed for ${chatGptOAuthAgentId.trim()}`);
+      if (chatGptOAuthSwitchProvider) {
+        setProvider(String(result.provider ?? "openai-codex"));
+        if (chatGptOAuthModel.trim()) {
+          setModel(chatGptOAuthModel.trim());
+        }
+      }
+      await Promise.all([
+        chatGptOAuthStatus.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+        providers.refresh({ refresh: true }),
+        providerModels.refresh({ refresh: true }),
+        status.refresh({ refresh: true }),
+        upstream.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to complete ChatGPT OAuth");
+    } finally {
+      setChatGptOAuthBusy(null);
+    }
+  }, [chatGptOAuthAgentId, chatGptOAuthModel, chatGptOAuthRedirectUrl, chatGptOAuthSessionId, chatGptOAuthStatus, chatGptOAuthSwitchProvider, config, providerModels, providers, status, upstream]);
+
+  const handleRefreshChatGptOAuth = useCallback(async () => {
+    if (!chatGptOAuthAgentId.trim()) {
+      toast.error("Enter an agent ID first");
+      return;
+    }
+
+    setChatGptOAuthBusy("refresh");
+    try {
+      await requestOpenClaw("/config/chatgpt-oauth/refresh", {
+        method: "POST",
+        body: JSON.stringify({ agentId: chatGptOAuthAgentId.trim() }),
+      });
+
+      toast.success(`OAuth token refreshed for ${chatGptOAuthAgentId.trim()}`);
+      await Promise.all([
+        chatGptOAuthStatus.refresh({ refresh: true }),
+        config.refresh({ refresh: true }),
+      ]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to refresh ChatGPT OAuth token");
+    } finally {
+      setChatGptOAuthBusy(null);
+    }
+  }, [chatGptOAuthAgentId, chatGptOAuthStatus, config]);
 
   const handleCleanup = useCallback(async () => {
     setCleanupBusy(true);
@@ -3012,8 +3380,26 @@ export function OpenClawManagement() {
   );
 
   const providerModelOptions = useMemo(
-    () => (providerModels.data?.models ?? []).map((entry) => toModelOptionLabel(entry)),
+    () => (providerModels.data?.models ?? []).map((entry) => ({ value: toModelOptionValue(entry), label: toModelOptionLabel(entry) })),
     [providerModels.data?.models],
+  );
+
+  const customProviderItems = useMemo(
+    () => normalizeRecordItems(
+      customProviders.data?.providers
+        ?? customProviders.data?.items
+        ?? customProviders.data?.results
+        ?? customProviders.data?.templates
+        ?? customProviders.data?.customProviders
+        ?? null,
+      "name",
+    ),
+    [customProviders.data?.customProviders, customProviders.data?.items, customProviders.data?.providers, customProviders.data?.results, customProviders.data?.templates],
+  );
+
+  const selectedCustomProviderData = useMemo(
+    () => customProviderItems.find((item) => String(item.name ?? item.id ?? item.provider ?? "") === selectedCustomProvider) ?? null,
+    [customProviderItems, selectedCustomProvider],
   );
 
   const channelEntries = useMemo(
@@ -3987,9 +4373,9 @@ export function OpenClawManagement() {
                       onChange={(event) => setModel(event.target.value)}
                       className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
                     >
-                      {providerModelOptions.map((modelName) => (
-                        <option key={modelName} value={modelName}>
-                          {modelName}
+                      {providerModelOptions.map((modelOption) => (
+                        <option key={modelOption.value} value={modelOption.value}>
+                          {modelOption.label}
                         </option>
                       ))}
                     </select>
@@ -4011,6 +4397,188 @@ export function OpenClawManagement() {
                 >
                   {configBusy ? "Applying…" : "Apply Provider"}
                 </button>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">Custom Providers</p>
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">Create or update OpenClaw custom providers without leaving Mission Control.</p>
+                    </div>
+                    <span className="text-xs text-[var(--text-tertiary)]">{customProviderItems.length} items</span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                      <span>Selected custom provider</span>
+                      <select
+                        value={selectedCustomProvider}
+                        onChange={(event) => setSelectedCustomProvider(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      >
+                        <option value="">Create new provider</option>
+                        {customProviderItems.map((item) => {
+                          const providerName = String(item.name ?? item.id ?? item.provider ?? "");
+                          const providerLabel = String(item.label ?? item.modelName ?? providerName || "Unnamed provider");
+                          return (
+                            <option key={providerName} value={providerName}>
+                              {providerName} — {providerLabel}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                      <span>Base URL</span>
+                      <input
+                        value={customProviderBaseUrl}
+                        onChange={(event) => setCustomProviderBaseUrl(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="https://api.example.com/v1"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>API type</span>
+                      <input
+                        value={customProviderApi}
+                        onChange={(event) => setCustomProviderApi(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="openai-completions"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Model ID</span>
+                      <input
+                        value={customProviderModel}
+                        onChange={(event) => setCustomProviderModel(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="gpt-4.1"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Model name</span>
+                      <input
+                        value={customProviderModelName}
+                        onChange={(event) => setCustomProviderModelName(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="GPT-4.1 Custom"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>API key</span>
+                      <input
+                        value={customProviderApiKey}
+                        onChange={(event) => setCustomProviderApiKey(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="Optional override key"
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-3 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={customProviderClearApiKey}
+                      onChange={(event) => setCustomProviderClearApiKey(event.target.checked)}
+                    />
+                    Clear stored API key on update
+                  </label>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateCustomProvider()}
+                      disabled={providerAdminBusy != null}
+                      className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {providerAdminBusy === "custom-provider-create" ? "Creating…" : "Create Provider"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleUpdateCustomProvider()}
+                      disabled={providerAdminBusy != null || !selectedCustomProvider}
+                      className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                    >
+                      {providerAdminBusy === "custom-provider-update" ? "Updating…" : "Update Provider"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteCustomProvider()}
+                      disabled={providerAdminBusy != null || !selectedCustomProvider}
+                      className="rounded-xl border border-[rgba(255,99,132,0.35)] px-4 py-2 text-sm font-medium text-[rgb(255,99,132)] transition hover:bg-[rgba(255,99,132,0.08)] disabled:opacity-50"
+                    >
+                      {providerAdminBusy === "custom-provider-delete" ? "Deleting…" : "Delete Provider"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">Provider Model Admin</p>
+                  <p className="mt-1 text-xs text-[var(--text-secondary)]">Add or remove model definitions for the currently selected provider.</p>
+
+                  <div className="mt-4 grid grid-cols-1 gap-4">
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Model ID</span>
+                      <input
+                        value={providerModelIdDraft}
+                        onChange={(event) => setProviderModelIdDraft(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="gpt-4.1-mini"
+                      />
+                    </label>
+                    <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                      <span>Display name</span>
+                      <input
+                        value={providerModelNameDraft}
+                        onChange={(event) => setProviderModelNameDraft(event.target.value)}
+                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                        placeholder="GPT-4.1 Mini"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleAddProviderModel()}
+                      disabled={providerAdminBusy != null}
+                      className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                    >
+                      {providerAdminBusy === "provider-model-add" ? "Adding…" : "Add Model"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteProviderModel()}
+                      disabled={providerAdminBusy != null || !providerModelIdDraft.trim()}
+                      className="rounded-xl border border-[rgba(255,99,132,0.35)] px-4 py-2 text-sm font-medium text-[rgb(255,99,132)] transition hover:bg-[rgba(255,99,132,0.08)] disabled:opacity-50"
+                    >
+                      {providerAdminBusy === "provider-model-delete" ? "Deleting…" : "Delete Model"}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-[var(--border)]/60 p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Available Models</p>
+                    <div className="mt-3 flex max-h-48 flex-wrap gap-2 overflow-auto">
+                      {providerModelOptions.length > 0 ? providerModelOptions.map((modelOption) => (
+                        <button
+                          key={modelOption.value}
+                          type="button"
+                          onClick={() => {
+                            setModel(modelOption.value);
+                            setProviderModelIdDraft(modelOption.value);
+                            setProviderModelNameDraft(modelOption.label);
+                          }}
+                          className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                        >
+                          {modelOption.label}
+                        </button>
+                      )) : (
+                        <span className="text-xs text-[var(--text-secondary)]">No provider models loaded.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {providerEntries.length > 0 ? (
@@ -4087,6 +4655,113 @@ export function OpenClawManagement() {
                     <span className="font-mono text-[var(--text-primary)]">{masked ?? "not set"}</span>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-5 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text-primary)]">ChatGPT OAuth</p>
+                    <p className="mt-1 text-xs text-[var(--text-secondary)]">Start, complete, and refresh the ChatGPT OAuth flow for an agent.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void chatGptOAuthStatus.refresh({ refresh: true })}
+                    className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40"
+                  >
+                    Refresh Status
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Agent ID</span>
+                    <input
+                      value={chatGptOAuthAgentId}
+                      onChange={(event) => setChatGptOAuthAgentId(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="main"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)]">
+                    <span>Preferred model</span>
+                    <input
+                      value={chatGptOAuthModel}
+                      onChange={(event) => setChatGptOAuthModel(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="chatgpt-4o-latest"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                    <span>Session ID</span>
+                    <input
+                      value={chatGptOAuthSessionId}
+                      onChange={(event) => setChatGptOAuthSessionId(event.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="Returned by OAuth start"
+                    />
+                  </label>
+                  <label className="space-y-2 text-sm text-[var(--text-secondary)] md:col-span-2">
+                    <span>Redirect URL</span>
+                    <textarea
+                      value={chatGptOAuthRedirectUrl}
+                      onChange={(event) => setChatGptOAuthRedirectUrl(event.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[var(--text-primary)] outline-none"
+                      placeholder="Paste the full callback URL after approving OAuth"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-3 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={chatGptOAuthSwitchProvider}
+                    onChange={(event) => setChatGptOAuthSwitchProvider(event.target.checked)}
+                  />
+                  Switch active provider after OAuth completion
+                </label>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleStartChatGptOAuth()}
+                    disabled={chatGptOAuthBusy != null}
+                    className="rounded-xl bg-[rgba(0,212,126,0.12)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+                  >
+                    {chatGptOAuthBusy === "start" ? "Starting…" : "Start OAuth"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCompleteChatGptOAuth()}
+                    disabled={chatGptOAuthBusy != null}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {chatGptOAuthBusy === "complete" ? "Completing…" : "Complete OAuth"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshChatGptOAuth()}
+                    disabled={chatGptOAuthBusy != null}
+                    className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] transition hover:border-[var(--accent)]/40 disabled:opacity-50"
+                  >
+                    {chatGptOAuthBusy === "refresh" ? "Refreshing…" : "Refresh Token"}
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--border)]/60 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Start Result</p>
+                    <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                      {JSON.stringify(chatGptOAuthStartResult ?? { message: "No OAuth session started yet." }, null, 2)}
+                    </pre>
+                  </div>
+                  <div className="rounded-xl border border-[var(--border)]/60 p-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">OAuth Status</p>
+                    <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
+                      {JSON.stringify(chatGptOAuthStatus.data ?? { message: "No OAuth status returned." }, null, 2)}
+                    </pre>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-5 border-t border-[var(--border)]/60 pt-4">
