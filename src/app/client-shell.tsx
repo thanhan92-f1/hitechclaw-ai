@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { NotionShell } from "@/components/mission-control/app-shell";
+import { TenantProvider } from "@/components/mission-control/tenant-context";
 
 export default function ClientShell({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -20,5 +21,9 @@ export default function ClientShell({ children }: { children: ReactNode }) {
     return <div className="min-h-screen" style={{ background: "#0A0A0C" }} />;
   }
 
-  return <NotionShell>{children}</NotionShell>;
+  return (
+    <TenantProvider>
+      <NotionShell>{children}</NotionShell>
+    </TenantProvider>
+  );
 }

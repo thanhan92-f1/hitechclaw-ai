@@ -5,9 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import { Suspense, type ReactNode, useCallback, useEffect, useState } from "react";
 import { PageTransitionWrapper } from "./charts";
 import {
+  Activity,
   AlertTriangle,
   LayoutDashboard,
   Bot,
+  Database,
   Network,
   ShieldCheck,
   Wallet,
@@ -43,6 +45,9 @@ import { Breadcrumbs } from "../ui/breadcrumbs";
 import { TenantSwitcher } from "./tenant-switcher";
 import { ThemeToggle } from "./theme-toggle";
 import { getAuthHeaders } from "./api";
+import { WorkspaceModeToggle } from "./workspace-mode-toggle";
+import { OpenClawManagement } from "./openclaw-management";
+import { useTenantFilter } from "./tenant-context";
 
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
@@ -208,6 +213,7 @@ function isRouteActive(pathname: string | null, href: string) {
 export function NotionShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { mode, openClawSection, setOpenClawSection } = useTenantFilter();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   // alertCount removed — NotificationDropdown now self-manages via /api/notifications
   const [isOpen, setIsOpen] = useState(false);
@@ -333,9 +339,16 @@ export function NotionShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const handleNavSelect = () => {
+  const closeNavigationOverlays = () => {
     setIsOpen(false);
     setMoreOpen(false);
+  };
+
+  const handleOpenClawNavSelect = (nextOpenClawSection: "overview" | "runtime" | "config" | "sessions") => {
+    closeNavigationOverlays();
+    if (mode === "openclaw") {
+      setOpenClawSection(nextOpenClawSection);
+    }
   };
 
   // Skip shell chrome for login and setup pages (after all hooks to satisfy Rules of Hooks)
@@ -349,6 +362,78 @@ export function NotionShell({ children }: { children: ReactNode }) {
     document.cookie = "mc_role=; path=/; max-age=0";
     router.push("/login");
   };
+
+  const openClawSidebar = (
+    <div className="flex h-full flex-col bg-[var(--bg-primary)] text-[var(--text-secondary)]">
+      <div className="flex h-14 items-center border-b border-[var(--border)]/50 px-4">
+        <div className="flex-1 min-w-0">
+          {!sidebarCollapsed && (
+            <>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--text-tertiary)]">
+                HiTechClaw AI
+              </p>
+              <p className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">OpenClaw Control</p>
+            </>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition hover:bg-white/[0.03] hover:text-[var(--text-secondary)]"
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {sidebarCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 py-3">
+        <div className="mb-3 px-3">
+          {!sidebarCollapsed && <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[var(--text-tertiary)]">Manage</p>}
+        </div>
+        <div className="space-y-1">
+          {[
+            { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
+            { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
+            { key: "config", label: "Config", icon: Settings, subtitle: "Provider and API key" },
+            { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
+          ].map((item) => {
+            const active = item.key === openClawSection;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  handleOpenClawNavSelect(item.key as "overview" | "runtime" | "config" | "sessions");
+                }}
+                className={`flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[13px] font-medium transition ${
+                  active
+                    ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
+                    : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
+                {!sidebarCollapsed && <div className="min-w-0 flex-1 text-left">
+                  <span>{item.label}</span>
+                  <span className="block truncate text-[10px] font-normal text-[var(--text-tertiary)]">{item.subtitle}</span>
+                </div>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 border-t border-[var(--border)]/50 pt-3">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex min-h-9 w-full items-center gap-2.5 rounded-xl px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] transition hover:bg-red-500/[0.06] hover:text-red-400"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!sidebarCollapsed && <span>Sign Out</span>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const sidebar = (
     <div className="flex h-full flex-col bg-[var(--bg-primary)] text-[var(--text-secondary)]">
@@ -420,7 +505,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        onClick={handleNavSelect}
+                        onClick={closeNavigationOverlays}
                         data-tour={TOUR_IDS[item.href]}
                         className={`flex min-h-9 items-center gap-2.5 rounded-xl px-3 py-1.5 text-[13px] font-medium transition ${
                           active
@@ -462,7 +547,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                   <Link
                     key={`pinned-${doc.id}`}
                     href={`/tools/docs?id=${doc.id}`}
-                    onClick={handleNavSelect}
+                    onClick={closeNavigationOverlays}
                     className="flex min-h-9 w-full items-center gap-2 rounded-xl px-3 py-1.5 text-left text-[13px] text-[var(--text-secondary)] transition hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
                   >
                     <Star className="h-3.5 w-3.5 shrink-0 text-[var(--warning)]" />
@@ -492,7 +577,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <div className="flex min-h-screen">
         <aside className={`hidden shrink-0 border-r border-[var(--border)]/50 md:block transition-all duration-300 ${sidebarCollapsed ? "w-16" : "w-60"}`}>
-          <div className="sticky top-0 h-screen">{sidebar}</div>
+          <div className="sticky top-0 h-screen">{mode === "openclaw" ? openClawSidebar : sidebar}</div>
         </aside>
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
@@ -509,7 +594,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                 </button>
                 <div>
                   <Breadcrumbs />
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">{pageLabels[pathname ?? ""] ?? "HiTechClaw AI"}</p>
+                  <p className="text-sm font-semibold text-[var(--text-primary)]">{mode === "openclaw" ? "OpenClaw Management" : (pageLabels[pathname ?? ""] ?? "HiTechClaw AI")}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -527,6 +612,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
                 
                 <ThemeToggle />
                 <TenantSwitcher />
+                <WorkspaceModeToggle />
                 <HelpPanel />
                 <NotificationDropdown />
               </div>
@@ -538,8 +624,8 @@ export function NotionShell({ children }: { children: ReactNode }) {
           <main className="min-w-0 flex-1 px-4 pb-[calc(84px+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6 md:pb-6">
             <div className="mx-auto w-full max-w-6xl">
               
-                <PageTransitionWrapper pathname={pathname ?? "/"}>
-                  {children}
+                <PageTransitionWrapper pathname={mode === "openclaw" ? "/openclaw" : (pathname ?? "/")}>
+                  {mode === "openclaw" ? <OpenClawManagement /> : children}
                 </PageTransitionWrapper>
               
             </div>
@@ -559,7 +645,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
             onKeyDown={(e) => { if (e.key === "Escape") setIsOpen(false); }}
           />
           <div className="relative h-full w-[272px] max-w-[85vw] border-r border-[var(--border)]/50 shadow-[0_20px_60px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
-            {sidebar}
+            {mode === "openclaw" ? openClawSidebar : sidebar}
           </div>
         </div>
       ) : null}
@@ -610,7 +696,15 @@ export function NotionShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom nav */}
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)]/50 bg-[var(--bg-primary)]/95 backdrop-blur md:hidden">
         <div className="mx-auto grid h-[56px] max-w-3xl grid-cols-5 px-2 pb-[max(env(safe-area-inset-bottom),4px)] pt-1">
-          {mobileTabs.map((tab) => {
+          {(mode === "openclaw"
+            ? [
+                { href: "##overview##", label: "Overview", icon: LayoutDashboard },
+                { href: "##runtime##", label: "Runtime", icon: Activity },
+                { href: "##config##", label: "Config", icon: Settings },
+                { href: "##sessions##", label: "Sessions", icon: Database },
+                { href: "##more##", label: "More", icon: MoreHorizontal },
+              ]
+            : mobileTabs).map((tab) => {
             if (tab.href === "##more##") {
               const Icon = tab.icon;
               return (
@@ -627,6 +721,26 @@ export function NotionShell({ children }: { children: ReactNode }) {
                 </button>
               );
             }
+            if (mode === "openclaw" && tab.href.startsWith("##")) {
+              const sectionKey = tab.href.replace(/#/g, "") as "overview" | "runtime" | "config" | "sessions";
+              const active = sectionKey === openClawSection;
+              return (
+                <button
+                  key={tab.href}
+                  type="button"
+                  onClick={() => handleOpenClawNavSelect(sectionKey)}
+                  className={`flex min-h-10 flex-col items-center justify-center rounded-xl text-[10px] font-semibold transition ${
+                    active
+                      ? "text-[var(--accent)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--accent)]"
+                  }`}
+                >
+                  <tab.icon className="mb-0.5 h-5 w-5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            }
+
             const active = isRouteActive(pathname, tab.href);
             const Icon = tab.icon;
 
