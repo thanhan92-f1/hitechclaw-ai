@@ -96,6 +96,13 @@ type NavItem = {
   icon: LucideIcon;
 };
 
+type OpenClawNavItem = {
+  key: "overview" | "runtime" | "config" | "sessions";
+  label: string;
+  subtitle: string;
+  icon: LucideIcon;
+};
+
 const mobileTabs: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: "/", label: "Home", icon: Home },
   { href: "/agents", label: "Agents", icon: Bot },
@@ -111,6 +118,13 @@ const moreSheetItems: NavItem[] = [
   { href: "/workflows", label: "Workflows", icon: Workflow },
   { href: "/tools/mcp", label: "MCP", icon: Plug },
   { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const openClawNavItems: OpenClawNavItem[] = [
+  { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
+  { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
+  { key: "config", label: "Config", icon: Settings, subtitle: "Provider and API key" },
+  { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
 ];
 
 const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
@@ -213,7 +227,7 @@ function isRouteActive(pathname: string | null, href: string) {
 export function NotionShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { mode, openClawSection, setOpenClawSection } = useTenantFilter();
+  const { mode, openClawSection, setMode, setOpenClawSection } = useTenantFilter();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   // alertCount removed — NotificationDropdown now self-manages via /api/notifications
   const [isOpen, setIsOpen] = useState(false);
@@ -391,12 +405,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
           {!sidebarCollapsed && <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[var(--text-tertiary)]">Manage</p>}
         </div>
         <div className="space-y-1">
-          {[
-            { key: "overview", label: "Overview", icon: LayoutDashboard, subtitle: "Service identity & health" },
-            { key: "runtime", label: "Runtime", icon: Activity, subtitle: "Service control & logs" },
-            { key: "config", label: "Config", icon: Settings, subtitle: "Provider and API key" },
-            { key: "sessions", label: "Sessions", icon: Database, subtitle: "Session inventory & cleanup" },
-          ].map((item) => {
+          {openClawNavItems.map((item) => {
             const active = item.key === openClawSection;
             return (
               <button
@@ -663,29 +672,86 @@ export function NotionShell({ children }: { children: ReactNode }) {
           />
           <div className="absolute inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] mx-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-surface)] p-4 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
             <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.25em] text-[var(--text-tertiary)]">
-              More
+              {mode === "openclaw" ? "OpenClaw actions" : "More"}
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {moreSheetItems.map((item) => {
-                const active = isRouteActive(pathname, item.href);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
-                      active
-                        ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
-                        : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
-                    }`}
+            {mode === "openclaw" ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-1.5">
+                  {openClawNavItems.map((item) => {
+                    const active = item.key === openClawSection;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => {
+                          handleOpenClawNavSelect(item.key);
+                          setMoreOpen(false);
+                        }}
+                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition ${
+                          active
+                            ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
+                            : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
+                        <div className="min-w-0 flex-1">
+                          <div>{item.label}</div>
+                          <div className="truncate text-[10px] font-normal text-[var(--text-tertiary)]">{item.subtitle}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 border-t border-[var(--border)]/50 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("hitechclaw");
+                      setMoreOpen(false);
+                    }}
+                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
                   >
-                    <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
+                    <LayoutDashboard className="h-4 w-4 shrink-0" />
+                    <span>HiTechClaw</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium text-[var(--text-secondary)] transition hover:bg-red-500/[0.06] hover:text-red-400"
+                  >
+                    <LogOut className="h-4 w-4 shrink-0" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-1.5">
+                {moreSheetItems.map((item) => {
+                  const active = isRouteActive(pathname, item.href);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMoreOpen(false)}
+                      className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium transition ${
+                        active
+                          ? "bg-[rgba(0,212,126,0.08)] text-[var(--accent)]"
+                          : "text-[var(--text-secondary)] hover:bg-white/[0.03] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -698,10 +764,7 @@ export function NotionShell({ children }: { children: ReactNode }) {
         <div className="mx-auto grid h-[56px] max-w-3xl grid-cols-5 px-2 pb-[max(env(safe-area-inset-bottom),4px)] pt-1">
           {(mode === "openclaw"
             ? [
-                { href: "##overview##", label: "Overview", icon: LayoutDashboard },
-                { href: "##runtime##", label: "Runtime", icon: Activity },
-                { href: "##config##", label: "Config", icon: Settings },
-                { href: "##sessions##", label: "Sessions", icon: Database },
+                ...openClawNavItems.map((item) => ({ href: `##${item.key}##`, label: item.label, icon: item.icon })),
                 { href: "##more##", label: "More", icon: MoreHorizontal },
               ]
             : mobileTabs).map((tab) => {

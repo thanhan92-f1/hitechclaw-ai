@@ -103,6 +103,13 @@ interface LogsInfo {
   logs?: string;
 }
 
+interface VersionInfo {
+  ok?: boolean;
+  version?: string;
+  clawVersion?: string;
+  message?: string;
+}
+
 const sectionOptions: Array<{ key: OpenClawSection; label: string; icon: typeof Server }> = [
   { key: "overview", label: "Overview", icon: Server },
   { key: "runtime", label: "Runtime", icon: Activity },
@@ -219,6 +226,7 @@ export function OpenClawManagement() {
   const config = useOpenClawFetch<ConfigInfo>("/config", 45000, openClawSection === "overview" || openClawSection === "config");
   const sessions = useOpenClawFetch<SessionsInfo>("/sessions?agent=main&allAgents=false", 30000, openClawSection === "overview" || openClawSection === "sessions");
   const logs = useOpenClawFetch<LogsInfo>(`/logs?lines=${lines}&service=${serviceFilter}`, 20000, openClawSection === "runtime");
+  const version = useOpenClawFetch<VersionInfo>("/version", 60000, openClawSection === "overview" || openClawSection === "runtime");
 
   useEffect(() => {
     if (config.data?.provider) {
@@ -238,8 +246,9 @@ export function OpenClawManagement() {
       config.refresh(),
       sessions.refresh(),
       logs.refresh(),
+      version.refresh(),
     ]);
-  }, [config, info, logs, sessions, status, system, upstream]);
+  }, [config, info, logs, sessions, status, system, upstream, version]);
 
   const performRuntimeAction = useCallback(async (action: "start" | "restart" | "rebuild" | "stop") => {
     setRuntimeBusy(action);
@@ -253,6 +262,19 @@ export function OpenClawManagement() {
       setRuntimeBusy(null);
     }
   }, [refreshAll]);
+
+  const handleUpgrade = useCallback(async () => {
+    setRuntimeBusy("upgrade");
+    try {
+      const result = await requestOpenClaw<VersionInfo>("/upgrade", { method: "POST" });
+      toast.success(result.message ?? "Upgrade started. Monitor status for progress.");
+      await Promise.all([status.refresh(), version.refresh(), logs.refresh()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to start upgrade");
+    } finally {
+      setRuntimeBusy(null);
+    }
+  }, [logs, status, version]);
 
   const handleApplyProvider = useCallback(async () => {
     setConfigBusy(true);
@@ -350,7 +372,7 @@ export function OpenClawManagement() {
     },
   ], [sessionRows]);
 
-  const errors = [info.error, status.error, system.error, upstream.error, config.error, sessions.error, logs.error].filter(Boolean);
+  const errors = [info.error, status.error, system.error, upstream.error, config.error, sessions.error, logs.error, version.error].filter(Boolean);
 
   return (
     <div className="space-y-5 pb-24">
@@ -408,6 +430,7 @@ export function OpenClawManagement() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Service" value={status.data?.openclaw?.status ?? info.data?.status ?? "unknown"} subtitle={`Caddy: ${status.data?.caddy?.status ?? "unknown"}`} icon={Server} className={statusTone(status.data?.openclaw?.status)} />
             <StatCard label="Version" value={info.data?.version ?? status.data?.version ?? "—"} subtitle={`Mgmt ${info.data?.mgmtVersion ?? "—"}`} icon={Bot} />
+            <StatCard label="CLI Channel" value={version.data?.version ?? "—"} subtitle={version.data?.clawVersion ?? "OpenClaw CLI unknown"} icon={Wrench} />
             <StatCard label="Gateway Port" value={status.data?.gatewayPort ?? "18789"} subtitle={`DNS: ${info.data?.dnsStatus ?? "unknown"}`} icon={Activity} />
             <StatCard label="Uptime" value={fmtUptime(system.data?.uptime)} subtitle={system.data?.hostname ?? "OpenClaw host"} icon={Cpu} />
           </div>
@@ -481,7 +504,18 @@ export function OpenClawManagement() {
               <p>OpenClaw: <span className={statusTone(status.data?.openclaw?.status)}>{status.data?.openclaw?.status ?? "unknown"}</span></p>
               <p>Caddy: <span className={statusTone(status.data?.caddy?.status)}>{status.data?.caddy?.status ?? "unknown"}</span></p>
               <p>Started: {fmtDate(status.data?.openclaw?.startedAt)}</p>
+              <p>CLI: {version.data?.clawVersion ?? "unknown"}</p>
+              <p>Channel: {version.data?.version ?? "unknown"}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => void handleUpgrade()}
+              disabled={runtimeBusy != null}
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[rgba(0,212,126,0.12)] text-sm font-semibold text-[var(--accent)] transition hover:bg-[rgba(0,212,126,0.18)] disabled:opacity-50"
+            >
+              {runtimeBusy === "upgrade" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+              Upgrade OpenClaw
+            </button>
           </ListCard>
 
           <DetailCard title="Live Logs" icon={TerminalSquare}>

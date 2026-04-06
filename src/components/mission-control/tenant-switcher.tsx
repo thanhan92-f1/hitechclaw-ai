@@ -19,6 +19,7 @@ const PLAN_COLORS: Record<string, string> = {
 
 export function TenantSwitcher() {
   const { activeTenant, setActiveTenant } = useTenantFilter();
+    const { mode } = useTenantFilter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [open, setOpen] = useState(false);
   const [role] = useState<string>(() => {
@@ -51,7 +52,7 @@ export function TenantSwitcher() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  if (!isOwner || tenants.length === 0) return null;
+    if (!isOwner || tenants.length === 0 || mode === "openclaw") return null;
 
   const currentTenant = tenants.find((t) => t.id === activeTenant);
   const label = currentTenant?.name ?? "All Tenants";
