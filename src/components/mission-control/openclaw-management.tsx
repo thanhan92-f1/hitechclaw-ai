@@ -6262,7 +6262,7 @@ export function OpenClawManagement() {
             <ListCard title="Providers Catalog" icon={ShieldCheck}>
               <div className="space-y-4 text-sm text-[var(--text-secondary)]">
                 {providerEntries.length === 0 ? (
-                  <p>No provider inventory returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(providers.error, "No provider inventory returned.")}</p>
                 ) : (
                   providerCatalogGroups.map((group) => (
                     <div key={group.title} className="rounded-2xl border border-[var(--border)]/50 bg-[rgba(148,163,184,0.05)] p-4">
@@ -6521,7 +6521,7 @@ export function OpenClawManagement() {
                 <div className="space-y-2">
                   {pluginItems.length === 0 ? (
                     <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
-                      No plugins returned.
+                      {getOpenClawEmptyStateMessage(plugins.error, "No plugins returned.")}
                     </div>
                   ) : (
                     pluginItems.map((item, index) => {
@@ -7198,7 +7198,7 @@ export function OpenClawManagement() {
               <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Connected Identity</p>
                 <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(directorySelfData ?? { message: "No channel identity returned." }, null, 2)}
+                  {JSON.stringify(directorySelfData ?? { message: getOpenClawEmptyStateMessage(directorySelf.error, "No channel identity returned.") }, null, 2)}
                 </pre>
               </div>
 
@@ -7227,7 +7227,7 @@ export function OpenClawManagement() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Peers</p>
                   <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
                     {directoryPeerItems.length === 0 ? (
-                      <p>No peers returned.</p>
+                      <p>{getOpenClawEmptyStateMessage(directoryPeers.error, "No peers returned.")}</p>
                     ) : (
                       directoryPeerItems.slice(0, 8).map((peer, index) => (
                         <div key={`${String(peer.peerId ?? peer.id ?? peer.name ?? index)}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
@@ -7260,7 +7260,7 @@ export function OpenClawManagement() {
 
                   <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
                     {directoryMemberItems.length === 0 ? (
-                      <p>No group members returned.</p>
+                      <p>{getOpenClawEmptyStateMessage(directoryMembers.error, "No group members returned.")}</p>
                     ) : (
                       directoryMemberItems.slice(0, 8).map((member, index) => (
                         <div key={`${String(member.memberId ?? member.id ?? member.name ?? index)}`} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
@@ -8076,7 +8076,7 @@ export function OpenClawManagement() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Agent API Keys</p>
                   <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
                     {agentApiKeyEntries.length === 0 ? (
-                      <p>No provider API keys returned.</p>
+                      <p>{getOpenClawEmptyStateMessage(agentApiKeys.error, "No provider API keys returned.")}</p>
                     ) : (
                       agentApiKeyEntries.map(([name, value]) => (
                         <div key={name} className="rounded-lg border border-[var(--border)]/50 px-3 py-2">
@@ -8101,7 +8101,7 @@ export function OpenClawManagement() {
                   <div className="space-y-2">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Workspace Files</p>
                     {agentFileItems.length === 0 ? (
-                      <p className="text-sm text-[var(--text-secondary)]">No workspace files returned.</p>
+                      <p className="text-sm text-[var(--text-secondary)]">{getOpenClawEmptyStateMessage(agentFiles.error, "No workspace files returned.")}</p>
                     ) : (
                       agentFileItems.map((item, index) => {
                         const name = String(item.name ?? `file-${index + 1}`);
