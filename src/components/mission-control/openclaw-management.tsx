@@ -1140,6 +1140,18 @@ async function requestOpenClaw<T>(path: string, init?: OpenClawRequestInit): Pro
   return result.data;
 }
 
+function getOpenClawEmptyStateMessage(message: string | null | undefined, fallback: string) {
+  if (!message) {
+    return fallback;
+  }
+
+  if (shouldHideOpenClawErrorMessage(message)) {
+    return fallback;
+  }
+
+  return message;
+}
+
 function useOpenClawFetch<T>(path: string, intervalMs = 30000, enabled = true) {
   const [state, setState] = useState<FetchState<T>>({
     data: null,
@@ -5082,7 +5094,7 @@ export function OpenClawManagement() {
               </select>
             </div>
             <pre className="max-h-[520px] overflow-auto rounded-xl bg-[var(--bg-primary)] p-4 font-mono text-xs leading-6 text-[var(--text-secondary)]">
-              {logs.data?.logs ?? "No logs returned yet."}
+              {logs.data?.logs ?? getOpenClawEmptyStateMessage(logs.error, "No logs returned yet.")}
             </pre>
           </DetailCard>
         </div>
@@ -5162,7 +5174,11 @@ export function OpenClawManagement() {
             <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected MCP Payload</p>
               <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                {JSON.stringify(selectedMcpServerData ?? { message: "No MCP server detail returned." }, null, 2)}
+                {JSON.stringify(
+                  selectedMcpServerData ?? { message: getOpenClawEmptyStateMessage(mcpServerDetail.error, "No MCP server detail returned.") },
+                  null,
+                  2,
+                )}
               </pre>
             </div>
           </DetailCard>
@@ -5468,7 +5484,7 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Schema</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(configSchema.data ?? { message: "No schema returned." }, null, 2)}
+                    {JSON.stringify(configSchema.data ?? { message: getOpenClawEmptyStateMessage(configSchema.error, "No schema returned.") }, null, 2)}
                   </pre>
                 </div>
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
@@ -5570,7 +5586,7 @@ export function OpenClawManagement() {
               <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Raw Config File</p>
                 <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {configFile.data?.content ?? configFile.data?.raw ?? JSON.stringify(configFile.data ?? { message: "No raw config file returned." }, null, 2)}
+                  {configFile.data?.content ?? configFile.data?.raw ?? JSON.stringify(configFile.data ?? { message: getOpenClawEmptyStateMessage(configFile.error, "No raw config file returned.") }, null, 2)}
                 </pre>
               </div>
             </DetailCard>
@@ -5591,7 +5607,7 @@ export function OpenClawManagement() {
             <ListCard title="Gateway Discovery" icon={Network}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {gatewayDiscoverItems.length === 0 ? (
-                  <p>No gateway discovery data returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(gatewayDiscover.error, "No gateway discovery data returned.")}</p>
                 ) : (
                   gatewayDiscoverItems.slice(0, 10).map((item, index) => (
                     <div key={`${String(item.gatewayId ?? item.id ?? item.name ?? index)}`} className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-3">
@@ -5606,7 +5622,7 @@ export function OpenClawManagement() {
             <ListCard title="Node Fleet" icon={Database}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {[...nodesStatusItems, ...nodesListItems].length === 0 ? (
-                  <p>No nodes returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(nodesStatus.error ?? nodesList.error, "No nodes returned.")}</p>
                 ) : (
                   [...nodesStatusItems, ...nodesListItems].slice(0, 12).map((item, index) => {
                     const nodeId = String(item.nodeId ?? item.id ?? item.name ?? `node-${index + 1}`);
@@ -5635,7 +5651,7 @@ export function OpenClawManagement() {
               <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4 text-sm text-[var(--text-secondary)]">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Selected Node</p>
                 <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(selectedNodeData ?? { message: "No node selected or no node detail returned." }, null, 2)}
+                  {JSON.stringify(selectedNodeData ?? { message: getOpenClawEmptyStateMessage(nodeDetail.error, "No node selected or no node detail returned.") }, null, 2)}
                 </pre>
               </div>
             </DetailCard>
@@ -5997,7 +6013,7 @@ export function OpenClawManagement() {
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Audit Summary</p>
-                    <p className="mt-2 text-sm text-[var(--text-primary)]">{secretsAudit.data?.summary ?? "No secret audit summary returned."}</p>
+                    <p className="mt-2 text-sm text-[var(--text-primary)]">{secretsAudit.data?.summary ?? getOpenClawEmptyStateMessage(secretsAudit.error, "No secret audit summary returned.")}</p>
                     <p className="mt-2 text-xs text-[var(--text-secondary)]">Findings: {secretsFindingItems.length}</p>
                   </div>
                   <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
@@ -6011,7 +6027,11 @@ export function OpenClawManagement() {
                 <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Secrets Audit JSON</p>
                   <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(secretsAudit.data ?? { message: "No secrets audit returned." }, null, 2)}
+                    {JSON.stringify(
+                      secretsAudit.data ?? { message: getOpenClawEmptyStateMessage(secretsAudit.error, "No secrets audit returned.") },
+                      null,
+                      2,
+                    )}
                   </pre>
                 </div>
               </div>
@@ -6366,7 +6386,11 @@ export function OpenClawManagement() {
               <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Channel Status</p>
                 <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(channelsStatus.data ?? { message: "No upstream channel status returned." }, null, 2)}
+                  {JSON.stringify(
+                    channelsStatus.data ?? { message: getOpenClawEmptyStateMessage(channelsStatus.error, "No upstream channel status returned.") },
+                    null,
+                    2,
+                  )}
                 </pre>
               </div>
 
@@ -6377,7 +6401,11 @@ export function OpenClawManagement() {
                     <span className="text-xs text-[var(--text-secondary)]">{channelUpstreamItems.length} item(s)</span>
                   </div>
                   <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(channelsUpstream.data ?? { message: "No upstream channel inventory returned." }, null, 2)}
+                    {JSON.stringify(
+                      channelsUpstream.data ?? { message: getOpenClawEmptyStateMessage(channelsUpstream.error, "No upstream channel inventory returned.") },
+                      null,
+                      2,
+                    )}
                   </pre>
                 </div>
 
@@ -6402,7 +6430,11 @@ export function OpenClawManagement() {
                     </div>
                   </div>
                   <pre className="mt-3 max-h-56 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(channelCapabilities.data ?? { message: "No channel capabilities returned." }, null, 2)}
+                    {JSON.stringify(
+                      channelCapabilities.data ?? { message: getOpenClawEmptyStateMessage(channelCapabilities.error, "No channel capabilities returned.") },
+                      null,
+                      2,
+                    )}
                   </pre>
                 </div>
               </div>
@@ -6468,7 +6500,12 @@ export function OpenClawManagement() {
                   </button>
                 </div>
                 <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {channelLogs.data?.logs ?? JSON.stringify(channelLogs.data ?? { message: "No channel logs returned." }, null, 2)}
+                  {channelLogs.data?.logs
+                    ?? JSON.stringify(
+                      channelLogs.data ?? { message: getOpenClawEmptyStateMessage(channelLogs.error, "No channel logs returned.") },
+                      null,
+                      2,
+                    )}
                 </pre>
               </div>
             </DetailCard>
@@ -6621,13 +6658,21 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Last Heartbeat</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(systemHeartbeatLast.data ?? { message: "No heartbeat data returned." }, null, 2)}
+                    {JSON.stringify(
+                      systemHeartbeatLast.data ?? { message: getOpenClawEmptyStateMessage(systemHeartbeatLast.error, "No heartbeat data returned.") },
+                      null,
+                      2,
+                    )}
                   </pre>
                 </div>
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Presence Snapshot</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(systemPresence.data ?? { message: "No system presence returned." }, null, 2)}
+                    {JSON.stringify(
+                      systemPresence.data ?? { message: getOpenClawEmptyStateMessage(systemPresence.error, "No system presence returned.") },
+                      null,
+                      2,
+                    )}
                   </pre>
                 </div>
               </div>
@@ -6656,7 +6701,7 @@ export function OpenClawManagement() {
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Summary</p>
-                    <p className="mt-2 text-sm text-[var(--text-primary)]">{securityAudit.data?.summary ?? "No security audit summary returned."}</p>
+                    <p className="mt-2 text-sm text-[var(--text-primary)]">{securityAudit.data?.summary ?? getOpenClawEmptyStateMessage(securityAudit.error, "No security audit summary returned.")}</p>
                     <p className="mt-2 text-xs text-[var(--text-secondary)]">Findings: {securityFindingItems.length}</p>
                   </div>
                   <div className="rounded-xl border border-[var(--border)]/50 px-3 py-3">
@@ -6665,7 +6710,11 @@ export function OpenClawManagement() {
                   </div>
                 </div>
                 <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(securityAudit.data ?? { message: "No security audit returned." }, null, 2)}
+                  {JSON.stringify(
+                    securityAudit.data ?? { message: getOpenClawEmptyStateMessage(securityAudit.error, "No security audit returned.") },
+                    null,
+                    2,
+                  )}
                 </pre>
               </div>
             </DetailCard>
@@ -6776,7 +6825,7 @@ export function OpenClawManagement() {
                   </div>
                   <p className="mt-3 text-sm text-[var(--text-primary)]">{String(skillsCheck.data?.summary ?? "No skills check summary returned.")}</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(skillsCheck.data ?? { message: "No skills check result returned." }, null, 2)}
+                    {JSON.stringify(skillsCheck.data ?? { message: getOpenClawEmptyStateMessage(skillsCheck.error, "No skills check result returned.") }, null, 2)}
                   </pre>
                 </div>
 
@@ -6784,7 +6833,7 @@ export function OpenClawManagement() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Check Entries</p>
                   <div className="mt-3 space-y-2 text-sm text-[var(--text-secondary)]">
                     {skillCheckItems.length === 0 ? (
-                      <p>No skill check entries returned.</p>
+                      <p>{getOpenClawEmptyStateMessage(skillsCheck.error, "No skill check entries returned.")}</p>
                     ) : (
                       skillCheckItems.slice(0, 8).map((item, index) => {
                         const label = String(item.skillKey ?? item.name ?? item.id ?? `skill-check-${index + 1}`);
@@ -7103,7 +7152,7 @@ export function OpenClawManagement() {
               <div className="mt-4 rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Hook Check Snapshot</p>
                 <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                  {JSON.stringify(hookCheck.data ?? { message: "No hook check data returned." }, null, 2)}
+                  {JSON.stringify(hookCheck.data ?? { message: getOpenClawEmptyStateMessage(hookCheck.error, "No hook check data returned.") }, null, 2)}
                 </pre>
               </div>
             </DetailCard>
@@ -7705,13 +7754,13 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Upstream Memory Status</p>
                   <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(memoryStatus.data ?? { message: "No memory status returned." }, null, 2)}
+                    {JSON.stringify(memoryStatus.data ?? { message: getOpenClawEmptyStateMessage(memoryStatus.error, "No memory status returned.") }, null, 2)}
                   </pre>
                 </div>
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Doctor Readiness</p>
                   <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(doctorMemoryStatus.data ?? memoryIndexResult ?? { message: "No memory doctor output returned." }, null, 2)}
+                    {JSON.stringify(doctorMemoryStatus.data ?? memoryIndexResult ?? { message: getOpenClawEmptyStateMessage(doctorMemoryStatus.error, "No memory doctor output returned.") }, null, 2)}
                   </pre>
                 </div>
               </div>
@@ -7787,7 +7836,7 @@ export function OpenClawManagement() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Legacy CLI Requests</p>
                   <div className="mt-2 space-y-2">
                     {devicesLegacyItems.length === 0 ? (
-                      <p className="text-sm text-[var(--text-secondary)]">No legacy device requests returned.</p>
+                      <p className="text-sm text-[var(--text-secondary)]">{getOpenClawEmptyStateMessage(devicesLegacy.error, "No legacy device requests returned.")}</p>
                     ) : (
                       devicesLegacyItems.map((item, index) => {
                         const requestId = String(item.requestId ?? item.id ?? item.name ?? `request-${index + 1}`);
@@ -7916,7 +7965,7 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Pairing Snapshot</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(devicesPairing.data ?? { message: "No pairing data returned." }, null, 2)}
+                    {JSON.stringify(devicesPairing.data ?? { message: getOpenClawEmptyStateMessage(devicesPairing.error, "No pairing data returned.") }, null, 2)}
                   </pre>
                 </div>
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
@@ -7943,7 +7992,7 @@ export function OpenClawManagement() {
             <ListCard title="Agent Registry" icon={Bot}>
               <div className="space-y-2 text-sm text-[var(--text-secondary)]">
                 {agentItems.length === 0 ? (
-                  <p>No agents returned.</p>
+                  <p>{getOpenClawEmptyStateMessage(agents.error, "No agents returned.")}</p>
                 ) : (
                   agentItems.map((item, index) => {
                     const agentId = String(item.agentId ?? item.id ?? item.name ?? `agent-${index + 1}`);
@@ -8020,7 +8069,7 @@ export function OpenClawManagement() {
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Agent Detail</p>
                   <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-[var(--text-secondary)]">
-                    {JSON.stringify(selectedAgentData ?? { message: "No agent detail returned." }, null, 2)}
+                    {JSON.stringify(selectedAgentData ?? { message: getOpenClawEmptyStateMessage(agentDetail.error, "No agent detail returned.") }, null, 2)}
                   </pre>
                 </div>
                 <div className="rounded-xl border border-[var(--border)]/60 bg-[var(--bg-primary)] p-4">
