@@ -33,8 +33,25 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const pr = context.payload.pull_request;
+            const isDependabot = pr.user?.login === 'dependabot[bot]' || context.actor === 'dependabot[bot]';
             const body = pr.body || '';
             const bodyLower = body.toLowerCase();
+
+            const summary = [
+              '# Pull Request Quality Gate',
+              '',
+              `PR: #${pr.number}`,
+              '',
+            ];
+
+            if (isDependabot) {
+              summary.push('## Result');
+              summary.push('Passed');
+              summary.push('');
+              summary.push('Dependabot pull request detected. Strict PR template enforcement is skipped for automated dependency update bodies.');
+              core.summary.addRaw(summary.join('\n')).write();
+              return;
+            }
 
             const requiredSections = [
               '## summary',
@@ -58,13 +75,6 @@ jobs:
             if (!checkedValidation) errors.push('At least one item in **Validation** must be checked.');
             if (!checkedRisk) errors.push('At least one item in **Risk Assessment** must be checked.');
 
-            const summary = [
-              '# Pull Request Quality Gate',
-              '',
-              `PR: #${pr.number}`,
-              '',
-            ];
-
             if (errors.length) {
               summary.push('## Result');
               summary.push('Failed');
@@ -83,7 +93,7 @@ jobs:
             core.summary.addRaw(summary.join('\n')).write();
 
       - name: Comment guidance on failed validation
-        if: failure()
+        if: failure() && github.actor != 'dependabot[bot]'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
