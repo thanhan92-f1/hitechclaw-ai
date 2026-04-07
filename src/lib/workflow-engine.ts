@@ -54,9 +54,22 @@ export interface ExecutionResult {
 
 // ── Template interpolation ─────────────────────────────────────────────────────
 
+function formatTemplateValue(value: unknown): string {
+  if (value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function interpolateTemplate(template: string, context: Record<string, unknown>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
-    return context[key] !== undefined ? String(context[key]) : `{{${key}}}`;
+  return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (match, key) => {
+    const trimmedKey = String(key).trim();
+    const value = resolveConditionValue(trimmedKey, context);
+    return value !== undefined ? formatTemplateValue(value) : match;
   });
 }
 
@@ -359,7 +372,7 @@ export async function executeWorkflow(definition: WorkflowDefinition): Promise<{
         case "http-request": {
           const result = await executeHttpRequest(node.data, context);
           context.status = String(result.status);
-          context.body = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
+          context.body = result.body;
           context.httpStatus = result.status;
           stepResult = {
             nodeId: node.id,

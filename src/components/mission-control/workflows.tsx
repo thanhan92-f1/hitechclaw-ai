@@ -543,6 +543,100 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { href: "/tools/docs", label: "Docs Tools" },
     ],
   },
+  {
+    id: "incident-escalation-followup",
+    name: "Incident Escalation Follow-up",
+    description: "Create a drill incident, move it into investigation, then append a timeline note so operators can validate the full escalation path.",
+    icon: ShieldAlert,
+    color: "#ec4899",
+    trigger_type: "manual",
+    trigger_config: null,
+    definition: {
+      nodes: [
+        { id: "1", type: "manual-trigger", position: { x: 260, y: 30 }, data: { label: "Run Escalation Drill" } },
+        {
+          id: "2",
+          type: "http-request",
+          position: { x: 260, y: 180 },
+          data: {
+            label: "Create Drill Incident",
+            method: "POST",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents",
+            headers: {},
+            timeout: 12000,
+            body: '{"title":"Workflow drill: escalation follow-up","description":"Validate incident escalation and timeline updates from workflow automation.","severity":"P2","assigned_to":"ops-oncall","source_type":"workflow","source_id":"incident-escalation-followup","metadata":{"exercise":true,"origin":"mission-control","playbook":"escalation-followup"}}'
+          }
+        },
+        {
+          id: "3",
+          type: "http-request",
+          position: { x: 260, y: 340 },
+          data: {
+            label: "Move To Investigating",
+            method: "PATCH",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{body.incident.id}}",
+            headers: {},
+            timeout: 12000,
+            body: '{"status":"investigating","metadata":{"exercise":true,"workflow":"incident-escalation-followup"}}'
+          }
+        },
+        {
+          id: "4",
+          type: "http-request",
+          position: { x: 260, y: 500 },
+          data: {
+            label: "Append Timeline Update",
+            method: "POST",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{body.incident.id}}/updates",
+            headers: {},
+            timeout: 12000,
+            body: '{"update_type":"comment","content":"Workflow escalation drill moved this incident into active investigation.","metadata":{"exercise":true,"workflow":"incident-escalation-followup"}}'
+          }
+        },
+        { id: "5", type: "notify", position: { x: 260, y: 660 }, data: { label: "Publish Escalation Summary", channel: "log", message: "Escalation follow-up drill updated incident {{body.update.incident_id}} and appended a timeline note. Review the incident workspace to confirm assignment, SLA state, and operator handoff." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4" },
+        { id: "e4-5", source: "4", target: "5" },
+      ],
+    },
+    customizationHints: ["Keep this manual until dynamic branching for incident failures is in place", "Use a real on-call alias in assigned_to if you want the drill to mirror production routing", "Append more updates later for postmortem validation once your incident lifecycle is stable"],
+    packageResources: [
+      { href: "/incidents", label: "Incidents" },
+      { href: "/tools/tasks", label: "Tasks" },
+    ],
+  },
+  {
+    id: "notification-queue-clearance",
+    name: "Notification Queue Clearance",
+    description: "Review unread notifications and clear the queue automatically once the backlog crosses the threshold.",
+    icon: Bell,
+    color: "#f97316",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "*/30 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 30 Minutes", cron_expression: "*/30 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Unread Queue", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/notifications?unread_only=true&limit=20", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Backlog Above Threshold?", field: "body.unread_count", operator: "gt", value: "10" } },
+        { id: "4", type: "http-request", position: { x: 80, y: 500 }, data: { label: "Mark Notifications Read", method: "PATCH", url: "{{HITECHCLAW_AI_BASE_URL}}/api/notifications", headers: {}, timeout: 10000, body: '{"all":true}' } },
+        { id: "5", type: "notify", position: { x: 80, y: 660 }, data: { label: "Publish Queue Clearance", channel: "telegram", message: "Notification queue clearance marked unread alerts as read after crossing the configured backlog threshold. Review notification settings and incident routing if the queue refills quickly." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+        { id: "e4-5", source: "4", target: "5" },
+      ],
+    },
+    customizationHints: ["Use this carefully because it clears unread state for the whole tenant", "Raise the threshold or switch the final step to log-only if you only want dry-run validation", "Pair this with Notification Backlog Watch so operators see both queue growth and cleanup behavior"],
+    packageResources: [
+      { href: "/settings/notifications", label: "Notification Settings" },
+      { href: "/incidents", label: "Incidents" },
+    ],
+  },
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
