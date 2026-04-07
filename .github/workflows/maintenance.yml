@@ -84,7 +84,7 @@ jobs:
       contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Node.js 22 and restore npm cache
         uses: actions/setup-node@v5

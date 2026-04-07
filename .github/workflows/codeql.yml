@@ -60,7 +60,7 @@ jobs:
       MC_AGENT_TOKEN: default:codeql-analysis-agent-token
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Node.js 22 with npm cache
         uses: actions/setup-node@v5

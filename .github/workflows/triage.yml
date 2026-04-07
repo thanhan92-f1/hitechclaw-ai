@@ -96,7 +96,7 @@ jobs:
       issues: write
     steps:
       - name: Check out repository metadata
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Apply path-based labels using labeler rules
         uses: actions/labeler@v5
