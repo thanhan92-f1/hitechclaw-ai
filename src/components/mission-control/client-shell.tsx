@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Bot,
+  MessageSquare,
   Wallet,
   Key,
   LogOut,
@@ -22,6 +23,7 @@ function isRouteActive(pathname: string | null, href: string) {
 
 const clientNav: Array<{ href: string; label: string; subtitle: string; icon: LucideIcon }> = [
   { href: "/client", label: "Dashboard", subtitle: "Overview & activity", icon: LayoutDashboard },
+  { href: "/client/chat", label: "AI Chat", subtitle: "Conversations & summaries", icon: MessageSquare },
   { href: "/client/agents", label: "My Agents", subtitle: "Status & sessions", icon: Bot },
   { href: "/client/costs", label: "Costs", subtitle: "Usage & billing", icon: Wallet },
   { href: "/client/api-keys", label: "API Keys", subtitle: "Integration tokens", icon: Key },

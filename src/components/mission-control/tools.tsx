@@ -63,6 +63,31 @@ type DocumentItem = {
   preview?: string;
 };
 
+type LibraryDocItem = {
+  id: string;
+  title: string;
+  category: string;
+  tags: string[];
+  content: string;
+  filePath: string;
+  updatedAt: string;
+  wordCount: number;
+  version: string;
+  snippet?: string;
+  score?: number | null;
+};
+
+type LibraryDocsResponse = {
+  items: LibraryDocItem[];
+  stats: {
+    totalDocs: number;
+    categories: string[];
+    tags: string[];
+    totalWords: number;
+  };
+  timestamp: string;
+};
+
 type TaskItem = {
   id: number;
   agent_id: string | null;
@@ -652,15 +677,25 @@ export function DocsToolScreen() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [selected, setSelected] = useState<DocumentItem | null>(null);
+  const [selectedLibrary, setSelectedLibrary] = useState<LibraryDocItem | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
+  const [loadingLibraryDoc, setLoadingLibraryDoc] = useState(false);
   const selectedId = searchParams.get("id");
+  const selectedLibraryId = searchParams.get("library");
   const deferredSearch = useDeferredValue(search.trim());
   const queryString = `/api/tools/docs?category=${category}${deferredSearch ? `&search=${encodeURIComponent(deferredSearch)}` : ""}`;
+  const libraryQueryString = `/api/tools/docs/library?limit=8${category !== "all" ? `&category=${encodeURIComponent(category)}` : ""}${deferredSearch ? `&search=${encodeURIComponent(deferredSearch)}` : ""}`;
   const { data, error, loading, refresh } = usePollingData<{ items: DocumentItem[] }>(queryString, 20000);
+  const {
+    data: libraryData,
+    error: libraryError,
+    loading: libraryLoading,
+  } = usePollingData<LibraryDocsResponse>(libraryQueryString, 30000);
 
   const openDoc = async (id: number) => {
     try {
       setLoadingDoc(true);
+      setSelectedLibrary(null);
       const document = await fetchJson<DocumentItem>(`/api/tools/docs/${id}`);
       setSelected(document);
       router.replace(`/tools/docs?id=${id}`);
@@ -668,6 +703,20 @@ export function DocsToolScreen() {
       toast.error(openError instanceof Error ? openError.message : 'Open failed');
     } finally {
       setLoadingDoc(false);
+    }
+  };
+
+  const openLibraryDoc = async (id: string) => {
+    try {
+      setLoadingLibraryDoc(true);
+      setSelected(null);
+      const document = await fetchJson<LibraryDocItem>(`/api/tools/docs/library?id=${encodeURIComponent(id)}`);
+      setSelectedLibrary(document);
+      router.replace(`/tools/docs?library=${encodeURIComponent(id)}`);
+    } catch (openError) {
+      toast.error(openError instanceof Error ? openError.message : "Open failed");
+    } finally {
+      setLoadingLibraryDoc(false);
     }
   };
 
@@ -722,8 +771,40 @@ export function DocsToolScreen() {
     };
   }, [selected?.id, selectedId]);
 
+  useEffect(() => {
+    if (!selectedLibraryId) {
+      setSelectedLibrary(null);
+      setLoadingLibraryDoc(false);
+      return;
+    }
+
+    if (selectedLibrary?.id === selectedLibraryId) return;
+    let mounted = true;
+
+    const run = async () => {
+      try {
+        setLoadingLibraryDoc(true);
+        const document = await fetchJson<LibraryDocItem>(`/api/tools/docs/library?id=${encodeURIComponent(selectedLibraryId)}`);
+        if (!mounted) return;
+        setSelectedLibrary(document);
+      } catch (openError) {
+        if (!mounted) return;
+        toast.error(openError instanceof Error ? openError.message : "Open failed");
+      } finally {
+        if (mounted) setLoadingLibraryDoc(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedLibrary?.id, selectedLibraryId]);
+
   const clearSelection = () => {
     setSelected(null);
+    setSelectedLibrary(null);
     router.replace("/tools/docs");
   };
 
@@ -752,7 +833,30 @@ export function DocsToolScreen() {
         </div>
       </div>
 
-      {selected || loadingDoc ? (
+      {libraryData?.stats ? (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <StatCard
+            label="Repo docs"
+            value={libraryData.stats.totalDocs.toString()}
+            accent="text-cyan-300"
+            sublabel={`${libraryData.stats.categories.length} categories indexed from /docs`}
+          />
+          <StatCard
+            label="Doc words"
+            value={libraryData.stats.totalWords.toLocaleString()}
+            accent="text-emerald-300"
+            sublabel="File-based knowledge via @hitechclaw/doc-mcp"
+          />
+          <StatCard
+            label="Doc tags"
+            value={libraryData.stats.tags.length.toString()}
+            accent="text-violet-300"
+            sublabel="Searchable package-driven documentation metadata"
+          />
+        </div>
+      ) : null}
+
+      {selected || selectedLibrary || loadingDoc || loadingLibraryDoc ? (
         <Card className="overflow-hidden p-0">
           <div className="border-b border-border px-4 py-4 sm:px-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -766,15 +870,20 @@ export function DocsToolScreen() {
                 </button>
                 <div className="flex flex-wrap gap-2">
                   {selected ? <Badge tone="purple">{selected.category}</Badge> : null}
+                  {selectedLibrary ? <Badge tone="cyan">{selectedLibrary.category}</Badge> : null}
                   {selected?.pinned ? <Badge tone="amber">Pinned</Badge> : null}
                   {selected?.file_path ? <Badge tone="slate">{selected.file_path}</Badge> : null}
+                  {selectedLibrary?.filePath ? <Badge tone="slate">{selectedLibrary.filePath}</Badge> : null}
+                  {selectedLibrary?.version ? <Badge tone="amber">v{selectedLibrary.version}</Badge> : null}
                 </div>
                 <h2 className="mt-3 text-2xl font-semibold text-text">
-                  {selected?.title ?? "Loading document"}
+                  {selected?.title ?? selectedLibrary?.title ?? "Loading document"}
                 </h2>
                 <p className="mt-2 text-sm text-text-dim">
                   {selected
                     ? `${formatShortDate(selected.updated_at)} · ${selected.word_count ?? 0} words`
+                    : selectedLibrary
+                      ? `${formatShortDate(selectedLibrary.updatedAt)} · ${selectedLibrary.wordCount ?? 0} words`
                     : "Fetching document content"}
                 </p>
               </div>
@@ -803,6 +912,11 @@ export function DocsToolScreen() {
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.content) }}
                 />
               )
+            ) : selectedLibrary ? (
+              <div
+                className="markdown-body"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(selectedLibrary.content) }}
+              />
             ) : (
               <LoadingState label="Loading document" />
             )}
@@ -810,6 +924,54 @@ export function DocsToolScreen() {
         </Card>
       ) : (
         <div className="space-y-3">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <SectionTitle title="Repository docs library" />
+              <SectionDescription id="tools-docs-library">Package-backed search over the repository `docs/` directory.</SectionDescription>
+            </div>
+            {libraryLoading && !libraryData ? <LoadingState label="Indexing repository docs" /> : null}
+            {libraryData?.items.length ? (
+              libraryData.items.map((doc) => (
+                <div
+                  key={doc.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => void openLibraryDoc(doc.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void openLibraryDoc(doc.id);
+                    }
+                  }}
+                  className="w-full text-left"
+                >
+                  <Card className="space-y-3 transition hover:border-cyan/40">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge tone="cyan">{doc.category}</Badge>
+                          <Badge tone="slate">{doc.filePath}</Badge>
+                          <Badge tone="amber">v{doc.version}</Badge>
+                        </div>
+                        <h2 className="mt-3 text-lg font-semibold text-text">{doc.title}</h2>
+                        <p className="mt-1 text-xs text-text-dim">
+                          {formatShortDate(doc.updatedAt)} · {doc.wordCount ?? 0} words
+                          {typeof doc.score === "number" ? ` · score ${doc.score}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-6 text-text-dim">{doc.snippet ?? doc.content.slice(0, 200)}</p>
+                  </Card>
+                </div>
+              ))
+            ) : (
+              <EmptyState label="No repository docs matched this filter." />
+            )}
+          </div>
+
+          <div className="pt-2">
+            <SectionTitle title="Workspace docs records" />
+          </div>
           {data?.items.length ? (
             data.items.map((doc) => (
               <div
@@ -859,6 +1021,7 @@ export function DocsToolScreen() {
       )}
 
       {error ? <ErrorState error={error} /> : null}
+      {libraryError ? <ErrorState error={libraryError} /> : null}
     </div>
   );
 }

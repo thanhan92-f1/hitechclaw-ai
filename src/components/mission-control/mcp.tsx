@@ -143,7 +143,7 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
       const deduped = dedupeRegistryEntries(data?.servers ?? []);
       setDuplicateCount((data?.servers?.length ?? 0) - deduped.length);
       setResults(deduped);
-      setTotal(data.total ?? null);
+      setTotal(data?.total ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Registry fetch failed");
     } finally {
