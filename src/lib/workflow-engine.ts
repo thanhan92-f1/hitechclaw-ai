@@ -72,43 +72,52 @@ function tryParseJson(value: unknown): unknown {
   }
 }
 
+function collectValuesByPath(source: unknown, segments: string[]): unknown[] {
+  if (segments.length === 0) return [source];
+
+  const [segment, ...rest] = segments;
+  const current = tryParseJson(source);
+
+  if (segment === "length") {
+    if (Array.isArray(current) || typeof current === "string") {
+      return collectValuesByPath(current.length, rest);
+    }
+    if (current && typeof current === "object") {
+      return collectValuesByPath(Object.keys(current).length, rest);
+    }
+    return [];
+  }
+
+  if (segment === "*") {
+    if (Array.isArray(current)) {
+      return current.flatMap((item) => collectValuesByPath(item, rest));
+    }
+    if (current && typeof current === "object") {
+      return Object.values(current as Record<string, unknown>).flatMap((item) => collectValuesByPath(item, rest));
+    }
+    return [];
+  }
+
+  if (Array.isArray(current)) {
+    const index = Number(segment);
+    if (!Number.isInteger(index)) return [];
+    return collectValuesByPath(current[index], rest);
+  }
+
+  if (current && typeof current === "object") {
+    return collectValuesByPath((current as Record<string, unknown>)[segment], rest);
+  }
+
+  return [];
+}
+
 function getValueByPath(source: unknown, path: string): unknown {
   if (!path) return source;
 
-  const segments = path.split(".").filter(Boolean);
-  let current: unknown = tryParseJson(source);
-
-  for (const segment of segments) {
-    current = tryParseJson(current);
-
-    if (segment === "length") {
-      if (Array.isArray(current) || typeof current === "string") {
-        current = current.length;
-        continue;
-      }
-      if (current && typeof current === "object") {
-        current = Object.keys(current).length;
-        continue;
-      }
-      return undefined;
-    }
-
-    if (Array.isArray(current)) {
-      const index = Number(segment);
-      if (!Number.isInteger(index)) return undefined;
-      current = current[index];
-      continue;
-    }
-
-    if (current && typeof current === "object") {
-      current = (current as Record<string, unknown>)[segment];
-      continue;
-    }
-
-    return undefined;
-  }
-
-  return current;
+  const values = collectValuesByPath(source, path.split(".").filter(Boolean));
+  if (values.length === 0) return undefined;
+  if (values.length === 1) return values[0];
+  return values;
 }
 
 function resolveConditionValue(field: string, context: Record<string, unknown>): unknown {
@@ -177,18 +186,21 @@ function evaluateCondition(data: Record<string, unknown>, context: Record<string
   const operator = String(data.operator ?? "eq");
   const expected = String(data.value ?? "");
   const actualValue = resolveConditionValue(field, context);
-  const actual = String(actualValue ?? "");
+
+  const actualValues = Array.isArray(actualValue) ? actualValue : [actualValue];
+  const stringValues = actualValues.map((value) => String(value ?? ""));
+  const numberValues = actualValues.map((value) => Number(value));
 
   switch (operator) {
-    case "eq": return actual === expected;
-    case "neq": return actual !== expected;
-    case "gt": return Number(actual) > Number(expected);
-    case "lt": return Number(actual) < Number(expected);
-    case "gte": return Number(actual) >= Number(expected);
-    case "lte": return Number(actual) <= Number(expected);
-    case "contains": return actual.includes(expected);
-    case "not_contains": return !actual.includes(expected);
-    default: return actual === expected;
+    case "eq": return stringValues.some((actual) => actual === expected);
+    case "neq": return stringValues.every((actual) => actual !== expected);
+    case "gt": return numberValues.some((actual) => actual > Number(expected));
+    case "lt": return numberValues.some((actual) => actual < Number(expected));
+    case "gte": return numberValues.some((actual) => actual >= Number(expected));
+    case "lte": return numberValues.some((actual) => actual <= Number(expected));
+    case "contains": return stringValues.some((actual) => actual.includes(expected));
+    case "not_contains": return stringValues.every((actual) => !actual.includes(expected));
+    default: return stringValues.some((actual) => actual === expected);
   }
 }
 

@@ -231,7 +231,7 @@ function NodeConfigPanel({
     "manual-trigger": "This node starts the workflow when you click Run Now. No configuration needed.",
     "cron-trigger": "Runs the workflow on a schedule using a cron expression. Common patterns: */5 for every 5 minutes, 0 6 for daily at 8am SAST.",
     "http-request": "Makes an HTTP request to any URL. Use template variables like {{status}} and {{body}} to pass data from previous steps.",
-    "condition": "Evaluates a condition on data from previous steps. Supports nested JSON paths such as body.status or body.agent_anomalies.length.",
+    "condition": "Evaluates a condition on data from previous steps. Supports nested JSON paths such as body.status, array wildcards like body.nodes.*.status, and collection sizes like body.agent_anomalies.length.",
     "notify": "Sends a notification message. Use template variables like {{status}} and {{body}} to include data from previous steps.",
   };
 
@@ -349,7 +349,7 @@ function NodeConfigPanel({
                 type="text"
                 value={String(d.field ?? "")}
                 onChange={(e) => updateField("field", e.target.value)}
-                placeholder="status, body.status, body.agent_anomalies.length..."
+                placeholder="status, body.status, body.nodes.*.status..."
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-cyan focus:outline-none"
               />
             </div>

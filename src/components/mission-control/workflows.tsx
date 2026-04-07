@@ -383,7 +383,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 15 Minutes", cron_expression: "*/15 * * * *" } },
         { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Infra Nodes", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/nodes", headers: {}, timeout: 12000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Degraded Nodes?", field: "body.nodes.0.status", operator: "eq", value: "degraded" } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Degraded Nodes?", field: "body.nodes.*.status", operator: "eq", value: "degraded" } },
         { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Node Health", channel: "telegram", message: "Infrastructure review detected a degraded lead node. Inspect /api/infra/nodes and infrastructure dashboards for the latest metrics. Snapshot: {{body}}" } },
       ],
       edges: [
@@ -437,7 +437,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 7:15", cron_expression: "15 7 * * *" } },
         { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Dashboard Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/dashboard/overview", headers: {}, timeout: 12000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Recent Threat Volume?", field: "body.agents.0.threats_30d", operator: "gt", value: "0" } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Recent Threat Volume?", field: "body.agents.*.threats_30d", operator: "gt", value: "0" } },
         { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Publish Ops Review", channel: "telegram", message: "Daily ops review found at least one agent with recent threat activity. Review dashboard overview, tenant mix, and recent agent metrics before enabling new automation." } },
       ],
       edges: [
