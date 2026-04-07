@@ -215,13 +215,14 @@ Use this when the user asks for a "full report", "complete analysis", "business 
                 ],
             },
             handler: async (args) => {
+                var _a;
                 const resp = await postReport('/generate', args);
                 const parts = [
                     `## 📊 ${resp.title}`,
                     '',
                     resp.summary,
                 ];
-                if (resp.insights?.length) {
+                if ((_a = resp.insights) === null || _a === void 0 ? void 0 : _a.length) {
                     parts.push('', '### Key Insights');
                     resp.insights.forEach((ins) => parts.push(`- ${ins}`));
                 }
@@ -249,4 +250,3 @@ Use this when the user asks for a "full report", "complete analysis", "business 
         },
     ],
 });
-//# sourceMappingURL=report-gen.js.map

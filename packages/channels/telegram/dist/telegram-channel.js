@@ -1,15 +1,13 @@
 import { TelegramApi } from './telegram-api.js';
 export class TelegramChannel {
-    id = 'telegram-channel';
-    platform = 'telegram';
-    name = 'Telegram Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
-    offset = 0;
-    pollTimer;
+    constructor() {
+        this.id = 'telegram-channel';
+        this.platform = 'telegram';
+        this.name = 'Telegram Channel';
+        this.version = '2.0.0';
+        this.running = false;
+        this.offset = 0;
+    }
     async initialize(config) {
         const botToken = config.botToken;
         if (!botToken) {
@@ -74,15 +72,16 @@ export class TelegramChannel {
         });
     }
     async handleUpdates(updates) {
+        var _a, _b, _c, _d, _e, _f, _g;
         for (const update of updates) {
             this.offset = update.update_id + 1;
             const msg = update.message;
-            if (!msg || msg.from?.is_bot)
+            if (!msg || ((_a = msg.from) === null || _a === void 0 ? void 0 : _a.is_bot))
                 continue;
             // Must have text, photo, image doc, or voice/audio
             const hasText = !!msg.text;
-            const hasPhoto = !!msg.photo?.length;
-            const hasImageDoc = !!msg.document && msg.document.mime_type?.startsWith('image/');
+            const hasPhoto = !!((_b = msg.photo) === null || _b === void 0 ? void 0 : _b.length);
+            const hasImageDoc = !!msg.document && ((_c = msg.document.mime_type) === null || _c === void 0 ? void 0 : _c.startsWith('image/'));
             const hasVoice = !!(msg.voice || msg.audio);
             if (!hasText && !hasPhoto && !hasImageDoc && !hasVoice)
                 continue;
@@ -168,20 +167,12 @@ export class TelegramChannel {
             const incoming = {
                 platform: 'telegram',
                 channelId: String(msg.chat.id),
-                userId: String(msg.from?.id || 0),
+                userId: String(((_d = msg.from) === null || _d === void 0 ? void 0 : _d.id) || 0),
                 content: finalContent,
                 attachments: attachments.length ? attachments : undefined,
                 timestamp: new Date(msg.date * 1000).toISOString(),
                 replyTo: msg.reply_to_message ? String(msg.reply_to_message.message_id) : undefined,
-                metadata: {
-                    messageId: msg.message_id,
-                    chatType: msg.chat.type,
-                    chatTitle: msg.chat.title,
-                    username: msg.from?.username,
-                    firstName: msg.from?.first_name,
-                    lastName: msg.from?.last_name,
-                    ...(hasVoice ? { voiceTranscription: true, voiceDuration } : {}),
-                },
+                metadata: Object.assign({ messageId: msg.message_id, chatType: msg.chat.type, chatTitle: msg.chat.title, username: (_e = msg.from) === null || _e === void 0 ? void 0 : _e.username, firstName: (_f = msg.from) === null || _f === void 0 ? void 0 : _f.first_name, lastName: (_g = msg.from) === null || _g === void 0 ? void 0 : _g.last_name }, (hasVoice ? { voiceTranscription: true, voiceDuration } : {})),
             };
             // Show typing indicator
             this.api.sendChatAction(msg.chat.id, 'typing').catch(() => { });
@@ -202,14 +193,15 @@ export class TelegramChannel {
     }
     /** Check if the message is directed at the bot (mention, reply, or command) */
     isBotAddressed(msg) {
+        var _a, _b;
         // Reply to a bot message
-        if (msg.reply_to_message?.from?.is_bot && msg.reply_to_message.from.username === this.config.botUsername) {
+        if (((_b = (_a = msg.reply_to_message) === null || _a === void 0 ? void 0 : _a.from) === null || _b === void 0 ? void 0 : _b.is_bot) && msg.reply_to_message.from.username === this.config.botUsername) {
             return true;
         }
         // @mention the bot (in text or caption)
         const allEntities = [...(msg.entities || []), ...(msg.caption_entities || [])];
         const fullText = msg.text || msg.caption || '';
-        if (allEntities.some((e) => e.type === 'mention' && fullText.substring(e.offset, e.offset + e.length).toLowerCase() === `@${this.config.botUsername?.toLowerCase()}`)) {
+        if (allEntities.some((e) => { var _a; return e.type === 'mention' && fullText.substring(e.offset, e.offset + e.length).toLowerCase() === `@${(_a = this.config.botUsername) === null || _a === void 0 ? void 0 : _a.toLowerCase()}`; })) {
             return true;
         }
         // Bot command (e.g. /ask@xdev_hitechclaw_ai_bot)
@@ -292,4 +284,3 @@ export class TelegramChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=telegram-channel.js.map

@@ -16,7 +16,6 @@
         "dev": "tsc -b --watch"
     },
     "dependencies": {
-        "@hitechclaw/shared": "*",
         "@hitechclaw/core": "*"
     }
 }

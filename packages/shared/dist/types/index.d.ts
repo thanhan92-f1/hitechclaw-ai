@@ -1139,4 +1139,3 @@ export interface CoordinatorConfig {
     /** Tool names available to worker agents (undefined = all) */
     workerTools?: string[];
 }
-//# sourceMappingURL=index.d.ts.map

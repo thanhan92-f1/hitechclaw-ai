@@ -2,9 +2,30 @@
     "extends": "../../../tsconfig.json",
     "compilerOptions": {
         "outDir": "./dist",
-        "rootDir": "./src"
+        "rootDir": "./src",
+        "noEmit": false,
+        "baseUrl": "../../..",
+        "types": [
+            "node"
+        ],
+        "moduleResolution": "NodeNext",
+        "module": "NodeNext",
+        "paths": {
+            "@hitechclaw/shared": [
+                "./packages/shared/dist/index.d.ts"
+            ]
+        }
     },
     "include": [
         "src"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ],
+    "references": [
+        {
+            "path": "../../shared"
+        }
     ]
 }

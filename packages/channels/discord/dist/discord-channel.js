@@ -9,14 +9,8 @@ const OP_HELLO = 10;
 const OP_HEARTBEAT_ACK = 11;
 /** Minimal Discord REST helper */
 async function discordFetch(path, token, options = {}) {
-    const res = await fetch(`${DISCORD_API}${path}`, {
-        ...options,
-        headers: {
-            Authorization: `Bot ${token}`,
-            'Content-Type': 'application/json',
-            ...(options.headers ?? {}),
-        },
-    });
+    var _a;
+    const res = await fetch(`${DISCORD_API}${path}`, Object.assign(Object.assign({}, options), { headers: Object.assign({ Authorization: `Bot ${token}`, 'Content-Type': 'application/json' }, ((_a = options.headers) !== null && _a !== void 0 ? _a : {})) }));
     if (!res.ok) {
         const body = await res.text().catch(() => '');
         throw new Error(`Discord API ${path} → ${res.status}: ${body}`);
@@ -30,19 +24,14 @@ async function discordFetch(path, token, options = {}) {
  * the REST API for sending messages. Supports slash-less text commands.
  */
 export class DiscordChannel {
-    id = 'discord-channel';
-    platform = 'discord';
-    name = 'Discord Channel';
-    version = '2.0.0';
-    config;
-    messageHandler;
-    running = false;
-    ws; // ws.WebSocket
-    heartbeatInterval;
-    sessionId;
-    lastSequence = null;
-    botUserId;
-    reconnectTimer;
+    constructor() {
+        this.id = 'discord-channel';
+        this.platform = 'discord';
+        this.name = 'Discord Channel';
+        this.version = '2.0.0';
+        this.running = false;
+        this.lastSequence = null;
+    }
     async initialize(config) {
         const botToken = config.botToken;
         if (!botToken)
@@ -73,7 +62,7 @@ export class DiscordChannel {
             try {
                 this.ws.close();
             }
-            catch { /* ignore */ }
+            catch ( /* ignore */_a) { /* ignore */ }
             this.ws = undefined;
         }
         console.log('   Discord:    stopped');
@@ -102,7 +91,7 @@ export class DiscordChannel {
                 const payload = JSON.parse(data.toString());
                 this.handleGatewayMessage(payload);
             }
-            catch { /* invalid JSON */ }
+            catch ( /* invalid JSON */_a) { /* invalid JSON */ }
         });
         this.ws.on('close', (code) => {
             if (!this.running)
@@ -148,25 +137,26 @@ export class DiscordChannel {
         }
     }
     async handleMessageCreate(msg) {
+        var _a, _b, _c, _d, _e, _f, _g, _h;
         // Ignore bots and our own messages
-        if (msg.author?.bot)
+        if ((_a = msg.author) === null || _a === void 0 ? void 0 : _a.bot)
             return;
-        if (msg.author?.id === this.botUserId)
+        if (((_b = msg.author) === null || _b === void 0 ? void 0 : _b.id) === this.botUserId)
             return;
         // Filter by guild if configured
-        if (this.config.guildIds?.length && msg.guild_id && !this.config.guildIds.includes(msg.guild_id))
+        if (((_c = this.config.guildIds) === null || _c === void 0 ? void 0 : _c.length) && msg.guild_id && !this.config.guildIds.includes(msg.guild_id))
             return;
         const incoming = {
             platform: 'discord',
             channelId: msg.channel_id,
-            userId: msg.author?.id ?? 'unknown',
-            content: msg.content ?? '',
+            userId: (_e = (_d = msg.author) === null || _d === void 0 ? void 0 : _d.id) !== null && _e !== void 0 ? _e : 'unknown',
+            content: (_f = msg.content) !== null && _f !== void 0 ? _f : '',
             timestamp: new Date(msg.timestamp).toISOString(),
-            replyTo: msg.message_reference?.message_id,
+            replyTo: (_g = msg.message_reference) === null || _g === void 0 ? void 0 : _g.message_id,
             metadata: {
                 guildId: msg.guild_id,
                 messageId: msg.id,
-                authorUsername: msg.author?.username,
+                authorUsername: (_h = msg.author) === null || _h === void 0 ? void 0 : _h.username,
             },
         };
         if (this.messageHandler) {
@@ -191,7 +181,8 @@ export class DiscordChannel {
         }, intervalMs);
     }
     sendGateway(payload) {
-        if (this.ws?.readyState === 1 /* OPEN */) {
+        var _a;
+        if (((_a = this.ws) === null || _a === void 0 ? void 0 : _a.readyState) === 1 /* OPEN */) {
             this.ws.send(JSON.stringify(payload));
         }
     }
@@ -207,4 +198,3 @@ export class DiscordChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=discord-channel.js.map

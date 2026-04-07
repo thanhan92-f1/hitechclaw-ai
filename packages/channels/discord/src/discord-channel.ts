@@ -111,7 +111,14 @@ export class DiscordChannel implements ChannelPlugin {
     const gatewayInfo = await discordFetch('/gateway/bot', this.config.botToken);
     const gatewayUrl = `${gatewayInfo.url}?v=10&encoding=json`;
 
-    const { WebSocket } = require('ws') as typeof import('ws');
+    const { WebSocket } = require('ws') as {
+      WebSocket: new (url: string) => {
+        on: (event: string, handler: (...args: any[]) => void) => void;
+        close: () => void;
+        send: (payload: string) => void;
+        readyState: number;
+      };
+    };
     this.ws = new WebSocket(gatewayUrl);
 
     this.ws.on('message', (data: Buffer) => {

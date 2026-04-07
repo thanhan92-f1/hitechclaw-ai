@@ -4,14 +4,13 @@ import { FacebookApi } from './facebook-api.js';
  * Receives messages from webhook events and replies via Send API.
  */
 export class FacebookChannel {
-    id = 'facebook-channel';
-    platform = 'facebook';
-    name = 'Facebook Messenger Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
+    constructor() {
+        this.id = 'facebook-channel';
+        this.platform = 'facebook';
+        this.name = 'Facebook Messenger Channel';
+        this.version = '2.0.0';
+        this.running = false;
+    }
     async initialize(config) {
         const pageAccessToken = config.pageAccessToken;
         const verifyToken = config.verifyToken;
@@ -28,7 +27,7 @@ export class FacebookChannel {
             const data = await this.api.getPageInfo();
             console.log(`   Facebook:   connected to page "${String(data.name || 'unknown')}"`);
         }
-        catch {
+        catch (_a) {
             console.log('   Facebook:   initialized (could not verify token with page info)');
         }
     }
@@ -58,17 +57,18 @@ export class FacebookChannel {
         return null;
     }
     async handleWebhook(event) {
+        var _a, _b, _c, _d, _e, _f;
         if (!this.running || !this.messageHandler)
             return;
         if (event.object !== 'page')
             return;
         for (const entry of event.entry) {
             for (const messagingEvent of entry.messaging) {
-                const senderId = messagingEvent.sender?.id;
-                const recipientId = messagingEvent.recipient?.id;
+                const senderId = (_a = messagingEvent.sender) === null || _a === void 0 ? void 0 : _a.id;
+                const recipientId = (_b = messagingEvent.recipient) === null || _b === void 0 ? void 0 : _b.id;
                 if (!senderId || !recipientId)
                     continue;
-                const text = messagingEvent.message?.text || messagingEvent.postback?.payload;
+                const text = ((_c = messagingEvent.message) === null || _c === void 0 ? void 0 : _c.text) || ((_d = messagingEvent.postback) === null || _d === void 0 ? void 0 : _d.payload);
                 if (!text)
                     continue;
                 const incoming = {
@@ -79,8 +79,8 @@ export class FacebookChannel {
                     timestamp: new Date(messagingEvent.timestamp).toISOString(),
                     metadata: {
                         recipientId,
-                        messageId: messagingEvent.message?.mid,
-                        postbackTitle: messagingEvent.postback?.title,
+                        messageId: (_e = messagingEvent.message) === null || _e === void 0 ? void 0 : _e.mid,
+                        postbackTitle: (_f = messagingEvent.postback) === null || _f === void 0 ? void 0 : _f.title,
                     },
                 };
                 try {
@@ -115,4 +115,3 @@ export class FacebookChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=facebook-channel.js.map

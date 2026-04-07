@@ -3,8 +3,6 @@
  */
 const TELEGRAM_API = 'https://api.telegram.org';
 export class TelegramApi {
-    botToken;
-    baseUrl;
     constructor(botToken) {
         this.botToken = botToken;
         this.baseUrl = `${TELEGRAM_API}/bot${botToken}`;
@@ -38,9 +36,9 @@ export class TelegramApi {
         return this.request('sendMessage', {
             chat_id: chatId,
             text,
-            parse_mode: options?.parseMode,
-            reply_to_message_id: options?.replyToMessageId,
-            disable_notification: options?.disableNotification,
+            parse_mode: options === null || options === void 0 ? void 0 : options.parseMode,
+            reply_to_message_id: options === null || options === void 0 ? void 0 : options.replyToMessageId,
+            disable_notification: options === null || options === void 0 ? void 0 : options.disableNotification,
         });
     }
     async sendChatAction(chatId, action) {
@@ -98,4 +96,3 @@ export class TelegramApi {
         return `data:${contentType};base64,${base64}`;
     }
 }
-//# sourceMappingURL=telegram-api.js.map

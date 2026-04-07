@@ -3,10 +3,9 @@
  * Uses Meta Graph API v18.0 endpoints.
  */
 export class FacebookApi {
-    pageAccessToken;
-    baseUrl = 'https://graph.facebook.com/v18.0';
     constructor(pageAccessToken) {
         this.pageAccessToken = pageAccessToken;
+        this.baseUrl = 'https://graph.facebook.com/v18.0';
     }
     async sendTextMessage(recipientId, text) {
         const res = await fetch(`${this.baseUrl}/me/messages?access_token=${encodeURIComponent(this.pageAccessToken)}`, {
@@ -32,4 +31,3 @@ export class FacebookApi {
         return res.json();
     }
 }
-//# sourceMappingURL=facebook-api.js.map

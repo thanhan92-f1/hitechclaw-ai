@@ -251,4 +251,3 @@ export declare const RegisterSchema: z.ZodObject<{
     name: string;
     password: string;
 }>;
-//# sourceMappingURL=schemas.d.ts.map

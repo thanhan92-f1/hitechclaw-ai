@@ -21,10 +21,16 @@
     "paths": {
       "@hitechclaw/chat-sdk": ["./packages/chat-sdk/dist/index.js"],
       "@hitechclaw/chat-sdk/react": ["./packages/chat-sdk/dist/react/index.js"],
+      "@hitechclaw/shared": ["./packages/shared/dist/index.js"],
+      "@hitechclaw/core": ["./packages/core/dist/index.js"],
+      "@hitechclaw/db": ["./packages/db/dist/index.js"],
       "@hitechclaw/domains": ["./packages/domains/dist/index.js"],
       "@hitechclaw/integrations": ["./packages/integrations/dist/index.js"],
       "@hitechclaw/ml": ["./packages/ml/dist/index.js"],
       "@hitechclaw/skill-hub": ["./packages/skill-hub/dist/index.js"],
+      "@hitechclaw/skills": ["./packages/skills/dist/index.js"],
+      "@hitechclaw/sandbox": ["./packages/sandbox/dist/index.js"],
+      "@hitechclaw/gateway": ["./packages/gateway/dist/index.js"],
       "@hitechclaw/doc-mcp": ["./packages/doc-mcp/dist/index.js"],
       "@hitechclaw/doc-mcp/doc-store": ["./packages/doc-mcp/dist/doc-store.js"],
       "@/*": ["./src/*"]

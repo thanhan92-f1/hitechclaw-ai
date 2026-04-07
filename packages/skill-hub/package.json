@@ -14,9 +14,5 @@
     "scripts": {
         "build": "tsc -b",
         "dev": "tsc -b --watch"
-    },
-    "dependencies": {
-        "@hitechclaw/shared": "*",
-        "@hitechclaw/core": "*"
     }
 }
