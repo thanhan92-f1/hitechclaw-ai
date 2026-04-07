@@ -86,7 +86,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     id: "health-check",
     name: "Health Check",
-    description: "Monitor your servers every 5 minutes. Get alerted if anything goes down.",
+    description: "Monitor platform health every 5 minutes and alert when the stack reports a degraded state.",
     icon: HeartPulse,
     color: "#00D47E",
     trigger_type: "cron",
@@ -94,9 +94,9 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     definition: {
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 5 Minutes", cron_expression: "*/5 * * * *" } },
-        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Check Infrastructure", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/status", headers: {}, timeout: 15000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "All Healthy?", field: "status", operator: "eq", value: "200" } },
-        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Alert: Server Down", channel: "telegram", message: "Server health check failed. Status: {{status}}. Check infrastructure page for details." } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Check Platform Health", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/health", headers: {}, timeout: 15000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Platform Healthy?", field: "body.status", operator: "eq", value: "healthy" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Alert: Platform Degraded", channel: "telegram", message: "Platform health check failed. Latest status: {{body}}. Review health and infrastructure dashboards." } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
@@ -104,12 +104,12 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         { id: "e3-4", source: "3", target: "4", sourceHandle: "false" },
       ],
     },
-    customizationHints: ["Adjust check frequency in the cron trigger", "Change notification channel (Telegram/Log)", "Customize the alert message"],
+    customizationHints: ["Adjust check frequency in the cron trigger", "Keep the health endpoint internal so bearer auth is injected automatically", "Customize the degradation alert message and escalation channel"],
   },
   {
     id: "threat-auto-response",
     name: "Threat Auto-Response",
-    description: "Automatically pause an agent when a critical threat is detected.",
+    description: "Automatically pause an agent when critical threats are detected in the recent security overview.",
     icon: ShieldAlert,
     color: "#ef4444",
     trigger_type: "cron",
@@ -117,8 +117,8 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     definition: {
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Check Every 5 Min", cron_expression: "*/5 * * * *" } },
-        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Get Recent Threats", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?hours=1", headers: {}, timeout: 10000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Threats?", field: "body", operator: "contains", value: "critical" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Get Critical Threats", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=24h&severity=critical", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Threats Found?", field: "body.events.length", operator: "gt", value: "0" } },
         { id: "4", type: "http-request", position: { x: 80, y: 500 }, data: { label: "Pause Agent", method: "POST", url: "{{HITECHCLAW_AI_BASE_URL}}/api/tools/agents-live/default/pause", headers: {}, timeout: 10000 } },
         { id: "5", type: "notify", position: { x: 80, y: 660 }, data: { label: "Alert: Agent Paused", channel: "telegram", message: "Critical threat detected. Agent auto-paused. Review threats in ThreatGuard." } },
       ],
@@ -129,7 +129,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         { id: "e4-5", source: "4", target: "5" },
       ],
     },
-    customizationHints: ["Set the agent ID to pause in the HTTP Request node", "Adjust threat severity threshold in the condition", "Customize the notification message and channel"],
+    customizationHints: ["Set the agent ID to pause in the HTTP Request node", "Change the severity query parameter if you want high or medium threat review", "Customize the notification message and approval flow before using this in production"],
   },
   {
     id: "daily-cost-report",
@@ -154,8 +154,8 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     id: "client-heartbeat",
-    name: "Client Heartbeat",
-    description: "Alert you if a client's agent goes silent for more than 30 minutes.",
+    name: "Live Agent Heartbeat",
+    description: "Alert operators when no live agent runs are detected during the scheduled review window.",
     icon: Activity,
     color: "#f59e0b",
     trigger_type: "cron",
@@ -163,9 +163,9 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     definition: {
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 30 Minutes", cron_expression: "*/30 * * * *" } },
-        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Check Agent Activity", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/agents/overview", headers: {}, timeout: 10000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Agents Silent?", field: "body", operator: "contains", value: "offline" } },
-        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Alert: Agent Silent", channel: "telegram", message: "Agent heartbeat missed. One or more agents haven't reported in 30+ minutes. Check the Agents page." } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Check Live Runs", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/active-runs", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Live Runs?", field: "body.count", operator: "eq", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Alert: No Live Runs", channel: "telegram", message: "No live agent runs were detected in the last review window. Check active runs, agents, and infrastructure telemetry." } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
@@ -173,12 +173,12 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
       ],
     },
-    customizationHints: ["Adjust silence threshold in the cron trigger", "Target specific agent IDs in the API call", "Change notification channel and message"],
+    customizationHints: ["Adjust the review cadence to match your operational coverage", "Append agent_id to the active-runs API call for a scoped heartbeat", "Change notification routing for tenant-specific on-call teams"],
   },
   {
     id: "budget-alert",
     name: "Budget Alert",
-    description: "Notify you when spending hits 80% of your budget limit.",
+    description: "Review configured budgets hourly and notify operators when tracked budget records are present for manual follow-up.",
     icon: Wallet,
     color: "#00D47E",
     trigger_type: "cron",
@@ -187,8 +187,8 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Hourly", cron_expression: "0 * * * *" } },
         { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Get Cost Summary", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/costs/overview", headers: {}, timeout: 10000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Over 80% Budget?", field: "body", operator: "contains", value: "warning" } },
-        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Budget Warning", channel: "telegram", message: "Budget alert: Spending has reached 80% of your limit. Review costs and consider pausing non-essential agents." } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Budgets Configured?", field: "body.budgets.length", operator: "gt", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Budget Review Needed", channel: "telegram", message: "Budget records are configured and should be reviewed with the latest cost overview. Confirm thresholds and current spend before pausing agents. Summary: {{body}}" } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
@@ -196,12 +196,12 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
       ],
     },
-    customizationHints: ["Adjust budget threshold in the condition node", "Change check frequency (hourly, every 30 min, etc.)", "Customize the alert message"],
+    customizationHints: ["Use tenant_id in the request URL for customer-specific budget checks", "Pair this with Cost Anomaly Watch for stronger automated escalation", "Customize the alert copy with your current budget governance process"],
   },
   {
     id: "new-threat-alert",
-    name: "New Threat Alert",
-    description: "Send immediate notification when any HIGH+ threat is detected.",
+    name: "High Threat Alert",
+    description: "Send immediate notification when high-severity threats are detected in the recent security window.",
     icon: Bell,
     color: "#f97316",
     trigger_type: "cron",
@@ -209,9 +209,9 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     definition: {
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 5 Minutes", cron_expression: "*/5 * * * *" } },
-        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Get Recent Threats", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?hours=1", headers: {}, timeout: 10000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "High+ Threats?", field: "body", operator: "contains", value: "high" } },
-        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Threat Alert", channel: "telegram", message: "New HIGH+ severity threat detected in the last hour. Review immediately in ThreatGuard." } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Get High Threats", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=24h&severity=high", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "High Threats Found?", field: "body.events.length", operator: "gt", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Threat Alert", channel: "telegram", message: "High-severity threats were detected in the recent review window. Review the security overview immediately." } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
@@ -219,7 +219,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
       ],
     },
-    customizationHints: ["Change severity threshold in the condition", "Adjust polling frequency", "Route alerts to different channels per severity"],
+    customizationHints: ["Switch severity=high to severity=critical for stricter paging", "Adjust polling frequency based on alert fatigue tolerance", "Route alerts to different channels per severity tier"],
     packageResources: [
       { href: "/tools/builtin-skills", label: "Built-in Skills" },
       { href: "/tools/sandbox", label: "Sandbox Lab" },
