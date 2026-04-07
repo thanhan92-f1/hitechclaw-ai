@@ -92,7 +92,7 @@ If you prefer the prebuilt GitHub Container Registry image, pull it directly:
 docker pull ghcr.io/thanhan92-f1/hitechclaw-ai:latest
 ```
 
-The repository also publishes branch and SHA-scoped package tags automatically on pushes to `main` when container-impacting files change. Tagged releases such as `v0.1.0` publish matching versioned GHCR image tags through the release workflow.
+The repository also publishes branch and SHA-scoped package tags automatically on pushes to `main`. Tagged releases such as `v0.1.0` publish matching versioned GHCR image tags through the release workflow.
 
 Published GHCR images are multi-arch and currently include `linux/amd64` and `linux/arm64` manifests.
 
@@ -137,6 +137,13 @@ npm run verify:ghcr
 ```
 
 The helper script defaults to `ghcr.io/thanhan92-f1/hitechclaw-ai:latest` and runs signature, provenance, and SBOM verification in sequence.
+
+If you do not see the container package in GitHub after a successful `main` push, check the following before troubleshooting the workflow itself:
+
+- the `Docker Package Publish` workflow run completed successfully on `main`
+- repository Actions permissions allow `GITHUB_TOKEN` to write packages
+- the published container package is not still marked private when you expect public/inherited visibility
+- GitHub Packages indexing has had a short time to refresh after the publish completed
 
 To verify a specific tag or digest, pass it through after `--`:
 

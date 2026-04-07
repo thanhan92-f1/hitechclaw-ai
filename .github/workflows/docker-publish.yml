@@ -25,54 +25,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  detect_publish_changes:
-    name: Detect container-impacting changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      publish_image: ${{ steps.resolve.outputs.publish_image }}
-    steps:
-      - name: Check out repository for diff calculation
-        if: github.event_name == 'push'
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Detect Docker package publishing changes
-        if: github.event_name == 'push'
-        id: filter
-        uses: dorny/paths-filter@v4
-        with:
-          filters: |
-            image_inputs:
-              - 'Dockerfile'
-              - 'docker-entrypoint.sh'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'next.config.ts'
-              - 'tsconfig.json'
-              - 'postcss.config.mjs'
-              - 'eslint.config.mjs'
-              - 'next-env.d.ts'
-              - 'ecosystem.config.js'
-              - 'src/**'
-              - 'public/**'
-              - 'migrations/**'
-              - 'scripts/**'
-
-      - name: Resolve publish decision
-        id: resolve
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "publish_image=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish_image=${{ steps.filter.outputs.image_inputs }}" >> "$GITHUB_OUTPUT"
-          fi
-
   publish_ghcr_image:
     name: Publish Docker image to GHCR
-    needs: detect_publish_changes
-    if: needs.detect_publish_changes.outputs.publish_image == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -146,16 +100,3 @@ jobs:
           echo "Published platforms: linux/amd64, linux/arm64" >> "$GITHUB_STEP_SUMMARY"
           echo "Supply-chain metadata: provenance + SBOM attestations enabled" >> "$GITHUB_STEP_SUMMARY"
           echo "Signing: keyless Sigstore/Cosign signature published for image digest" >> "$GITHUB_STEP_SUMMARY"
-
-  publish_skipped_summary:
-    name: Docker publish skip summary
-    needs: detect_publish_changes
-    if: needs.detect_publish_changes.outputs.publish_image != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Publish skip summary
-        run: |
-          echo "# Docker package publish" >> "$GITHUB_STEP_SUMMARY"
-          echo >> "$GITHUB_STEP_SUMMARY"
-          echo "No container-impacting changes detected on this push, so GHCR publishing was skipped." >> "$GITHUB_STEP_SUMMARY"

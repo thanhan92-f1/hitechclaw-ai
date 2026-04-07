@@ -103,7 +103,7 @@ If the PR quality check fails, the author should update the PR body instead of b
 To make the automation fully effective, maintainers should verify these repository settings:
 
 1. **Actions permissions** allow workflows to write pull request comments, labels, and issue comments.
-2. **GitHub Container Registry publishing** is allowed for `GITHUB_TOKEN` if `release.yml` publishes images.
+2. **GitHub Container Registry publishing** is allowed for `GITHUB_TOKEN` if `release.yml` or `docker-publish.yml` publishes images, and maintainers should confirm the resulting container package visibility matches the repository's intended public or inherited access.
 3. **OIDC token access** is available to workflows that sign containers keylessly with Sigstore/Cosign.
 4. **npm automation secret** stores a valid `NPM_TOKEN` with publish rights for `@hitechclaw-ai/sdk`.
 5. **Branch protection** requires at least the key checks from `ci.yml`, `codeql.yml`, and `pr-quality.yml` before merge.
@@ -111,7 +111,7 @@ To make the automation fully effective, maintainers should verify these reposito
 7. **Discussions** is enabled, because issue intake and community routing now depend on it.
 8. **Security Advisories** is enabled so private vulnerability reports can be filed correctly.
 
-Consumers who deploy the published GHCR images should verify signatures and attestations before promotion. The concrete `cosign verify` and `cosign verify-attestation` examples are documented in `INSTALL.md`.
+Consumers who deploy the published GHCR images should verify signatures and attestations before promotion. The concrete `cosign verify` and `cosign verify-attestation` examples are documented in `INSTALL.md`. Maintainers should also verify that newly published images are visible from the GitHub `Packages` UI after the first successful publish on `main`.
 
 ---
 

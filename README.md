@@ -137,12 +137,21 @@ SDK release notes and consumer guidance live under `packages/sdk/README.md` and 
 
 Publishing model:
 
-- pushes to `main` refresh the moving `latest`, `main`, and SHA-scoped GHCR tags when container inputs change
+- pushes to `main` refresh the moving `latest`, `main`, and SHA-scoped GHCR tags automatically
 - release tags such as `v0.1.0` publish versioned GHCR tags through `release.yml`
 - both publish flows now ship multi-arch container images for `linux/amd64` and `linux/arm64`
 - both publish flows attach OCI provenance and SBOM attestations to the pushed GHCR images
 - both publish flows sign the pushed image digest with keyless Sigstore/Cosign using GitHub OIDC
+- after the first successful publish, the image should appear under the owner `Packages` tab in GitHub; if it stays private or hidden, update the package visibility/settings to inherit the repository visibility
 - consumer-side `cosign verify` and attestation examples are documented in `INSTALL.md`
+
+GHCR troubleshooting:
+
+- expected package path: `ghcr.io/thanhan92-f1/hitechclaw-ai`
+- expected moving tags after a successful `main` push: `latest`, `main`, and `sha-<commit>`
+- expected version tag after a release push: `vX.Y.Z`
+- expected GitHub UI location: repository owner profile/org `Packages` page, linked container package, or the repository sidebar package section when available
+- if the image does not appear, first confirm the `Docker Package Publish` or `Release and Delivery` workflow summary shows published tags instead of a failed or skipped publish
 
 If your first agent uses **OpenClaw** or **NemoClaw**, the setup wizard now includes framework-specific bootstrap instructions from the initial install flow, including the generated telemetry token and the exact config block to paste into your runtime.
 
@@ -249,7 +258,7 @@ GitHub Actions uses the same split pragmatically:
 - docs-only and other non-runtime changes skip the heavier CI jobs more aggressively through path filtering
 - a lightweight docs/governance job still runs on every CI trigger so docs-only changes keep a useful green status signal
 - automation-only changes such as workflow or hook updates run lint/build plus smoke coverage, but skip the broader categorized regression jobs
-- pushes to `main` automatically publish refreshed GHCR Docker packages when container-impacting files change
+- pushes to `main` automatically publish refreshed GHCR Docker packages
 - release tags such as `v0.1.0` publish versioned GHCR images from the dedicated release workflow
 - both container publish workflows build `linux/amd64` and `linux/arm64` images
 - both container publish workflows attach provenance and SBOM metadata for supply-chain verification
