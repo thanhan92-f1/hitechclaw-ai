@@ -9,6 +9,10 @@ node_modules
 out
 build
 dist
+!packages/chat-sdk/dist
+!packages/chat-sdk/dist/**
+!packages/doc-mcp/dist
+!packages/doc-mcp/dist/**
 
 # Environment files (use docker-compose env_file or --env-file)
 .env

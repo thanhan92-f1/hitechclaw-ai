@@ -15,8 +15,10 @@ RUN npm ci
 COPY src/ src/
 COPY public/ public/
 COPY migrations/ migrations/
+COPY packages/chat-sdk/dist/ packages/chat-sdk/dist/
+COPY packages/doc-mcp/dist/ packages/doc-mcp/dist/
 COPY scripts/ scripts/
-COPY next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./
+COPY next-env.d.ts next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./
 
 # Next.js standalone build
 ENV NEXT_TELEMETRY_DISABLED=1
