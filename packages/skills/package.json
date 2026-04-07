@@ -1,0 +1,22 @@
+{
+    "name": "@hitechclaw/skills",
+    "version": "2.0.1",
+    "description": "HiTechClaw built-in skills collection",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*",
+        "@hitechclaw/core": "*"
+    }
+}

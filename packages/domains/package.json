@@ -1,0 +1,22 @@
+{
+    "name": "@hitechclaw/domains",
+    "version": "2.1.1",
+    "description": "HiTechClaw Domain Packs — Industry-specific skills, tools, and agent personas",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*",
+        "zod": "^3.24.0"
+    }
+}

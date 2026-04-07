@@ -1,0 +1,36 @@
+{
+    "name": "@hitechclaw/zalo-miniapp",
+    "version": "1.0.0",
+    "private": false,
+    "description": "HiTechClaw AI Chat — Zalo Mini App",
+    "browserslist": [
+        "Android >= 5",
+        "IOS >= 9.3",
+        "Edge >= 15",
+        "Safari >= 9.1",
+        "Chrome >= 49",
+        "Firefox >= 31",
+        "Samsung >= 5"
+    ],
+    "scripts": {
+        "start": "zmp start",
+        "build": "zmp build",
+        "deploy": "zmp deploy"
+    },
+    "dependencies": {
+        "@hitechclaw/chat-sdk": "*",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-markdown": "^9.0.3",
+        "zmp-sdk": "latest",
+        "zmp-ui": "latest"
+    },
+    "devDependencies": {
+        "@types/react": "^18.3.1",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "typescript": "^5.7.3",
+        "vite": "^5.2.13",
+        "zmp-vite-plugin": "latest"
+    }
+}

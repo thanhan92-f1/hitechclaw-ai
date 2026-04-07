@@ -1,0 +1,75 @@
+{
+    "name": "@hitechclaw/chat-sdk",
+    "version": "1.2.0",
+    "description": "HiTechClaw Chat SDK — React & React Native client for HiTechClaw AI Agent Platform",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./react": {
+            "types": "./dist/react/index.d.ts",
+            "import": "./dist/react/index.js"
+        },
+        "./react-native": {
+            "types": "./dist/react-native/index.d.ts",
+            "import": "./dist/react-native/index.js"
+        },
+        "./mcp": {
+            "types": "./dist/mcp/index.d.ts",
+            "import": "./dist/mcp/index.js"
+        }
+    },
+    "bin": {
+        "hitechclaw-chat-mcp": "dist/mcp/bin.js"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "scripts": {
+        "build": "tsc -p tsconfig.build.json",
+        "dev": "tsc -p tsconfig.build.json --watch",
+        "prepublishOnly": "npm run build",
+        "mcp": "node dist/mcp/bin.js"
+    },
+    "keywords": [
+        "hitechclaw",
+        "ai",
+        "chat",
+        "sdk",
+        "react",
+        "react-native",
+        "streaming",
+        "sse",
+        "mcp"
+    ],
+    "author": "xDev Asia <dev@xdev.asia>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/xdev-asia-labs/hitechclaw.git",
+        "directory": "packages/chat-sdk"
+    },
+    "homepage": "https://github.com/xdev-asia-labs/hitechclaw/tree/main/packages/chat-sdk",
+    "peerDependencies": {
+        "react": ">=18.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.12.1"
+    },
+    "devDependencies": {
+        "@types/react": "^19.0.0",
+        "react": "^19.0.0",
+        "typescript": "^5.8.0"
+    }
+}

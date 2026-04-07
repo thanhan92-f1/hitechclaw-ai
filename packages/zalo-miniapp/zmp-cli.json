@@ -1,0 +1,17 @@
+{
+    "name": "hitechclaw-ai",
+    "framework": "react-typescript",
+    "template": "single-view",
+    "cssPreProcessor": "css",
+    "includeTailwind": false,
+    "package": "zmp-ui",
+    "newProject": true,
+    "theming": {
+        "customColor": false,
+        "color": "#0068ff",
+        "darkTheme": false,
+        "iconFonts": true,
+        "fillBars": false,
+        "useUiKits": true
+    }
+}

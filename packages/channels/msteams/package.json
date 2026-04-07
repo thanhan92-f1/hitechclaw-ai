@@ -1,0 +1,15 @@
+{
+    "name": "@hitechclaw/channel-msteams",
+    "version": "2.0.0",
+    "description": "HiTechClaw Microsoft Teams channel plugin",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*"
+    }
+}

@@ -1,0 +1,1 @@
+{"version":3,"file":"topic-scope-guard.d.ts","sourceRoot":"","sources":["../../src/guardrails/topic-scope-guard.ts"],"names":[],"mappings":"AAIA,OAAO,KAAK,EAAE,cAAc,EAAE,eAAe,EAAE,gBAAgB,EAAE,MAAM,YAAY,CAAC;AAiBpF;;;GAGG;AACH,qBAAa,eAAgB,YAAW,cAAc;IACpD,QAAQ,CAAC,IAAI,uBAAuB;IAE9B,KAAK,CAAC,KAAK,EAAE,MAAM,EAAE,OAAO,EAAE,gBAAgB,GAAG,OAAO,CAAC,eAAe,CAAC;CA4BhF"}

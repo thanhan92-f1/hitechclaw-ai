@@ -1,0 +1,60 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "outDir": "./dist",
+        "rootDir": "./src"
+    },
+    "include": [
+        "src"
+    ],
+    "references": [
+        {
+            "path": "../shared"
+        },
+        {
+            "path": "../core"
+        },
+        {
+            "path": "../db"
+        },
+        {
+            "path": "../gateway"
+        },
+        {
+            "path": "../integrations"
+        },
+        {
+            "path": "../domains"
+        },
+        {
+            "path": "../ml"
+        },
+        {
+            "path": "../sandbox"
+        },
+        {
+            "path": "../skills"
+        },
+        {
+            "path": "../channels/telegram"
+        },
+        {
+            "path": "../channels/slack"
+        },
+        {
+            "path": "../channels/facebook"
+        },
+        {
+            "path": "../channels/whatsapp"
+        },
+        {
+            "path": "../channels/zalo"
+        },
+        {
+            "path": "../channels/discord"
+        },
+        {
+            "path": "../channels/msteams"
+        }
+    ]
+}

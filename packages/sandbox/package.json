@@ -1,0 +1,21 @@
+{
+    "name": "@hitechclaw/sandbox",
+    "version": "2.1.0",
+    "description": "HiTechClaw sandbox — OpenShell integration for isolated agent tool execution",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*"
+    }
+}

@@ -1,0 +1,33 @@
+{
+    "name": "@hitechclaw/server",
+    "version": "2.0.0",
+    "private": false,
+    "description": "HiTechClaw server entry point — bootstraps Gateway + Agent + Skills",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsx --watch src/index.ts",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*",
+        "@hitechclaw/core": "*",
+        "@hitechclaw/db": "*",
+        "@hitechclaw/gateway": "*",
+        "@hitechclaw/integrations": "*",
+        "@hitechclaw/domains": "*",
+        "@hitechclaw/ml": "*",
+        "@hitechclaw/sandbox": "*",
+        "@hitechclaw/skills": "*",
+        "@hitechclaw/channel-telegram": "*",
+        "@hitechclaw/channel-slack": "*",
+        "@hitechclaw/channel-facebook": "*",
+        "@hitechclaw/channel-whatsapp": "*",
+        "@hitechclaw/channel-zalo": "*",
+        "@hitechclaw/channel-discord": "*",
+        "@hitechclaw/channel-msteams": "*",
+        "@hono/node-server": "^1.14.0",
+        "dotenv": "^16.4.0"
+    }
+}

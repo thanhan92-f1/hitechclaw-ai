@@ -1,0 +1,20 @@
+{
+    "name": "@hitechclaw/cli",
+    "version": "2.0.1",
+    "description": "HiTechClaw CLI",
+    "type": "module",
+    "bin": {
+        "hitechclaw": "dist/index.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsx src/index.ts",
+        "prepublishOnly": "npm run build"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*"
+    }
+}

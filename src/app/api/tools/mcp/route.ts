@@ -3,6 +3,10 @@ import { query } from "@/lib/db";
 import { unauthorized, validateAdmin, forbidden, validateRole } from "../_utils";
 import * as net from "net";
 
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505";
+}
+
 /* ─── TCP Health Check ───────────────────────────────────── */
 function tcpCheck(host: string, port: number, timeoutMs = 5000): Promise<"online" | "offline"> {
   return new Promise((resolve) => {
@@ -65,7 +69,20 @@ export async function POST(req: NextRequest) {
     server_type?: string; approved?: boolean; notes?: string;
   };
 
-  if (!body.name) return NextResponse.json({ error: "name required" }, { status: 400 });
+  const trimmedName = body.name?.trim() ?? "";
+  if (!trimmedName) return NextResponse.json({ error: "name required" }, { status: 400 });
+
+  const existing = await query(
+    `SELECT id
+       FROM mcp_servers
+      WHERE COALESCE(NULLIF(BTRIM(tenant_id), ''), 'default') = 'default'
+        AND LOWER(BTRIM(name)) = LOWER(BTRIM($1))
+      LIMIT 1`,
+    [trimmedName]
+  );
+  if ((existing.rowCount ?? 0) > 0) {
+    return NextResponse.json({ error: "An MCP server with this name already exists" }, { status: 409 });
+  }
 
   // Parse host/port from url if not provided directly
   let host = body.host ?? null;
@@ -78,13 +95,20 @@ export async function POST(req: NextRequest) {
     } catch { /* ignore */ }
   }
 
-  const result = await query(
-    `INSERT INTO mcp_servers (name, url, host, port, server_type, approved, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [body.name, body.url ?? null, host, port, body.server_type ?? "mcp", body.approved ?? false, body.notes ?? null]
-  );
+  try {
+    const result = await query(
+      `INSERT INTO mcp_servers (name, url, host, port, server_type, approved, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [trimmedName, body.url ?? null, host, port, body.server_type ?? "mcp", body.approved ?? false, body.notes ?? null]
+    );
 
-  return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
+    return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "An MCP server with this name already exists" }, { status: 409 });
+    }
+    throw error;
+  }
 }
 
 /* ─── PATCH — update MCP server ─────────────────────────── */
@@ -102,15 +126,40 @@ export async function PATCH(req: NextRequest) {
 
   for (const key of allowed) {
     if (key in body) {
-      values.push(body[key]);
+      values.push(key === "name" && typeof body[key] === "string" ? body[key].trim() : body[key]);
       updates.push(`${key} = $${values.length}`);
     }
   }
 
   if (!updates.length) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 
+  const requestedName = typeof body.name === "string" ? body.name.trim() : null;
+  if (requestedName !== null) {
+    if (!requestedName) return NextResponse.json({ error: "name required" }, { status: 400 });
+
+    const duplicate = await query(
+      `SELECT id
+         FROM mcp_servers
+        WHERE id <> $1
+          AND COALESCE(NULLIF(BTRIM(tenant_id), ''), 'default') = 'default'
+          AND LOWER(BTRIM(name)) = LOWER(BTRIM($2))
+        LIMIT 1`,
+      [id, requestedName]
+    );
+    if ((duplicate.rowCount ?? 0) > 0) {
+      return NextResponse.json({ error: "An MCP server with this name already exists" }, { status: 409 });
+    }
+  }
+
   values.push(id);
-  await query(`UPDATE mcp_servers SET ${updates.join(", ")} WHERE id = $${values.length}`, values);
+  try {
+    await query(`UPDATE mcp_servers SET ${updates.join(", ")} WHERE id = $${values.length}`, values);
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "An MCP server with this name already exists" }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ ok: true });
 }

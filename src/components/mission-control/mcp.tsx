@@ -22,6 +22,95 @@ type RegistryEntry = {
   _imported?: boolean;
 };
 
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+};
+
+function normalizeServerKey(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function getRegistryServerKey(entry: RegistryEntry): string {
+  return normalizeServerKey(entry.server.name || entry.server.title);
+}
+
+function dedupeRegistryEntries(entries: RegistryEntry[]): RegistryEntry[] {
+  const deduped = new Map<string, RegistryEntry>();
+
+  for (const entry of entries) {
+    const key = getRegistryServerKey(entry);
+    if (!key) continue;
+
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, entry);
+      continue;
+    }
+
+    deduped.set(key, {
+      ...existing,
+      ...entry,
+      server: {
+        ...existing.server,
+        ...entry.server,
+        description: existing.server.description ?? entry.server.description,
+        websiteUrl: existing.server.websiteUrl ?? entry.server.websiteUrl,
+        version: existing.server.version ?? entry.server.version,
+      },
+      _imported: Boolean(existing._imported || entry._imported),
+    });
+  }
+
+  return [...deduped.values()];
+}
+
+function dedupeServers(entries: MCPServer[]): { servers: MCPServer[]; duplicateCount: number } {
+  const deduped = new Map<string, MCPServer>();
+  let duplicateCount = 0;
+
+  const score = (server: MCPServer): number => {
+    let value = 0;
+    if (server.approved) value += 4;
+    if (server.status === "online") value += 3;
+    if (server.status === "unknown") value += 1;
+    if (server.last_checked) value += 1;
+    return value;
+  };
+
+  for (const server of entries) {
+    const key = normalizeServerKey(server.name);
+    if (!key) continue;
+
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, server);
+      continue;
+    }
+
+    duplicateCount += 1;
+    const keepCurrent = score(server) > score(existing) || (score(server) === score(existing) && server.id > existing.id);
+    if (keepCurrent) deduped.set(key, server);
+  }
+
+  return { servers: [...deduped.values()], duplicateCount };
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T | null> {
+  const raw = await response.text();
+  if (!raw.trim()) return null;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new Error("Server returned an invalid JSON response");
+  }
+}
+
+function getApiError(response: Response, payload: ApiErrorPayload | null, fallback: string): string {
+  return payload?.error ?? payload?.message ?? (response.ok ? fallback : `${fallback} (${response.status})`);
+}
+
 /* ─── Registry Browser ───────────────────────────────────── */
 function RegistryBrowser({ onImported }: { onImported: () => void }) {
   const [results, setResults] = useState<RegistryEntry[]>([]);
@@ -30,6 +119,7 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [total, setTotal] = useState<number | null>(null);
+  const [duplicateCount, setDuplicateCount] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function getHeaders(): Record<string, string> {
@@ -48,11 +138,14 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
       const params = new URLSearchParams({ limit: "30" });
       if (q.trim()) params.set("search", q.trim());
       const res = await fetch(`/api/tools/mcp-registry?${params}`, { headers: getHeaders() });
-      const data = await res.json() as { servers: RegistryEntry[]; total?: number };
-      setResults(data.servers ?? []);
+      const data = await readJsonResponse<{ servers?: RegistryEntry[]; total?: number; error?: string }>(res);
+      if (!res.ok) throw new Error(getApiError(res, data, "Registry fetch failed"));
+      const deduped = dedupeRegistryEntries(data?.servers ?? []);
+      setDuplicateCount((data?.servers?.length ?? 0) - deduped.length);
+      setResults(deduped);
       setTotal(data.total ?? null);
-    } catch {
-      toast.error("Registry fetch failed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Registry fetch failed");
     } finally {
       setLoading(false);
     }
@@ -80,16 +173,18 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
   const importSelected = async () => {
     if (selected.size === 0) return;
     setImporting(true);
-    const toImport = results.filter(e => selected.has(e.server.name));
+    const toImport = results.filter(e => selected.has(getRegistryServerKey(e)));
     try {
       const res = await fetch("/api/tools/mcp-registry", {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ servers: toImport }),
       });
-      const data = await res.json() as { imported?: number; skipped?: number; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Import failed");
-      toast.success(`Imported ${data.imported} server${data.imported !== 1 ? "s" : ""}${data.skipped ? ` (${data.skipped} already existed)` : ""}`);
+      const data = await readJsonResponse<{ imported?: number; skipped?: number; error?: string }>(res);
+      if (!res.ok) throw new Error(getApiError(res, data, "Import failed"));
+      const imported = data?.imported ?? 0;
+      const skipped = data?.skipped ?? 0;
+      toast.success(`Imported ${imported} server${imported !== 1 ? "s" : ""}${skipped ? ` (${skipped} already existed)` : ""}`);
       setSelected(new Set());
       onImported();
       void search(query);
@@ -127,6 +222,12 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
         </p>
       )}
 
+      {duplicateCount > 0 && (
+        <p className="text-xs text-amber-400">
+          Hidden {duplicateCount} duplicate registry entr{duplicateCount === 1 ? "y" : "ies"} by server name.
+        </p>
+      )}
+
       {loading ? (
         <div className="space-y-2"><SkeletonCard /><SkeletonCard /></div>
       ) : (
@@ -134,15 +235,16 @@ function RegistryBrowser({ onImported }: { onImported: () => void }) {
           {results.map((entry) => {
             const s = entry.server;
             const name = s.title ?? s.name;
-            const isSelected = selected.has(s.name);
+            const serverKey = getRegistryServerKey(entry);
+            const isSelected = selected.has(serverKey);
             const isImported = entry._imported;
             const transportType = s.remotes?.[0]?.type ?? s.packages?.[0]?.transport?.type ?? "stdio";
 
             return (
               <motion.div
-                key={`${s.name}-${s.version}`}
+                key={serverKey || `${s.name}-${s.version}`}
                 layout
-                onClick={() => !isImported && toggleSelect(s.name)}
+                onClick={() => !isImported && toggleSelect(serverKey)}
                 className={`cursor-pointer rounded-xl border px-4 py-3 transition ${
                   isImported
                     ? "border-[var(--border)]/50 bg-[var(--bg-primary)]/40 opacity-60 cursor-default"
@@ -249,8 +351,8 @@ function AddServerModal({ onClose, onAdded }: { onClose: () => void; onAdded: ()
         headers: getHeaders(true),
         body: JSON.stringify(form),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok) throw new Error(data.error ?? "Failed");
+      const data = await readJsonResponse<{ ok?: boolean; error?: string }>(res);
+      if (!res.ok) throw new Error(getApiError(res, data, "Failed to add server"));
       toast.success("MCP server added");
       onAdded();
       onClose();
@@ -343,12 +445,16 @@ function AgentMappingPanel({ serverId, onClose }: { serverId: number; onClose: (
         fetch(`/api/tools/mcp/${serverId}/agents`, { headers: getHeaders() }),
         fetch("/api/admin/agents", { headers: getHeaders() }),
       ]);
-      const mapData = await mapRes.json() as { agents: typeof mapped };
-      const agentData = await agentRes.json() as { agents: typeof allAgents };
-      setMapped(mapData.agents ?? []);
-      setAllAgents(agentData.agents ?? []);
-    } catch {
-      toast.error("Failed to load agent mappings");
+      const [mapData, agentData] = await Promise.all([
+        readJsonResponse<{ agents?: typeof mapped; error?: string }>(mapRes),
+        readJsonResponse<{ agents?: typeof allAgents; error?: string }>(agentRes),
+      ]);
+      if (!mapRes.ok) throw new Error(getApiError(mapRes, mapData, "Failed to load agent mappings"));
+      if (!agentRes.ok) throw new Error(getApiError(agentRes, agentData, "Failed to load agents"));
+      setMapped(mapData?.agents ?? []);
+      setAllAgents(agentData?.agents ?? []);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load agent mappings");
     } finally {
       setLoading(false);
     }
@@ -435,11 +541,12 @@ function ConfigExportModal({ serverId, serverName, onClose }: { serverId: number
     setLoading(true);
     try {
       const res = await fetch(`/api/tools/mcp/${serverId}/export?format=${fmt}`, { headers: getHeaders() });
-      const data = await res.json() as { config: unknown; instructions: string };
-      setConfig(JSON.stringify(data.config, null, 2));
-      setInstructions(data.instructions ?? "");
-    } catch {
-      toast.error("Export failed");
+      const data = await readJsonResponse<{ config?: unknown; instructions?: string; error?: string }>(res);
+      if (!res.ok) throw new Error(getApiError(res, data, "Export failed"));
+      setConfig(JSON.stringify(data?.config ?? {}, null, 2));
+      setInstructions(data?.instructions ?? "");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Export failed");
     } finally {
       setLoading(false);
     }
@@ -662,14 +769,18 @@ export function MCPInventory() {
   const [showAdd, setShowAdd] = useState(false);
   const [filter, setFilter] = useState<"all" | "approved" | "unapproved" | "offline">("all");
   const [view, setView] = useState<"my" | "registry">("my");
+  const [duplicateCount, setDuplicateCount] = useState(0);
 
   const fetchServers = useCallback(async () => {
     try {
       const res = await fetch("/api/tools/mcp", { headers: getHeaders() });
-      const data = await res.json() as { servers: MCPServer[] };
-      setServers(data.servers ?? []);
-    } catch {
-      toast.error("Failed to load MCP servers");
+      const data = await readJsonResponse<{ servers?: MCPServer[]; error?: string }>(res);
+      if (!res.ok) throw new Error(getApiError(res, data, "Failed to load MCP servers"));
+      const deduped = dedupeServers(data?.servers ?? []);
+      setServers(deduped.servers);
+      setDuplicateCount(deduped.duplicateCount);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load MCP servers");
     } finally {
       setLoading(false);
     }
@@ -762,6 +873,17 @@ export function MCPInventory() {
           </p>
           <p className="mt-0.5 text-xs text-amber-400/70">
             Review and approve or remove servers you do not recognise.
+          </p>
+        </div>
+      )}
+
+      {view === "my" && duplicateCount > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-[rgba(245,158,11,0.06)] px-4 py-3">
+          <p className="text-sm font-semibold text-amber-400">
+            Hidden {duplicateCount} duplicate MCP server record{duplicateCount > 1 ? "s" : ""}
+          </p>
+          <p className="mt-0.5 text-xs text-amber-400/70">
+            New duplicate saves are blocked now. Older duplicate rows are collapsed by name in this view.
           </p>
         </div>
       )}

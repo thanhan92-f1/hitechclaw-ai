@@ -1,0 +1,1 @@
+ALTER TABLE "tenant_settings" ADD COLUMN IF NOT EXISTS "sandbox_config" jsonb NOT NULL DEFAULT '{"enabled":false,"defaultPolicy":"default","maxConcurrentSandboxes":5,"idleTimeoutMs":300000,"cpuLimit":"0.5","memoryLimit":"512Mi","gpuEnabled":false}'::jsonb;

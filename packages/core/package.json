@@ -1,0 +1,28 @@
+{
+    "name": "@hitechclaw/core",
+    "version": "2.2.0",
+    "description": "HiTechClaw core engine — Agent, LLM router, memory, tools, graph, streaming, tracing",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*",
+        "@hitechclaw/db": "*",
+        "@langchain/core": "^0.3.0",
+        "@langchain/langgraph": "^0.2.0",
+        "openai": "^4.80.0",
+        "@anthropic-ai/sdk": "^0.39.0",
+        "zod": "^3.24.0",
+        "nanoid": "^5.0.0"
+    }
+}

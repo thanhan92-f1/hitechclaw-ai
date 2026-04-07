@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1773942248111,
+      "tag": "0000_chemical_hiroim",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774326000000,
+      "tag": "0001_add_sandbox_config",
+      "breakpoints": true
+    }
+  ]
+}

@@ -4,6 +4,14 @@ import { unauthorized, validateAdmin } from "../_utils";
 
 const REGISTRY_BASE = "https://registry.modelcontextprotocol.io/v0";
 
+function normalizeName(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505";
+}
+
 /* ─── GET — search/list the official MCP registry ───────── */
 export async function GET(req: NextRequest) {
   if (!validateAdmin(req)) return unauthorized();
@@ -27,13 +35,13 @@ export async function GET(req: NextRequest) {
 
     // Also get list of already-imported server names for UI comparison
     const existing = await query("SELECT name FROM mcp_servers");
-    const existingNames = new Set(existing.rows.map((r: Record<string, unknown>) => (r.name as string).toLowerCase()));
+    const existingNames = new Set(existing.rows.map((r: Record<string, unknown>) => normalizeName(r.name as string)));
 
     // Annotate each server with whether it's already imported
     const annotated = (data.servers ?? []).map((entry: unknown) => {
       const e = entry as Record<string, unknown>;
       const server = e.server as Record<string, unknown>;
-      const serverName = (server?.title as string ?? server?.name as string ?? "").toLowerCase();
+      const serverName = normalizeName(server?.title as string ?? server?.name as string ?? "");
       return {
         ...e,
         _imported: existingNames.has(serverName),
@@ -62,7 +70,7 @@ export async function POST(req: NextRequest) {
     const server = entry.server as Record<string, unknown>;
     if (!server) continue;
 
-    const name = (server.title as string) ?? (server.name as string) ?? "Unknown";
+    const name = ((server.title as string) ?? (server.name as string) ?? "Unknown").trim();
     const description = server.description as string ?? null;
     const websiteUrl = server.websiteUrl as string ?? null;
 
@@ -89,7 +97,13 @@ export async function POST(req: NextRequest) {
         : "mcp";
 
     // Check for duplicate
-    const existing = await query("SELECT id FROM mcp_servers WHERE LOWER(name) = LOWER($1)", [name]);
+    const existing = await query(
+      `SELECT id
+         FROM mcp_servers
+        WHERE COALESCE(NULLIF(BTRIM(tenant_id), ''), 'default') = 'default'
+          AND LOWER(BTRIM(name)) = LOWER(BTRIM($1))`,
+      [name]
+    );
     if (existing.rowCount && existing.rowCount > 0) {
       skipped++;
       continue;
@@ -102,12 +116,20 @@ export async function POST(req: NextRequest) {
       `Source: Official MCP Registry`,
     ].filter(Boolean).join(" | ");
 
-    await query(
-      `INSERT INTO mcp_servers (name, url, host, port, server_type, approved, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [name, url, host, port, transportType ?? "mcp", false, notes]
-    );
-    imported++;
+    try {
+      await query(
+        `INSERT INTO mcp_servers (name, url, host, port, server_type, approved, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [name, url, host, port, transportType ?? "mcp", false, notes]
+      );
+      imported++;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        skipped++;
+        continue;
+      }
+      throw error;
+    }
   }
 
   return NextResponse.json({ ok: true, imported, skipped });

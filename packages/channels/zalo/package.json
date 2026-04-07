@@ -1,0 +1,15 @@
+{
+    "name": "@hitechclaw/channel-zalo",
+    "version": "2.0.1",
+    "description": "HiTechClaw Zalo OA channel plugin",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*"
+    }
+}

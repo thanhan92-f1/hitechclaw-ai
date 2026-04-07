@@ -1,0 +1,16 @@
+{
+    "app": {
+        "title": "HiTechClaw AI",
+        "textColor": {
+            "light": "black",
+            "dark": "white"
+        },
+        "statusBar": "transparent",
+        "actionBarHidden": true,
+        "hideIOSSafeAreaBottom": true,
+        "hideAndroidBottomNavigationBar": false
+    },
+    "listCSS": [],
+    "listSyncJS": [],
+    "listAsyncJS": []
+}

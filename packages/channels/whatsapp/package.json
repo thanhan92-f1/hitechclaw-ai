@@ -1,0 +1,15 @@
+{
+    "name": "@hitechclaw/channel-whatsapp",
+    "version": "2.0.1",
+    "description": "HiTechClaw WhatsApp channel plugin via Cloud API",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc -b",
+        "dev": "tsc -b --watch"
+    },
+    "dependencies": {
+        "@hitechclaw/shared": "*"
+    }
+}

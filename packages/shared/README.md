@@ -1,0 +1,1 @@
+# HiTechClaw shared types, schemas, and constants

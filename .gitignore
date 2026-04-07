@@ -72,3 +72,4 @@ tests/.auth/*.json
 
 # OS
 Thumbs.db
+packages/.npmrc
