@@ -1,6 +1,14 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
+        "noEmit": false,
+        "allowJs": false,
+        "baseUrl": "../..",
+        "paths": {
+            "@hitechclaw/shared": [
+                "./packages/shared/dist/index.d.ts"
+            ]
+        },
         "outDir": "./dist",
         "rootDir": "./src"
     },

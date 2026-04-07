@@ -34,7 +34,9 @@ const INJECTION_PATTERNS = [
 const SCORE_WEIGHTS = { high: 0.9, medium: 0.5, low: 0.2 };
 const BLOCK_THRESHOLD = 0.8;
 export class PromptInjectionDetector {
-    name = 'prompt-injection-detector';
+    constructor() {
+        this.name = 'prompt-injection-detector';
+    }
     async check(input, _context) {
         const start = Date.now();
         const matched = [];
@@ -48,15 +50,8 @@ export class PromptInjectionDetector {
             }
         }
         const pass = score < BLOCK_THRESHOLD;
-        return {
-            pass,
-            guardrailName: this.name,
-            durationMs: Date.now() - start,
-            confidence: Math.min(score, 1),
-            ...(pass ? {} : {
-                blockedReason: `Potential prompt injection detected: ${matched.map(m => m.name).join(', ')} (score: ${score.toFixed(2)})`,
-            }),
-        };
+        return Object.assign({ pass, guardrailName: this.name, durationMs: Date.now() - start, confidence: Math.min(score, 1) }, (pass ? {} : {
+            blockedReason: `Potential prompt injection detected: ${matched.map(m => m.name).join(', ')} (score: ${score.toFixed(2)})`,
+        }));
     }
 }
-//# sourceMappingURL=prompt-injection-detector.js.map

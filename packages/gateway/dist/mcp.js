@@ -256,4 +256,3 @@ export function createMCPRoutes(domainPacks, agent) {
     });
     return app;
 }
-//# sourceMappingURL=mcp.js.map

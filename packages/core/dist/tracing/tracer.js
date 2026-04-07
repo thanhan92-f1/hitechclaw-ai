@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 export class Tracer {
-    spans = [];
-    activeSpans = new Map();
+    constructor() {
+        this.spans = [];
+        this.activeSpans = new Map();
+    }
     startSpan(name, kind, options) {
+        var _a;
         const span = {
             id: randomUUID(),
             traceId: this.spans.length === 0 ? randomUUID() : this.spans[0].traceId,
-            parentId: options?.parentId,
+            parentId: options === null || options === void 0 ? void 0 : options.parentId,
             name,
             kind,
             startTime: Date.now(),
-            attributes: options?.attributes ?? {},
+            attributes: (_a = options === null || options === void 0 ? void 0 : options.attributes) !== null && _a !== void 0 ? _a : {},
             events: [],
             status: 'ok',
         };
@@ -53,4 +56,3 @@ export class Tracer {
         this.activeSpans.clear();
     }
 }
-//# sourceMappingURL=tracer.js.map

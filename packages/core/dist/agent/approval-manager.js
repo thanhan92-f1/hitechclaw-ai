@@ -6,12 +6,11 @@ const DEFAULT_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
  * Queues tool executions that require human approval before proceeding.
  */
 export class ApprovalManager {
-    expiryMs;
-    pendingApprovals = new Map();
-    resolvers = new Map();
-    events = new EventBus();
     constructor(expiryMs = DEFAULT_EXPIRY_MS) {
         this.expiryMs = expiryMs;
+        this.pendingApprovals = new Map();
+        this.resolvers = new Map();
+        this.events = new EventBus();
     }
     /**
      * Check if a tool call requires approval based on the tool definition
@@ -65,7 +64,8 @@ export class ApprovalManager {
             this.resolvers.set(id, resolve);
             // Auto-expire after timeout
             setTimeout(() => {
-                if (this.pendingApprovals.get(id)?.status === 'pending') {
+                var _a;
+                if (((_a = this.pendingApprovals.get(id)) === null || _a === void 0 ? void 0 : _a.status) === 'pending') {
                     this.resolve(id, 'expired');
                 }
             }, this.expiryMs);
@@ -118,4 +118,3 @@ export class ApprovalManager {
         return this.pendingApprovals.get(id);
     }
 }
-//# sourceMappingURL=approval-manager.js.map

@@ -14,9 +14,8 @@ import { WhatsAppChannel } from '@hitechclaw/channel-whatsapp';
 import { ZaloChannel } from '@hitechclaw/channel-zalo';
 import { channelConnectionsCollection } from '@hitechclaw/db';
 export class ChannelManager {
-    running = new Map();
-    makeHandler;
     constructor(makeHandler) {
+        this.running = new Map();
         this.makeHandler = makeHandler;
     }
     /** Create a channel plugin instance based on platform type */
@@ -110,7 +109,7 @@ export class ChannelManager {
     }
     /** Get a running channel instance by connection ID */
     getInstance(connectionId) {
-        return this.running.get(connectionId)?.instance;
+        var _a;
+        return (_a = this.running.get(connectionId)) === null || _a === void 0 ? void 0 : _a.instance;
     }
 }
-//# sourceMappingURL=channel-manager.js.map

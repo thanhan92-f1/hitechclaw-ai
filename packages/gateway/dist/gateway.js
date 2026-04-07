@@ -131,4 +131,3 @@ export function createGateway(ctx) {
     return app;
 }
 export { createGateway as default };
-//# sourceMappingURL=gateway.js.map

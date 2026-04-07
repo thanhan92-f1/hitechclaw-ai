@@ -37,6 +37,7 @@ export function createWidgetRoutes() {
     });
     // Widget analytics summary
     app.get('/analytics', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const days = parseInt(c.req.query('days') || '30', 10);
@@ -64,7 +65,7 @@ export function createWidgetRoutes() {
                 ok: true,
                 data: {
                     totalEvents,
-                    uniqueSessions: uniqueSessions[0]?.total || 0,
+                    uniqueSessions: ((_a = uniqueSessions[0]) === null || _a === void 0 ? void 0 : _a.total) || 0,
                     eventBreakdown: breakdown,
                     period: { days, since: since.toISOString() },
                 },
@@ -76,4 +77,3 @@ export function createWidgetRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=widget.js.map

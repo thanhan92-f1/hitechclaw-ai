@@ -23,7 +23,7 @@ function parseField(field, min, max) {
             const [start, end] = range === '*'
                 ? [min, max]
                 : range.split('-').map(Number);
-            for (let i = start; i <= (end ?? max); i += step)
+            for (let i = start; i <= (end !== null && end !== void 0 ? end : max); i += step)
                 values.add(i);
             continue;
         }
@@ -56,7 +56,7 @@ function cronMatches(cron, date) {
             months.has(date.getMonth() + 1) &&
             weekdays.has(date.getDay()));
     }
-    catch {
+    catch (_a) {
         return false;
     }
 }
@@ -64,45 +64,48 @@ function cronMatches(cron, date) {
 // Node/edge normalizer (same as workflows.ts)
 // ---------------------------------------------------------------------------
 function normalizeNode(raw) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (raw.data && typeof raw.data.label === 'string')
         return raw;
     return {
         id: raw.id,
         type: raw.type,
-        position: raw.position ?? { x: 0, y: 0 },
+        position: (_a = raw.position) !== null && _a !== void 0 ? _a : { x: 0, y: 0 },
         data: {
-            label: raw.name ?? raw.label ?? raw.id,
+            label: (_c = (_b = raw.name) !== null && _b !== void 0 ? _b : raw.label) !== null && _c !== void 0 ? _c : raw.id,
             description: raw.description,
-            config: raw.config ?? raw.data?.config ?? {},
+            config: (_f = (_d = raw.config) !== null && _d !== void 0 ? _d : (_e = raw.data) === null || _e === void 0 ? void 0 : _e.config) !== null && _f !== void 0 ? _f : {},
         },
-        inputs: raw.inputs ?? [],
-        outputs: raw.outputs ?? [],
+        inputs: (_g = raw.inputs) !== null && _g !== void 0 ? _g : [],
+        outputs: (_h = raw.outputs) !== null && _h !== void 0 ? _h : [],
     };
 }
 function normalizeEdge(raw) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     if (typeof raw.source === 'string' && typeof raw.target === 'string') {
-        return { id: raw.id ?? randomUUID(), sourcePort: raw.sourcePort ?? 'default', targetPort: raw.targetPort ?? 'default', ...raw };
+        return Object.assign({ id: (_a = raw.id) !== null && _a !== void 0 ? _a : randomUUID(), sourcePort: (_b = raw.sourcePort) !== null && _b !== void 0 ? _b : 'default', targetPort: (_c = raw.targetPort) !== null && _c !== void 0 ? _c : 'default' }, raw);
     }
     return {
-        id: raw.id ?? randomUUID(),
-        source: raw.from ?? raw.source,
-        sourcePort: raw.sourcePort ?? 'default',
-        target: raw.to ?? raw.target,
-        targetPort: raw.targetPort ?? 'default',
+        id: (_d = raw.id) !== null && _d !== void 0 ? _d : randomUUID(),
+        source: (_e = raw.from) !== null && _e !== void 0 ? _e : raw.source,
+        sourcePort: (_f = raw.sourcePort) !== null && _f !== void 0 ? _f : 'default',
+        target: (_g = raw.to) !== null && _g !== void 0 ? _g : raw.target,
+        targetPort: (_h = raw.targetPort) !== null && _h !== void 0 ? _h : 'default',
         condition: raw.condition,
     };
 }
 function buildWorkflow(row) {
+    var _a, _b, _c, _d;
     const def = row.definition;
     return {
         id: row.id,
         name: row.name,
-        description: row.description ?? '',
+        description: (_a = row.description) !== null && _a !== void 0 ? _a : '',
         version: row.version,
-        nodes: (def.nodes ?? []).map(normalizeNode),
-        edges: (def.edges ?? []).map(normalizeEdge),
+        nodes: ((_b = def.nodes) !== null && _b !== void 0 ? _b : []).map(normalizeNode),
+        edges: ((_c = def.edges) !== null && _c !== void 0 ? _c : []).map(normalizeEdge),
         variables: Array.isArray(def.variables) ? def.variables : [],
-        trigger: def.trigger ?? { id: 'schedule', type: 'schedule', name: 'Schedule', description: 'Scheduled trigger', config: {} },
+        trigger: (_d = def.trigger) !== null && _d !== void 0 ? _d : { id: 'schedule', type: 'schedule', name: 'Schedule', description: 'Scheduled trigger', config: {} },
         createdAt: typeof row.createdAt === 'string' ? row.createdAt : row.createdAt.toISOString(),
         updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : row.updatedAt.toISOString(),
         enabled: row.enabled,
@@ -113,6 +116,7 @@ function buildWorkflow(row) {
 // ---------------------------------------------------------------------------
 let schedulerTimer = null;
 async function tick(workflowEngine) {
+    var _a, _b;
     const now = new Date();
     try {
         const db = getDB();
@@ -122,10 +126,10 @@ async function tick(workflowEngine) {
             .where(eq(workflows.enabled, true));
         for (const row of rows) {
             const def = row.definition;
-            const trigger = def?.trigger;
+            const trigger = def === null || def === void 0 ? void 0 : def.trigger;
             if (!trigger || trigger.type !== 'schedule')
                 continue;
-            const cron = trigger.config?.cron;
+            const cron = (_a = trigger.config) === null || _a === void 0 ? void 0 : _a.cron;
             if (!cron)
                 continue;
             if (!cronMatches(cron, now))
@@ -146,7 +150,7 @@ async function tick(workflowEngine) {
                     status: execution.status,
                     nodeResults: nodeResultsObj,
                     variables: execution.variables,
-                    error: execution.error ?? null,
+                    error: (_b = execution.error) !== null && _b !== void 0 ? _b : null,
                     startedAt: new Date(execution.startedAt),
                     completedAt: execution.completedAt ? new Date(execution.completedAt) : null,
                 });
@@ -176,7 +180,7 @@ export function startWorkflowScheduler(workflowEngine) {
     const msToNextMinute = (60 - new Date().getSeconds()) * 1000;
     setTimeout(() => {
         void tick(workflowEngine);
-        schedulerTimer = setInterval(() => void tick(workflowEngine), 60_000);
+        schedulerTimer = setInterval(() => void tick(workflowEngine), 60000);
     }, msToNextMinute);
     console.log('   Scheduler: workflow cron scheduler started');
 }
@@ -189,4 +193,3 @@ export function stopWorkflowScheduler() {
         schedulerTimer = null;
     }
 }
-//# sourceMappingURL=workflow-scheduler.js.map

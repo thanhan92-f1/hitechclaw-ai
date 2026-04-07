@@ -57,26 +57,24 @@ export function buildSpawnAgentToolDefinition() {
  */
 export function buildSpawnAgentHandler(options) {
     return async (args) => {
+        var _a, _b, _c, _d, _e, _f;
         const task = args['task'];
-        const agentType = args['agent_type'] ?? 'general';
+        const agentType = (_a = args['agent_type']) !== null && _a !== void 0 ? _a : 'general';
         const customSystemPrompt = args['system_prompt'];
-        const maxTurns = args['max_turns'] ?? 20;
+        const maxTurns = (_b = args['max_turns']) !== null && _b !== void 0 ? _b : 20;
         if (!task || typeof task !== 'string' || task.trim().length === 0) {
             throw new Error('spawn_agent: "task" parameter is required and must be a non-empty string');
         }
         // Find definition matching agentType (if known)
-        const definition = options.definitions?.find((d) => d.agentType === agentType);
+        const definition = (_c = options.definitions) === null || _c === void 0 ? void 0 : _c.find((d) => d.agentType === agentType);
         // Build subagent config inheriting from parent
         const subAgentConfig = {
             id: randomUUID(),
             name: `${agentType}-subagent`,
-            description: definition?.description ?? `Subagent spawned for: ${task.slice(0, 80)}`,
-            persona: definition?.systemPrompt ?? options.parentConfig.persona,
-            systemPrompt: customSystemPrompt ?? definition?.systemPrompt ?? options.parentConfig.systemPrompt,
-            llm: {
-                ...options.parentConfig.llm,
-                ...(definition?.model ? { model: definition.model } : {}),
-            },
+            description: (_d = definition === null || definition === void 0 ? void 0 : definition.description) !== null && _d !== void 0 ? _d : `Subagent spawned for: ${task.slice(0, 80)}`,
+            persona: (_e = definition === null || definition === void 0 ? void 0 : definition.systemPrompt) !== null && _e !== void 0 ? _e : options.parentConfig.persona,
+            systemPrompt: (_f = customSystemPrompt !== null && customSystemPrompt !== void 0 ? customSystemPrompt : definition === null || definition === void 0 ? void 0 : definition.systemPrompt) !== null && _f !== void 0 ? _f : options.parentConfig.systemPrompt,
+            llm: Object.assign(Object.assign({}, options.parentConfig.llm), ((definition === null || definition === void 0 ? void 0 : definition.model) ? { model: definition.model } : {})),
             enabledSkills: options.parentConfig.enabledSkills,
             memory: options.parentConfig.memory,
             security: options.parentConfig.security,
@@ -169,4 +167,3 @@ export function wrapSpawnResult(toolCallId, result) {
         duration: 0,
     };
 }
-//# sourceMappingURL=agent-spawn-tool.js.map

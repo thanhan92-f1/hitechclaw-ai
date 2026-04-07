@@ -1,5 +1,7 @@
 export class ToolRegistry {
-    tools = new Map();
+    constructor() {
+        this.tools = new Map();
+    }
     register(definition, handler) {
         if (this.tools.has(definition.name)) {
             throw new Error(`Tool "${definition.name}" is already registered`);
@@ -19,7 +21,8 @@ export class ToolRegistry {
         return [...this.tools.values()].map((t) => t.definition);
     }
     getDefinition(name) {
-        return this.tools.get(name)?.definition;
+        var _a;
+        return (_a = this.tools.get(name)) === null || _a === void 0 ? void 0 : _a.definition;
     }
     async execute(toolCall) {
         const tool = this.tools.get(toolCall.name);
@@ -56,4 +59,3 @@ export class ToolRegistry {
         return Promise.all(toolCalls.map((tc) => this.execute(tc)));
     }
 }
-//# sourceMappingURL=tool-registry.js.map

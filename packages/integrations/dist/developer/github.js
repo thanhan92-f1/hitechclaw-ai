@@ -2,17 +2,8 @@ import { z } from 'zod';
 import { defineIntegration } from '../base/define-integration.js';
 const GITHUB_API = 'https://api.github.com';
 async function ghFetch(path, token, options = {}) {
-    const res = await fetch(`${GITHUB_API}${path}`, {
-        ...options,
-        headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json',
-            ...(options.headers ?? {}),
-        },
-        signal: AbortSignal.timeout(15000),
-    });
+    var _a;
+    const res = await fetch(`${GITHUB_API}${path}`, Object.assign(Object.assign({}, options), { headers: Object.assign({ Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, ((_a = options.headers) !== null && _a !== void 0 ? _a : {})), signal: AbortSignal.timeout(15000) }));
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `GitHub API error ${res.status}`);
@@ -174,4 +165,3 @@ export const githubIntegration = defineIntegration({
         },
     ],
 });
-//# sourceMappingURL=github.js.map

@@ -4,18 +4,19 @@ import { HTTPException } from 'hono/http-exception';
 import { getDB, tenants, tenantSettings, users, eq, and } from '@hitechclaw/db';
 import { seedDefaultRoles, assignRoleToUser } from './rbac.js';
 function toTenantInfo(row) {
+    var _a;
     return {
         id: row.id,
         name: row.name,
         slug: row.slug,
         plan: row.plan,
         status: row.status,
-        metadata: (row.metadata ?? {}),
+        metadata: ((_a = row.metadata) !== null && _a !== void 0 ? _a : {}),
     };
 }
 // ─── In-memory cache (tenant settings) ──────────────────────
 const settingsCache = new Map();
-const CACHE_TTL_MS = 60_000; // 1 minute
+const CACHE_TTL_MS = 60000; // 1 minute
 function invalidateCache(tenantId) {
     settingsCache.delete(tenantId);
 }
@@ -37,6 +38,7 @@ export const TenantService = {
         return rows.map(toTenantInfo);
     },
     async create(data) {
+        var _a, _b;
         const db = getDB();
         const id = randomUUID();
         const now = new Date();
@@ -49,9 +51,9 @@ export const TenantService = {
             id,
             name: data.name,
             slug: data.slug,
-            plan: data.plan ?? 'free',
+            plan: (_a = data.plan) !== null && _a !== void 0 ? _a : 'free',
             status: 'active',
-            metadata: data.metadata ?? {},
+            metadata: (_b = data.metadata) !== null && _b !== void 0 ? _b : {},
             createdAt: now,
             updatedAt: now,
         }).returning();
@@ -67,13 +69,14 @@ export const TenantService = {
     async update(tenantId, data) {
         const db = getDB();
         const [updated] = await db.update(tenants)
-            .set({ ...data, updatedAt: new Date() })
+            .set(Object.assign(Object.assign({}, data), { updatedAt: new Date() }))
             .where(eq(tenants.id, tenantId))
             .returning();
         return updated ? toTenantInfo(updated) : null;
     },
     // ─── Settings ───────────────────────────────────────────
     async getSettings(tenantId) {
+        var _a;
         // Check cache
         const cached = settingsCache.get(tenantId);
         if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
@@ -105,7 +108,7 @@ export const TenantService = {
             maxMessagesPerDay: row.maxMessagesPerDay,
             tavilyApiKey: row.tavilyApiKey,
             branding: row.branding,
-            sandboxConfig: (row.sandboxConfig ?? {
+            sandboxConfig: ((_a = row.sandboxConfig) !== null && _a !== void 0 ? _a : {
                 enabled: false,
                 defaultPolicy: 'default',
                 maxConcurrentSandboxes: 5,
@@ -121,7 +124,7 @@ export const TenantService = {
     async updateSettings(tenantId, data) {
         const db = getDB();
         await db.update(tenantSettings)
-            .set({ ...data, updatedAt: new Date() })
+            .set(Object.assign(Object.assign({}, data), { updatedAt: new Date() }))
             .where(eq(tenantSettings.tenantId, tenantId));
         invalidateCache(tenantId);
         return this.getSettings(tenantId);
@@ -148,9 +151,10 @@ const LANGUAGE_MAP = {
     hi: 'Hindi (हिन्दी)',
 };
 export function getTenantLanguageInstruction(settings) {
+    var _a;
     if (settings.aiLanguage === 'auto')
         return '';
-    if (settings.aiLanguageCustom?.trim())
+    if ((_a = settings.aiLanguageCustom) === null || _a === void 0 ? void 0 : _a.trim())
         return settings.aiLanguageCustom.trim();
     const langName = LANGUAGE_MAP[settings.aiLanguage];
     if (langName)
@@ -161,7 +165,7 @@ export { LANGUAGE_MAP };
 export function tenantMiddleware() {
     return async (c, next) => {
         const user = c.get('user');
-        if (!user?.tenantId) {
+        if (!(user === null || user === void 0 ? void 0 : user.tenantId)) {
             throw new HTTPException(403, { message: 'No tenant associated with user' });
         }
         // Super admin uses platform tenant settings but can access any tenant's data
@@ -244,6 +248,7 @@ export function createTenantRoutes() {
     });
     // POST /tenants — create new tenant (SUPER ADMIN ONLY)
     app.post('/', async (c) => {
+        var _a;
         const user = c.get('user');
         if (!user.isSuperAdmin) {
             throw new HTTPException(403, { message: 'Super Admin access required' });
@@ -266,7 +271,7 @@ export function createTenantRoutes() {
             return c.json(tenant, 201);
         }
         catch (err) {
-            if (err.message?.includes('already exists')) {
+            if ((_a = err.message) === null || _a === void 0 ? void 0 : _a.includes('already exists')) {
                 return c.json({ error: err.message }, 409);
             }
             throw err;
@@ -338,7 +343,7 @@ export function createTenantRoutes() {
         const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map(b => b.toString(16).padStart(2, '0')).join('');
         const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100_000, hash: 'SHA-256' }, keyMaterial, 256);
+        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
         const hash = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
         const passwordHash = `pbkdf2:${salt}:${hash}`;
         const userId = randomUUID();
@@ -365,15 +370,8 @@ export function createTenantRoutes() {
         const settings = await TenantService.getSettings(tenantId);
         if (!settings)
             throw new HTTPException(404, { message: 'Settings not found' });
-        const safe = {
-            ...settings,
-            llmApiKey: settings.llmApiKey ? '***' : null,
-            tavilyApiKey: settings.tavilyApiKey ? '***' : null,
-        };
-        return c.json({
-            ...safe,
-            languages: Object.entries(LANGUAGE_MAP).map(([code, name]) => ({ code, name })),
-        });
+        const safe = Object.assign(Object.assign({}, settings), { llmApiKey: settings.llmApiKey ? '***' : null, tavilyApiKey: settings.tavilyApiKey ? '***' : null });
+        return c.json(Object.assign(Object.assign({}, safe), { languages: Object.entries(LANGUAGE_MAP).map(([code, name]) => ({ code, name })) }));
     });
     // PUT /tenants/:id/settings
     app.put('/:id/settings', async (c) => {
@@ -393,4 +391,3 @@ export function createTenantRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=tenant.js.map

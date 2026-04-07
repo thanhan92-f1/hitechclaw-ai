@@ -47,10 +47,7 @@ export const GPU_SANDBOX_IMAGES = [
     },
 ];
 /** Policy for ML workloads — more permissive for model downloads */
-export const POLICY_ML = {
-    ...POLICY_PERMISSIVE,
-    name: 'ml',
-    network: {
+export const POLICY_ML = Object.assign(Object.assign({}, POLICY_PERMISSIVE), { name: 'ml', network: {
         rules: [
             // Allow model downloads from common registries
             { host: 'huggingface.co', allow: true },
@@ -60,25 +57,18 @@ export const POLICY_ML = {
             { host: 'files.pythonhosted.org', methods: ['GET'], allow: true },
         ],
         defaultAction: 'deny',
-    },
-    process: {
+    }, process: {
         allowPrivilegeEscalation: false,
         maxProcesses: 100, // ML workloads need more processes
-    },
-};
+    } });
 /** Policy for inference-only (no model training, stricter) */
-export const POLICY_INFERENCE = {
-    ...POLICY_PERMISSIVE,
-    name: 'inference',
-    network: {
+export const POLICY_INFERENCE = Object.assign(Object.assign({}, POLICY_PERMISSIVE), { name: 'inference', network: {
         rules: [],
         defaultAction: 'deny',
-    },
-    process: {
+    }, process: {
         allowPrivilegeEscalation: false,
         maxProcesses: 30,
-    },
-};
+    } });
 // Register ML/Inference policies into the global builtin map
 registerBuiltinPolicy('ml', POLICY_ML);
 registerBuiltinPolicy('inference', POLICY_INFERENCE);
@@ -87,7 +77,6 @@ registerBuiltinPolicy('inference', POLICY_INFERENCE);
  * for ML training and inference workloads.
  */
 export class GPUSandboxBridge {
-    manager;
     constructor(manager) {
         this.manager = manager;
     }
@@ -95,6 +84,7 @@ export class GPUSandboxBridge {
      * Create a GPU-enabled sandbox for a specific ML image.
      */
     async createMLSandbox(tenantId, imageName, options) {
+        var _a, _b, _c;
         const imageConfig = GPU_SANDBOX_IMAGES.find((i) => i.name === imageName);
         if (!imageConfig) {
             throw new Error(`Unknown ML sandbox image: ${imageName}. Available: ${GPU_SANDBOX_IMAGES.map((i) => i.name).join(', ')}`);
@@ -105,12 +95,12 @@ export class GPUSandboxBridge {
             tenantId,
             image: imageConfig.image,
             policy: POLICY_ML,
-            gpu: options?.gpu ?? imageConfig.gpuRequired,
+            gpu: (_a = options === null || options === void 0 ? void 0 : options.gpu) !== null && _a !== void 0 ? _a : imageConfig.gpuRequired,
             resources: {
-                cpuLimit: options?.cpuLimit ?? '2.0',
-                memoryLimit: options?.memoryLimit ?? '4Gi',
+                cpuLimit: (_b = options === null || options === void 0 ? void 0 : options.cpuLimit) !== null && _b !== void 0 ? _b : '2.0',
+                memoryLimit: (_c = options === null || options === void 0 ? void 0 : options.memoryLimit) !== null && _c !== void 0 ? _c : '4Gi',
             },
-            timeoutMs: 600_000, // 10 min for ML workloads
+            timeoutMs: 600000, // 10 min for ML workloads
         };
         const instance = await this.manager.create(config);
         return instance.id;
@@ -119,12 +109,13 @@ export class GPUSandboxBridge {
      * Run a Python script inside an ML sandbox.
      */
     async runPython(sandboxId, script) {
+        var _a;
         // Write script to file and execute
         const escaped = script.replace(/'/g, "'\\''");
         const command = `python3 -c '${escaped}'`;
         const result = await this.manager.execute(sandboxId, command);
         return {
-            output: String(result.output ?? ''),
+            output: String((_a = result.output) !== null && _a !== void 0 ? _a : ''),
             error: result.stderr,
         };
     }
@@ -145,7 +136,7 @@ print(json.dumps(result))
         try {
             return JSON.parse(result.output);
         }
-        catch {
+        catch (_a) {
             return { output: result.output, error: result.error };
         }
     }
@@ -156,4 +147,3 @@ print(json.dumps(result))
         return [...GPU_SANDBOX_IMAGES];
     }
 }
-//# sourceMappingURL=gpu-sandbox.js.map

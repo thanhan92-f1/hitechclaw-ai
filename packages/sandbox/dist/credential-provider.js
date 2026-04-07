@@ -22,7 +22,6 @@ const INTEGRATION_ENV_MAP = {
     imessage: [],
 };
 export class CredentialProviderAdapter {
-    manager;
     constructor(manager) {
         this.manager = manager;
     }
@@ -31,7 +30,8 @@ export class CredentialProviderAdapter {
      * The provider tells OpenShell which env vars to inject.
      */
     toProvider(creds) {
-        const envVars = INTEGRATION_ENV_MAP[creds.integrationId] ?? [];
+        var _a;
+        const envVars = (_a = INTEGRATION_ENV_MAP[creds.integrationId]) !== null && _a !== void 0 ? _a : [];
         let providerType = 'api-key';
         if (creds.oauthTokens) {
             providerType = 'oauth2';
@@ -52,6 +52,7 @@ export class CredentialProviderAdapter {
      * WARNING: This data must never be logged or persisted in plaintext.
      */
     buildEnvVars(creds) {
+        var _a;
         const env = {};
         // OAuth tokens
         if (creds.oauthTokens) {
@@ -65,7 +66,7 @@ export class CredentialProviderAdapter {
         }
         // API key credentials
         const credMap = creds.credentials;
-        const envVarNames = INTEGRATION_ENV_MAP[creds.integrationId] ?? [];
+        const envVarNames = (_a = INTEGRATION_ENV_MAP[creds.integrationId]) !== null && _a !== void 0 ? _a : [];
         for (const envVar of envVarNames) {
             // Try to match credential keys to env var names
             const keyName = envVar.toLowerCase().replace(/_/g, '');
@@ -95,6 +96,7 @@ export class CredentialProviderAdapter {
         return providers;
     }
     getEnvPrefix(integrationId) {
+        var _a;
         const prefixes = {
             gmail: 'GOOGLE',
             'google-calendar': 'GOOGLE',
@@ -109,7 +111,6 @@ export class CredentialProviderAdapter {
             huggingface: 'HUGGINGFACE',
             wandb: 'WANDB',
         };
-        return prefixes[integrationId] ?? integrationId.toUpperCase().replace(/-/g, '_');
+        return (_a = prefixes[integrationId]) !== null && _a !== void 0 ? _a : integrationId.toUpperCase().replace(/-/g, '_');
     }
 }
-//# sourceMappingURL=credential-provider.js.map

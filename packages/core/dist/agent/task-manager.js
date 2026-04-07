@@ -16,13 +16,15 @@ export function isTerminalTaskStatus(status) {
  * persist tasks to PostgreSQL workflowExecutions table.
  */
 export class TaskManager {
-    tasks = new Map();
+    constructor() {
+        this.tasks = new Map();
+    }
     /**
      * Register a pre-built AgentTask (used by AgentSpawnTool where the caller
      * constructs the full task object before the async operation starts).
      */
     register(task) {
-        this.tasks.set(task.id, { ...task });
+        this.tasks.set(task.id, Object.assign({}, task));
         return task;
     }
     /**
@@ -52,7 +54,7 @@ export class TaskManager {
         if (isTerminalTaskStatus(task.status)) {
             throw new Error(`TaskManager: cannot transition task "${taskId}" from terminal status "${task.status}" to "${newStatus}"`);
         }
-        const updated = { ...task, status: newStatus };
+        const updated = Object.assign(Object.assign({}, task), { status: newStatus });
         this.tasks.set(taskId, updated);
         return updated;
     }
@@ -64,12 +66,7 @@ export class TaskManager {
         if (isTerminalTaskStatus(task.status)) {
             throw new Error(`TaskManager: task "${taskId}" is already in terminal status "${task.status}"`);
         }
-        const updated = {
-            ...task,
-            status: 'completed',
-            completedAt: new Date().toISOString(),
-            result,
-        };
+        const updated = Object.assign(Object.assign({}, task), { status: 'completed', completedAt: new Date().toISOString(), result });
         this.tasks.set(taskId, updated);
         return updated;
     }
@@ -81,12 +78,7 @@ export class TaskManager {
         if (isTerminalTaskStatus(task.status)) {
             throw new Error(`TaskManager: task "${taskId}" is already in terminal status "${task.status}"`);
         }
-        const updated = {
-            ...task,
-            status: 'failed',
-            completedAt: new Date().toISOString(),
-            error,
-        };
+        const updated = Object.assign(Object.assign({}, task), { status: 'failed', completedAt: new Date().toISOString(), error });
         this.tasks.set(taskId, updated);
         return updated;
     }
@@ -98,11 +90,7 @@ export class TaskManager {
         if (isTerminalTaskStatus(task.status)) {
             throw new Error(`TaskManager: task "${taskId}" is already in terminal status "${task.status}"`);
         }
-        const updated = {
-            ...task,
-            status: 'cancelled',
-            completedAt: new Date().toISOString(),
-        };
+        const updated = Object.assign(Object.assign({}, task), { status: 'cancelled', completedAt: new Date().toISOString() });
         this.tasks.set(taskId, updated);
         return updated;
     }
@@ -145,4 +133,3 @@ export class TaskManager {
         return [...this.tasks.values()];
     }
 }
-//# sourceMappingURL=task-manager.js.map

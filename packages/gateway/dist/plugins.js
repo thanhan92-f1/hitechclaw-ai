@@ -113,4 +113,3 @@ export function createPluginRoutes(pluginManager) {
     }
     return app;
 }
-//# sourceMappingURL=plugins.js.map

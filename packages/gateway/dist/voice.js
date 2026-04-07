@@ -136,4 +136,3 @@ async function transcribeWithOllama(audio, ollamaUrl, language) {
     const data = await res.json();
     return { text: data.response, language };
 }
-//# sourceMappingURL=voice.js.map

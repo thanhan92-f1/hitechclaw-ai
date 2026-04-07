@@ -7,17 +7,15 @@
  * For production with multiple instances, replace with Redis-backed implementation.
  */
 export class LLMRateLimiter {
-    maxRequests;
-    windowMs;
-    /** tenant -> { timestamps of recent requests } */
-    windows = new Map();
     constructor(
     /** Max requests per window */
     maxRequests = 60, 
     /** Window duration in ms (default: 60s) */
-    windowMs = 60_000) {
+    windowMs = 60000) {
         this.maxRequests = maxRequests;
         this.windowMs = windowMs;
+        /** tenant -> { timestamps of recent requests } */
+        this.windows = new Map();
     }
     /**
      * Check if a request is allowed for a given tenant.
@@ -58,4 +56,3 @@ export class LLMRateLimiter {
         }
     }
 }
-//# sourceMappingURL=rate-limiter.js.map

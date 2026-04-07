@@ -27,6 +27,7 @@ export function createApiKeyRoutes() {
     });
     // Create API key — returns the raw key only once
     app.post('/', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const user = c.get('user');
@@ -42,7 +43,7 @@ export function createApiKeyRoutes() {
                 name: body.name,
                 keyPrefix,
                 keyHash,
-                scopes: body.scopes ?? ['chat', 'knowledge'],
+                scopes: (_a = body.scopes) !== null && _a !== void 0 ? _a : ['chat', 'knowledge'],
                 expiresAt: body.expiresInDays ? new Date(Date.now() + body.expiresInDays * 86400000) : undefined,
                 lastUsedAt: undefined,
                 createdBy: userId,
@@ -85,4 +86,3 @@ export async function validateApiKey(rawKey) {
     await col.updateOne({ _id: doc._id }, { $set: { lastUsedAt: new Date() } });
     return { tenantId: doc.tenantId, scopes: doc.scopes };
 }
-//# sourceMappingURL=api-keys.js.map

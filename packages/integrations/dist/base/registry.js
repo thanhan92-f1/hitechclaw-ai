@@ -8,8 +8,10 @@
  * 4. disconnect(id) — Revoke access
  */
 export class IntegrationRegistry {
-    integrations = new Map();
-    connections = new Map();
+    constructor() {
+        this.integrations = new Map();
+        this.connections = new Map();
+    }
     /** Register an integration definition */
     register(integration) {
         this.integrations.set(integration.id, integration);
@@ -58,7 +60,7 @@ export class IntegrationRegistry {
         if (!connection)
             return;
         const integration = this.integrations.get(integrationId);
-        if (integration?.onDisconnect) {
+        if (integration === null || integration === void 0 ? void 0 : integration.onDisconnect) {
             await integration.onDisconnect();
         }
         this.connections.delete(key);
@@ -74,7 +76,7 @@ export class IntegrationRegistry {
     /** Check if integration is connected for user */
     isConnected(integrationId, userId) {
         const conn = this.connections.get(`${userId}:${integrationId}`);
-        return conn?.status === 'connected';
+        return (conn === null || conn === void 0 ? void 0 : conn.status) === 'connected';
     }
     /**
      * Get all integration actions as ToolDefinitions.
@@ -134,4 +136,3 @@ export class IntegrationRegistry {
         return action.execute(parsed.data, ctx);
     }
 }
-//# sourceMappingURL=registry.js.map

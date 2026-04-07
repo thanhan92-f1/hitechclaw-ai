@@ -9,10 +9,9 @@ import { EventBus } from './event-bus.js';
  * Inspired by Google ADK's SequentialAgent.
  */
 export class SequentialWorkflowAgent {
-    config;
-    events = new EventBus();
-    agents = [];
     constructor(config) {
+        this.events = new EventBus();
+        this.agents = [];
         if (config.type !== 'sequential') {
             throw new Error(`SequentialWorkflowAgent requires type 'sequential', got '${config.type}'`);
         }
@@ -22,8 +21,9 @@ export class SequentialWorkflowAgent {
         this.agents = agents;
     }
     async execute(input, state) {
+        var _a, _b;
         const start = Date.now();
-        const sharedState = { ...this.config.initialState, ...state, input };
+        const sharedState = Object.assign(Object.assign(Object.assign({}, this.config.initialState), state), { input });
         const agentResults = [];
         const sessionId = `wf-seq-${this.config.id}-${randomUUID().slice(0, 8)}`;
         await this.events.emit({
@@ -59,7 +59,7 @@ export class SequentialWorkflowAgent {
         const finalResult = {
             workflowId: this.config.id,
             type: 'sequential',
-            finalContent: agentResults[agentResults.length - 1]?.content ?? '',
+            finalContent: (_b = (_a = agentResults[agentResults.length - 1]) === null || _a === void 0 ? void 0 : _a.content) !== null && _b !== void 0 ? _b : '',
             agentResults,
             state: sharedState,
             iterations: 1,
@@ -83,10 +83,9 @@ export class SequentialWorkflowAgent {
  * Inspired by Google ADK's ParallelAgent.
  */
 export class ParallelWorkflowAgent {
-    config;
-    events = new EventBus();
-    agents = [];
     constructor(config) {
+        this.events = new EventBus();
+        this.agents = [];
         if (config.type !== 'parallel') {
             throw new Error(`ParallelWorkflowAgent requires type 'parallel', got '${config.type}'`);
         }
@@ -97,7 +96,7 @@ export class ParallelWorkflowAgent {
     }
     async execute(input, state) {
         const start = Date.now();
-        const sharedState = { ...this.config.initialState, ...state, input };
+        const sharedState = Object.assign(Object.assign(Object.assign({}, this.config.initialState), state), { input });
         const sessionPrefix = `wf-par-${this.config.id}-${randomUUID().slice(0, 8)}`;
         await this.events.emit({
             type: 'workflow-agent:start',
@@ -157,10 +156,9 @@ export class ParallelWorkflowAgent {
  * Inspired by Google ADK's LoopAgent.
  */
 export class LoopWorkflowAgent {
-    config;
-    events = new EventBus();
-    agents = [];
     constructor(config) {
+        this.events = new EventBus();
+        this.agents = [];
         if (config.type !== 'loop') {
             throw new Error(`LoopWorkflowAgent requires type 'loop', got '${config.type}'`);
         }
@@ -170,10 +168,11 @@ export class LoopWorkflowAgent {
         this.agents = agents;
     }
     async execute(input, state) {
+        var _a, _b, _c, _d;
         const start = Date.now();
-        const maxIterations = this.config.maxIterations ?? 5;
-        const escalationKey = this.config.escalationKey ?? '_escalate';
-        const sharedState = { ...this.config.initialState, ...state, input };
+        const maxIterations = (_a = this.config.maxIterations) !== null && _a !== void 0 ? _a : 5;
+        const escalationKey = (_b = this.config.escalationKey) !== null && _b !== void 0 ? _b : '_escalate';
+        const sharedState = Object.assign(Object.assign(Object.assign({}, this.config.initialState), state), { input });
         const agentResults = [];
         const sessionId = `wf-loop-${this.config.id}-${randomUUID().slice(0, 8)}`;
         let iterations = 0;
@@ -219,7 +218,7 @@ export class LoopWorkflowAgent {
         const finalResult = {
             workflowId: this.config.id,
             type: 'loop',
-            finalContent: agentResults[agentResults.length - 1]?.content ?? '',
+            finalContent: (_d = (_c = agentResults[agentResults.length - 1]) === null || _c === void 0 ? void 0 : _c.content) !== null && _d !== void 0 ? _d : '',
             agentResults,
             state: sharedState,
             iterations: iterations + 1,
@@ -249,4 +248,3 @@ export function createWorkflowAgent(config) {
             throw new Error(`Unknown workflow agent type: ${config.type}`);
     }
 }
-//# sourceMappingURL=workflow-agents.js.map

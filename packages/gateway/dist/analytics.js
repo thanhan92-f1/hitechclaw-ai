@@ -29,7 +29,7 @@ export function createAnalyticsRoutes() {
                 dailyMap.set(date, entry);
             }
             const dailyVolume = [...dailyMap.entries()]
-                .map(([date, v]) => ({ date, ...v }))
+                .map(([date, v]) => (Object.assign({ date }, v)))
                 .sort((a, b) => a.date.localeCompare(b.date));
             // Platform breakdown
             const platformBreakdown = {};
@@ -121,7 +121,7 @@ export function createAnalyticsRoutes() {
                 });
                 escalationRate = sessionCount > 0 ? handoffCount / sessionCount : 0;
             }
-            catch { /* handoff collection may not exist yet */ }
+            catch ( /* handoff collection may not exist yet */_a) { /* handoff collection may not exist yet */ }
             return c.json({
                 ok: true,
                 performance: {
@@ -146,6 +146,7 @@ export function createAnalyticsRoutes() {
     });
     // ─── Export analytics as CSV ──────────────────────────────
     app.get('/export', async (c) => {
+        var _a, _b, _c;
         try {
             const tenantId = c.get('tenantId');
             const type = c.req.query('type') || 'conversations';
@@ -161,11 +162,11 @@ export function createAnalyticsRoutes() {
                 csv = 'id,title,platform,createdAt,updatedAt\n';
                 for (const s of sessionsDocs) {
                     const row = [
-                        s._id?.toString(),
+                        (_a = s._id) === null || _a === void 0 ? void 0 : _a.toString(),
                         `"${(s.title || '').replace(/"/g, '""')}"`,
                         s.platform || 'web',
-                        s.createdAt?.toISOString(),
-                        s.updatedAt?.toISOString() || '',
+                        (_b = s.createdAt) === null || _b === void 0 ? void 0 : _b.toISOString(),
+                        ((_c = s.updatedAt) === null || _c === void 0 ? void 0 : _c.toISOString()) || '',
                     ];
                     csv += row.join(',') + '\n';
                 }
@@ -215,7 +216,7 @@ export function createAnalyticsRoutes() {
                 dailyCostMap.set(date, entry);
             }
             const dailyCost = [...dailyCostMap.entries()]
-                .map(([date, v]) => ({ date, ...v }))
+                .map(([date, v]) => (Object.assign({ date }, v)))
                 .sort((a, b) => a.date.localeCompare(b.date));
             // Per-model breakdown with token details
             const modelCost = {};
@@ -240,7 +241,7 @@ export function createAnalyticsRoutes() {
                 sessionCost.set(sid, entry);
             }
             const topConversations = [...sessionCost.entries()]
-                .map(([sessionId, v]) => ({ sessionId, ...v }))
+                .map(([sessionId, v]) => (Object.assign({ sessionId }, v)))
                 .sort((a, b) => b.cost - a.cost)
                 .slice(0, 20);
             // Cost per call average
@@ -374,6 +375,7 @@ export function createAnalyticsRoutes() {
     });
     // ─── PII Detection Report ────────────────────────────────
     app.get('/pii', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const days = parseInt(c.req.query('days') || '30', 10);
@@ -389,7 +391,7 @@ export function createAnalyticsRoutes() {
             // Aggregate PII types
             const typeCounts = {};
             for (const msg of piiMessages) {
-                const types = msg.metadata?.piiTypes || [];
+                const types = ((_a = msg.metadata) === null || _a === void 0 ? void 0 : _a.piiTypes) || [];
                 for (const t of types) {
                     typeCounts[t] = (typeCounts[t] || 0) + 1;
                 }
@@ -399,11 +401,14 @@ export function createAnalyticsRoutes() {
                 data: {
                     totalDetected: piiMessages.length,
                     typeBreakdown: typeCounts,
-                    recentDetections: piiMessages.slice(0, 20).map(m => ({
-                        sessionId: m.sessionId,
-                        piiTypes: m.metadata?.piiTypes || [],
-                        createdAt: m.createdAt,
-                    })),
+                    recentDetections: piiMessages.slice(0, 20).map(m => {
+                        var _a;
+                        return ({
+                            sessionId: m.sessionId,
+                            piiTypes: ((_a = m.metadata) === null || _a === void 0 ? void 0 : _a.piiTypes) || [],
+                            createdAt: m.createdAt,
+                        });
+                    }),
                     period: { days, since: since.toISOString() },
                 },
             });
@@ -470,4 +475,3 @@ function extractTopics(text) {
     }
     return matched.length > 0 ? matched : ['Uncategorized'];
 }
-//# sourceMappingURL=analytics.js.map

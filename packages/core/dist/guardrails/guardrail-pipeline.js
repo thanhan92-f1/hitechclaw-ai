@@ -2,8 +2,10 @@
 // Guardrail Pipeline — Orchestrate input & output guardrails
 // ============================================================
 export class GuardrailPipeline {
-    inputGuardrails = [];
-    outputGuardrails = [];
+    constructor() {
+        this.inputGuardrails = [];
+        this.outputGuardrails = [];
+    }
     /** Register an input guardrail (runs before LLM call) */
     addInputGuardrail(guard) {
         this.inputGuardrails.push(guard);
@@ -83,4 +85,3 @@ export class GuardrailPipeline {
         };
     }
 }
-//# sourceMappingURL=guardrail-pipeline.js.map

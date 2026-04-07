@@ -84,6 +84,7 @@ export function createMLRoutes(engine) {
     // ─── AutoML ──────────────────────────────────────────────
     /** POST /ml/automl — run AutoML pipeline */
     ml.post('/automl', async (c) => {
+        var _a, _b, _c, _d, _e, _f, _g;
         const body = await c.req.json();
         if (!body.datasetId || !body.targetColumn || !body.taskType) {
             return c.json({ error: 'datasetId, targetColumn, and taskType are required' }, 400);
@@ -91,14 +92,14 @@ export function createMLRoutes(engine) {
         const pipeline = await engine.runAutoML(body.datasetId, {
             taskType: body.taskType,
             targetColumn: body.targetColumn,
-            optimizeMetric: body.optimizeMetric ?? 'accuracy',
-            maxTrials: body.maxTrials ?? 20,
-            maxTimeSec: body.maxTimeSec ?? 300,
+            optimizeMetric: (_a = body.optimizeMetric) !== null && _a !== void 0 ? _a : 'accuracy',
+            maxTrials: (_b = body.maxTrials) !== null && _b !== void 0 ? _b : 20,
+            maxTimeSec: (_c = body.maxTimeSec) !== null && _c !== void 0 ? _c : 300,
             algorithms: body.algorithms,
-            strategy: body.strategy ?? 'random-search',
-            cvFolds: body.cvFolds ?? 5,
-            autoFeatureEngineering: body.autoFeatureEngineering ?? true,
-            trainTestSplit: body.trainTestSplit ?? 0.8,
+            strategy: (_d = body.strategy) !== null && _d !== void 0 ? _d : 'random-search',
+            cvFolds: (_e = body.cvFolds) !== null && _e !== void 0 ? _e : 5,
+            autoFeatureEngineering: (_f = body.autoFeatureEngineering) !== null && _f !== void 0 ? _f : true,
+            trainTestSplit: (_g = body.trainTestSplit) !== null && _g !== void 0 ? _g : 0.8,
         }, { name: body.name });
         if (!pipeline)
             return c.json({ error: 'AutoML failed — check datasetId' }, 400);
@@ -135,8 +136,9 @@ export function createMLRoutes(engine) {
     });
     /** POST /ml/models/compare — compare models */
     ml.post('/models/compare', async (c) => {
+        var _a;
         const body = await c.req.json();
-        if (!body.modelIds?.length)
+        if (!((_a = body.modelIds) === null || _a === void 0 ? void 0 : _a.length))
             return c.json({ error: 'modelIds required' }, 400);
         const comparison = engine.modelRegistry.compare(body.modelIds);
         return c.json({ comparison });
@@ -153,4 +155,3 @@ export function createMLRoutes(engine) {
     });
     return ml;
 }
-//# sourceMappingURL=ml.js.map

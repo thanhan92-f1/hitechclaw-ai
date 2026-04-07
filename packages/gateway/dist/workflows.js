@@ -6,46 +6,49 @@ import { randomUUID } from 'node:crypto';
 import { getDB, workflows, workflowExecutions, eq, and, desc } from '@hitechclaw/db';
 // Normalize API-format nodes/edges to full WorkflowNode/WorkflowEdge shapes
 function normalizeNode(raw) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     // If it already has data.label (React Flow format), return as-is
     if (raw.data && typeof raw.data.label === 'string')
         return raw;
     return {
         id: raw.id,
         type: raw.type,
-        position: raw.position ?? { x: 0, y: 0 },
+        position: (_a = raw.position) !== null && _a !== void 0 ? _a : { x: 0, y: 0 },
         data: {
-            label: raw.name ?? raw.label ?? raw.id,
+            label: (_c = (_b = raw.name) !== null && _b !== void 0 ? _b : raw.label) !== null && _c !== void 0 ? _c : raw.id,
             description: raw.description,
-            config: raw.config ?? raw.data?.config ?? {},
+            config: (_f = (_d = raw.config) !== null && _d !== void 0 ? _d : (_e = raw.data) === null || _e === void 0 ? void 0 : _e.config) !== null && _f !== void 0 ? _f : {},
         },
-        inputs: raw.inputs ?? [],
-        outputs: raw.outputs ?? [],
+        inputs: (_g = raw.inputs) !== null && _g !== void 0 ? _g : [],
+        outputs: (_h = raw.outputs) !== null && _h !== void 0 ? _h : [],
     };
 }
 function normalizeEdge(raw) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
     // If it already has source/target (React Flow format), return as-is
     if (typeof raw.source === 'string' && typeof raw.target === 'string')
-        return { id: raw.id ?? randomUUID(), sourcePort: raw.sourcePort ?? 'default', targetPort: raw.targetPort ?? 'default', ...raw };
+        return Object.assign({ id: (_a = raw.id) !== null && _a !== void 0 ? _a : randomUUID(), sourcePort: (_b = raw.sourcePort) !== null && _b !== void 0 ? _b : 'default', targetPort: (_c = raw.targetPort) !== null && _c !== void 0 ? _c : 'default' }, raw);
     return {
-        id: raw.id ?? randomUUID(),
-        source: raw.from ?? raw.source,
-        sourcePort: raw.sourcePort ?? 'default',
-        target: raw.to ?? raw.target,
-        targetPort: raw.targetPort ?? 'default',
+        id: (_d = raw.id) !== null && _d !== void 0 ? _d : randomUUID(),
+        source: (_e = raw.from) !== null && _e !== void 0 ? _e : raw.source,
+        sourcePort: (_f = raw.sourcePort) !== null && _f !== void 0 ? _f : 'default',
+        target: (_g = raw.to) !== null && _g !== void 0 ? _g : raw.target,
+        targetPort: (_h = raw.targetPort) !== null && _h !== void 0 ? _h : 'default',
         condition: raw.condition,
     };
 }
 function buildWorkflow(row) {
+    var _a, _b, _c;
     const def = row.definition;
     return {
         id: row.id,
         name: row.name,
         description: row.description,
         version: row.version,
-        nodes: (def.nodes ?? []).map(normalizeNode),
-        edges: (def.edges ?? []).map(normalizeEdge),
+        nodes: ((_a = def.nodes) !== null && _a !== void 0 ? _a : []).map(normalizeNode),
+        edges: ((_b = def.edges) !== null && _b !== void 0 ? _b : []).map(normalizeEdge),
         variables: Array.isArray(def.variables) ? def.variables : [],
-        trigger: def.trigger ?? { id: 'manual', type: 'manual', name: 'Manual', description: 'Manual trigger', config: {} },
+        trigger: (_c = def.trigger) !== null && _c !== void 0 ? _c : { id: 'manual', type: 'manual', name: 'Manual', description: 'Manual trigger', config: {} },
         createdAt: typeof row.createdAt === 'string' ? row.createdAt : row.createdAt.toISOString(),
         updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : row.updatedAt.toISOString(),
         enabled: row.enabled,
@@ -65,16 +68,19 @@ export function createWorkflowRoutes(workflowEngine) {
                 .orderBy(desc(workflows.updatedAt));
             return c.json({
                 ok: true,
-                workflows: rows.map(r => ({
-                    id: r.id,
-                    name: r.name,
-                    description: r.description,
-                    version: r.version,
-                    enabled: r.enabled,
-                    nodeCount: r.definition?.nodes?.length ?? 0,
-                    createdAt: r.createdAt,
-                    updatedAt: r.updatedAt,
-                })),
+                workflows: rows.map(r => {
+                    var _a, _b, _c;
+                    return ({
+                        id: r.id,
+                        name: r.name,
+                        description: r.description,
+                        version: r.version,
+                        enabled: r.enabled,
+                        nodeCount: (_c = (_b = (_a = r.definition) === null || _a === void 0 ? void 0 : _a.nodes) === null || _b === void 0 ? void 0 : _b.length) !== null && _c !== void 0 ? _c : 0,
+                        createdAt: r.createdAt,
+                        updatedAt: r.updatedAt,
+                    });
+                }),
             });
         }
         catch (err) {
@@ -92,7 +98,7 @@ export function createWorkflowRoutes(workflowEngine) {
                 .where(and(eq(workflows.id, c.req.param('id')), eq(workflows.tenantId, tenantId)));
             if (!row)
                 return c.json({ error: 'Workflow not found' }, 404);
-            return c.json({ ok: true, workflow: { ...row, definition: row.definition } });
+            return c.json({ ok: true, workflow: Object.assign(Object.assign({}, row), { definition: row.definition }) });
         }
         catch (err) {
             return c.json({ error: err instanceof Error ? err.message : 'Failed' }, 500);
@@ -100,6 +106,7 @@ export function createWorkflowRoutes(workflowEngine) {
     });
     // Create workflow
     app.post('/', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const body = await c.req.json();
@@ -112,7 +119,7 @@ export function createWorkflowRoutes(workflowEngine) {
                 id,
                 tenantId,
                 name: body.name,
-                description: body.description ?? '',
+                description: (_a = body.description) !== null && _a !== void 0 ? _a : '',
                 version: 1,
                 definition: body.definition,
                 enabled: true,
@@ -125,6 +132,7 @@ export function createWorkflowRoutes(workflowEngine) {
     });
     // Update workflow
     app.put('/:id', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const db = getDB();
@@ -147,7 +155,7 @@ export function createWorkflowRoutes(workflowEngine) {
                 updates.version = existing.version + 1;
             }
             await db.update(workflows).set(updates).where(eq(workflows.id, existing.id));
-            return c.json({ ok: true, version: updates.version ?? existing.version });
+            return c.json({ ok: true, version: (_a = updates.version) !== null && _a !== void 0 ? _a : existing.version });
         }
         catch (err) {
             return c.json({ error: err instanceof Error ? err.message : 'Failed' }, 500);
@@ -192,6 +200,7 @@ export function createWorkflowRoutes(workflowEngine) {
     });
     // Execute workflow
     app.post('/:id/execute', async (c) => {
+        var _a;
         try {
             const tenantId = c.get('tenantId');
             const db = getDB();
@@ -221,7 +230,7 @@ export function createWorkflowRoutes(workflowEngine) {
                 status: execution.status,
                 nodeResults: nodeResultsObj,
                 variables: execution.variables,
-                error: execution.error ?? null,
+                error: (_a = execution.error) !== null && _a !== void 0 ? _a : null,
                 startedAt: new Date(execution.startedAt),
                 completedAt: execution.completedAt ? new Date(execution.completedAt) : null,
             });
@@ -282,6 +291,7 @@ export function createWorkflowRoutes(workflowEngine) {
 export function createWorkflowWebhookRoutes(workflowEngine) {
     const app = new Hono();
     app.post('/:workflowId', async (c) => {
+        var _a, _b, _c;
         try {
             const db = getDB();
             const workflowId = c.req.param('workflowId');
@@ -294,15 +304,14 @@ export function createWorkflowWebhookRoutes(workflowEngine) {
             if (!row.enabled)
                 return c.json({ error: 'Workflow is disabled' }, 400);
             const def = row.definition;
-            const trigger = def?.trigger;
+            const trigger = def === null || def === void 0 ? void 0 : def.trigger;
             if (!trigger || trigger.type !== 'webhook') {
                 return c.json({ error: 'Workflow does not have a webhook trigger' }, 400);
             }
             // Optional secret validation
-            const expectedSecret = trigger.config?.secret;
+            const expectedSecret = (_a = trigger.config) === null || _a === void 0 ? void 0 : _a.secret;
             if (expectedSecret) {
-                const incomingSecret = c.req.header('x-webhook-secret') ??
-                    c.req.query('secret');
+                const incomingSecret = (_b = c.req.header('x-webhook-secret')) !== null && _b !== void 0 ? _b : c.req.query('secret');
                 if (incomingSecret !== expectedSecret) {
                     return c.json({ error: 'Invalid webhook secret' }, 401);
                 }
@@ -322,7 +331,7 @@ export function createWorkflowWebhookRoutes(workflowEngine) {
                 status: execution.status,
                 nodeResults: nodeResultsObj,
                 variables: execution.variables,
-                error: execution.error ?? null,
+                error: (_c = execution.error) !== null && _c !== void 0 ? _c : null,
                 startedAt: new Date(execution.startedAt),
                 completedAt: execution.completedAt ? new Date(execution.completedAt) : null,
             });
@@ -338,4 +347,3 @@ export function createWorkflowWebhookRoutes(workflowEngine) {
     });
     return app;
 }
-//# sourceMappingURL=workflows.js.map

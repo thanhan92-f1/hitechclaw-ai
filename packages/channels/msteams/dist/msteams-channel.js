@@ -6,16 +6,15 @@ import { MSTeamsApi } from './msteams-api.js';
  * Messages arrive via webhook and responses are sent via the Bot Connector API.
  */
 export class MSTeamsChannel {
-    id = 'msteams-channel';
-    platform = 'msteams';
-    name = 'Microsoft Teams Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
-    /** Store serviceUrl per conversation for sending replies */
-    serviceUrls = new Map();
+    constructor() {
+        this.id = 'msteams-channel';
+        this.platform = 'msteams';
+        this.name = 'Microsoft Teams Channel';
+        this.version = '2.0.0';
+        this.running = false;
+        /** Store serviceUrl per conversation for sending replies */
+        this.serviceUrls = new Map();
+    }
     async initialize(config) {
         const appId = config.appId;
         const appPassword = config.appPassword;
@@ -122,4 +121,3 @@ export class MSTeamsChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=msteams-channel.js.map

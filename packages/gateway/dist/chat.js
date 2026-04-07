@@ -1,3 +1,23 @@
+var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
+var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _arguments, generator) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var g = generator.apply(thisArg, _arguments || []), i, q = [];
+    return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function () { return this; }, i;
+    function awaitReturn(f) { return function (v) { return Promise.resolve(v).then(f, reject); }; }
+    function verb(n, f) { if (g[n]) { i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; if (f) i[n] = f(i[n]); } }
+    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
+    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
+    function fulfill(value) { resume("next", value); }
+    function reject(value) { resume("throw", value); }
+    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
+};
 import { AgentFileMemory, GuardrailPipeline, LLMRateLimiter, OutputSanitizer, PromptInjectionDetector, streamToSSE, TopicScopeGuard } from '@hitechclaw/core';
 import { and, eq, estimateCost, getDB, llmLogsCollection, messagesCollection, sessionsCollection, workflows } from '@hitechclaw/db';
 import { tavilyWebSearch } from '@hitechclaw/integrations';
@@ -14,9 +34,9 @@ guardrails.addInputGuardrail(new PromptInjectionDetector());
 guardrails.addInputGuardrail(new TopicScopeGuard());
 guardrails.addOutputGuardrail(new OutputSanitizer());
 // 60 LLM requests per tenant per minute (adjustable per tier)
-const rateLimiter = new LLMRateLimiter(60, 60_000);
+const rateLimiter = new LLMRateLimiter(60, 60000);
 // Cleanup stale rate-limit windows every 5 min
-setInterval(() => rateLimiter.cleanup(), 5 * 60_000);
+setInterval(() => rateLimiter.cleanup(), 5 * 60000);
 // In-memory attachment store (per session) — attachments are ephemeral
 const attachmentStore = new Map();
 // ─── Workflow-as-Tool ────────────────────────────────────────
@@ -54,8 +74,9 @@ function buildWorkflowTools(ctx, tenantId) {
                 ],
             },
             handler: async (args) => {
+                var _a, _b, _c, _d, _e, _f, _g;
                 const workflowId = args.workflow_id;
-                const inputData = args.input_data ?? {};
+                const inputData = (_a = args.input_data) !== null && _a !== void 0 ? _a : {};
                 const db = getDB();
                 const [row] = await db
                     .select()
@@ -71,10 +92,10 @@ function buildWorkflowTools(ctx, tenantId) {
                     name: row.name,
                     description: row.description,
                     version: row.version,
-                    nodes: def.nodes ?? [],
-                    edges: def.edges ?? [],
+                    nodes: (_b = def.nodes) !== null && _b !== void 0 ? _b : [],
+                    edges: (_c = def.edges) !== null && _c !== void 0 ? _c : [],
                     variables: Array.isArray(def.variables) ? def.variables : [],
-                    trigger: def.trigger ?? { id: 'manual', type: 'manual', name: 'Manual', description: 'Manual trigger', config: {} },
+                    trigger: (_d = def.trigger) !== null && _d !== void 0 ? _d : { id: 'manual', type: 'manual', name: 'Manual', description: 'Manual trigger', config: {} },
                     createdAt: typeof row.createdAt === 'string' ? row.createdAt : row.createdAt.toISOString(),
                     updatedAt: typeof row.updatedAt === 'string' ? row.updatedAt : row.updatedAt.toISOString(),
                     enabled: row.enabled,
@@ -84,10 +105,10 @@ function buildWorkflowTools(ctx, tenantId) {
                     executionId: execution.id,
                     status: execution.status,
                     error: execution.error,
-                    nodeCount: Object.keys(execution.nodeResults ?? {}).length,
+                    nodeCount: Object.keys((_e = execution.nodeResults) !== null && _e !== void 0 ? _e : {}).length,
                     summary: execution.status === 'completed'
-                        ? `Workflow "${row.name}" completed successfully (${Object.keys(execution.nodeResults ?? {}).length} nodes executed)`
-                        : `Workflow "${row.name}" ${execution.status}: ${execution.error ?? 'unknown error'}`,
+                        ? `Workflow "${row.name}" completed successfully (${Object.keys((_f = execution.nodeResults) !== null && _f !== void 0 ? _f : {}).length} nodes executed)`
+                        : `Workflow "${row.name}" ${execution.status}: ${(_g = execution.error) !== null && _g !== void 0 ? _g : 'unknown error'}`,
                 };
             },
         },
@@ -99,16 +120,20 @@ function buildWorkflowTools(ctx, tenantId) {
  * to agent.chat() / agent.chatStream() without mutating the shared ToolRegistry.
  */
 function buildDomainTools(domain) {
+    var _a;
     const tools = [];
     for (const skill of domain.skills) {
         for (const domainTool of skill.tools) {
             // Convert JSON Schema style params → ToolParameter[]
-            const parameters = Object.entries(domainTool.parameters.properties ?? {}).map(([name, prop]) => ({
-                name,
-                type: (prop.type === 'array' ? 'array' : prop.type === 'number' ? 'number' : prop.type === 'boolean' ? 'boolean' : 'string'),
-                description: prop.description ?? '',
-                required: domainTool.parameters.required?.includes(name) ?? false,
-            }));
+            const parameters = Object.entries((_a = domainTool.parameters.properties) !== null && _a !== void 0 ? _a : {}).map(([name, prop]) => {
+                var _a, _b, _c;
+                return ({
+                    name,
+                    type: (prop.type === 'array' ? 'array' : prop.type === 'number' ? 'number' : prop.type === 'boolean' ? 'boolean' : 'string'),
+                    description: (_a = prop.description) !== null && _a !== void 0 ? _a : '',
+                    required: (_c = (_b = domainTool.parameters.required) === null || _b === void 0 ? void 0 : _b.includes(name)) !== null && _c !== void 0 ? _c : false,
+                });
+            });
             const definition = {
                 name: domainTool.name,
                 description: domainTool.description,
@@ -118,8 +143,9 @@ function buildDomainTools(domain) {
             tools.push({
                 definition,
                 handler: async (args) => {
+                    var _a, _b;
                     const result = await domainTool.execute(args);
-                    return result.data ?? result.error ?? result;
+                    return (_b = (_a = result.data) !== null && _a !== void 0 ? _a : result.error) !== null && _b !== void 0 ? _b : result;
                 },
             });
         }
@@ -154,14 +180,9 @@ async function getOrCreateSession(sessionId, tenantId, userId, firstMessage, age
 async function addMessage(sessionId, role, content, extra) {
     const messages = messagesCollection();
     const now = new Date();
-    await messages.insertOne({
-        _id: `${role[0]}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        sessionId,
+    await messages.insertOne(Object.assign({ _id: `${role[0]}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, sessionId,
         role,
-        content,
-        createdAt: now,
-        ...extra,
-    });
+        content, createdAt: now }, extra));
     // Update session timestamp
     await sessionsCollection().updateOne({ _id: sessionId }, { $set: { updatedAt: now } });
 }
@@ -198,7 +219,7 @@ async function bingFallback(query, maxResults = 5) {
                 try {
                     url = Buffer.from(urlMatch[1], 'base64').toString();
                 }
-                catch { /* skip */ }
+                catch ( /* skip */_a) { /* skip */ }
             }
             if (!url) {
                 const hrefMatch = block.match(/href="(https?:\/\/(?!www\.bing\.com)[^"]+)"/);
@@ -225,13 +246,13 @@ async function bingFallback(query, maxResults = 5) {
         }
         return results;
     }
-    catch {
+    catch (_b) {
         return [];
     }
 }
 async function webSearch(query, maxResults = 5, tenantSettings) {
     // Use tenant's Tavily key, or fall back to global env key
-    const apiKey = tenantSettings?.tavilyApiKey || TAVILY_API_KEY_GLOBAL;
+    const apiKey = (tenantSettings === null || tenantSettings === void 0 ? void 0 : tenantSettings.tavilyApiKey) || TAVILY_API_KEY_GLOBAL;
     if (apiKey) {
         const results = await tavilyWebSearch(query, apiKey, maxResults);
         if (results.length > 0)
@@ -242,6 +263,7 @@ async function webSearch(query, maxResults = 5, tenantSettings) {
 }
 // Check for workflow message triggers that match the incoming message
 async function checkWorkflowTriggers(ctx, tenantId, message) {
+    var _a, _b, _c, _d, _e;
     if (!ctx.workflowEngine)
         return { triggered: false };
     try {
@@ -256,16 +278,16 @@ async function checkWorkflowTriggers(ctx, tenantId, message) {
             if (!trigger || trigger.type !== 'message')
                 continue;
             // Check if message matches trigger pattern (keyword or regex)
-            const pattern = trigger.config?.pattern;
-            const keywords = trigger.config?.keywords;
+            const pattern = (_a = trigger.config) === null || _a === void 0 ? void 0 : _a.pattern;
+            const keywords = (_b = trigger.config) === null || _b === void 0 ? void 0 : _b.keywords;
             let matches = false;
             if (pattern) {
                 try {
                     matches = new RegExp(pattern, 'i').test(message);
                 }
-                catch { /* invalid regex */ }
+                catch ( /* invalid regex */_f) { /* invalid regex */ }
             }
-            if (!matches && keywords?.length) {
+            if (!matches && (keywords === null || keywords === void 0 ? void 0 : keywords.length)) {
                 const msgLower = message.toLowerCase();
                 matches = keywords.some((kw) => msgLower.includes(kw.toLowerCase()));
             }
@@ -273,10 +295,10 @@ async function checkWorkflowTriggers(ctx, tenantId, message) {
                 const wf = {
                     id: row.id,
                     name: row.name,
-                    description: row.description ?? '',
+                    description: (_c = row.description) !== null && _c !== void 0 ? _c : '',
                     version: row.version,
-                    nodes: (def.nodes ?? []),
-                    edges: (def.edges ?? []),
+                    nodes: ((_d = def.nodes) !== null && _d !== void 0 ? _d : []),
+                    edges: ((_e = def.edges) !== null && _e !== void 0 ? _e : []),
                     variables: Array.isArray(def.variables) ? def.variables : [],
                     trigger: trigger,
                     createdAt: typeof row.createdAt === 'string' ? row.createdAt : row.createdAt.toISOString(),
@@ -289,7 +311,7 @@ async function checkWorkflowTriggers(ctx, tenantId, message) {
                     const outputNode = wf.nodes.find((n) => n.type === 'output');
                     if (outputNode) {
                         const result = execution.nodeResults.get(outputNode.id);
-                        if (result?.output)
+                        if (result === null || result === void 0 ? void 0 : result.output)
                             return { triggered: true, workflowResult: String(result.output) };
                     }
                     return { triggered: true, workflowResult: `✅ Workflow "${wf.name}" executed successfully.` };
@@ -297,85 +319,101 @@ async function checkWorkflowTriggers(ctx, tenantId, message) {
             }
         }
     }
-    catch {
+    catch (_g) {
         // Workflow trigger check failure is non-fatal
     }
     return { triggered: false };
 }
 // Wraps agent stream with meta events for debug info
-async function* wrapStreamWithMeta(agent, ctx, sid, fullMessage, message, ragContext, enableWebSearch, tenantSettings, logMeta, additionalTools, guardCtx) {
-    const timing = {};
-    // Emit RAG context as meta if available
-    if (ragContext) {
-        yield { type: 'meta', key: 'rag', data: { context: ragContext.slice(0, 2000), hasContext: true } };
-    }
-    else {
-        yield { type: 'meta', key: 'rag', data: { context: '', hasContext: false } };
-    }
-    // Web search if enabled
-    let searchResults = [];
-    if (enableWebSearch) {
-        const searchStart = Date.now();
-        searchResults = await webSearch(message, 5, tenantSettings);
-        timing.searchMs = Date.now() - searchStart;
-        yield { type: 'meta', key: 'search', data: { results: searchResults, query: message } };
-        // Append search results to context for the LLM with citation instructions
-        if (searchResults.length > 0) {
-            const searchContext = searchResults
-                .map((r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\n${r.snippet}`)
-                .join('\n\n');
-            fullMessage = `You have access to the following web search results. Use them to answer the user's question. IMPORTANT: Always cite your sources using [1], [2], etc. at the end of relevant sentences. At the end of your answer, list all sources used with their titles and URLs in a "Sources:" section.\n\nWeb search results:\n${searchContext}\n\n---\n\nUser question: ${fullMessage}`;
+function wrapStreamWithMeta(agent, ctx, sid, fullMessage, message, ragContext, enableWebSearch, tenantSettings, logMeta, additionalTools, guardCtx) {
+    return __asyncGenerator(this, arguments, function* wrapStreamWithMeta_1() {
+        var _a, e_1, _b, _c;
+        var _d, _e;
+        const timing = {};
+        // Emit RAG context as meta if available
+        if (ragContext) {
+            yield yield __await({ type: 'meta', key: 'rag', data: { context: ragContext.slice(0, 2000), hasContext: true } });
         }
-    }
-    // Stream from agent
-    const llmStart = Date.now();
-    const generator = agent.chatStream(sid, fullMessage, ragContext, undefined, additionalTools);
-    let toolCallCount = 0;
-    let accumulatedContent = '';
-    for await (const event of generator) {
-        if (event.type === 'tool-call-start')
-            toolCallCount++;
-        if (event.type === 'text-delta' && event.delta)
-            accumulatedContent += event.delta;
-        if (event.type === 'finish') {
-            timing.llmMs = Date.now() - llmStart;
-            // Post-stream output guardrail check
-            if (guardCtx && accumulatedContent) {
-                const outputCheck = await guardrails.checkOutput(accumulatedContent, guardCtx);
-                if (!outputCheck.passed) {
-                    yield { type: 'meta', key: 'security-warning', data: {
-                            blocked: true,
-                            reason: outputCheck.blockedBy?.blockedReason ?? 'Output blocked by security policy',
-                        } };
+        else {
+            yield yield __await({ type: 'meta', key: 'rag', data: { context: '', hasContext: false } });
+        }
+        // Web search if enabled
+        let searchResults = [];
+        if (enableWebSearch) {
+            const searchStart = Date.now();
+            searchResults = yield __await(webSearch(message, 5, tenantSettings));
+            timing.searchMs = Date.now() - searchStart;
+            yield yield __await({ type: 'meta', key: 'search', data: { results: searchResults, query: message } });
+            // Append search results to context for the LLM with citation instructions
+            if (searchResults.length > 0) {
+                const searchContext = searchResults
+                    .map((r, i) => `[${i + 1}] ${r.title}\nURL: ${r.url}\n${r.snippet}`)
+                    .join('\n\n');
+                fullMessage = `You have access to the following web search results. Use them to answer the user's question. IMPORTANT: Always cite your sources using [1], [2], etc. at the end of relevant sentences. At the end of your answer, list all sources used with their titles and URLs in a "Sources:" section.\n\nWeb search results:\n${searchContext}\n\n---\n\nUser question: ${fullMessage}`;
+            }
+        }
+        // Stream from agent
+        const llmStart = Date.now();
+        const generator = agent.chatStream(sid, fullMessage, ragContext, undefined, additionalTools);
+        let toolCallCount = 0;
+        let accumulatedContent = '';
+        try {
+            for (var _f = true, generator_1 = __asyncValues(generator), generator_1_1; generator_1_1 = yield __await(generator_1.next()), _a = generator_1_1.done, !_a; _f = true) {
+                _c = generator_1_1.value;
+                _f = false;
+                const event = _c;
+                if (event.type === 'tool-call-start')
+                    toolCallCount++;
+                if (event.type === 'text-delta' && event.delta)
+                    accumulatedContent += event.delta;
+                if (event.type === 'finish') {
+                    timing.llmMs = Date.now() - llmStart;
+                    // Post-stream output guardrail check
+                    if (guardCtx && accumulatedContent) {
+                        const outputCheck = yield __await(guardrails.checkOutput(accumulatedContent, guardCtx));
+                        if (!outputCheck.passed) {
+                            yield yield __await({ type: 'meta', key: 'security-warning', data: {
+                                    blocked: true,
+                                    reason: (_e = (_d = outputCheck.blockedBy) === null || _d === void 0 ? void 0 : _d.blockedReason) !== null && _e !== void 0 ? _e : 'Output blocked by security policy',
+                                } });
+                        }
+                    }
+                    yield yield __await({ type: 'meta', key: 'timing', data: timing });
+                    // Fire-and-forget LLM log
+                    if (logMeta) {
+                        const provider = agent.config.llm.provider;
+                        const model = agent.config.llm.model;
+                        llmLogsCollection().insertOne({
+                            _id: `llm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                            tenantId: logMeta.tenantId,
+                            userId: logMeta.userId,
+                            sessionId: sid,
+                            provider,
+                            model,
+                            promptTokens: 0,
+                            completionTokens: 0,
+                            totalTokens: 0,
+                            duration: timing.llmMs,
+                            costUsd: estimateCost(provider, model, 0, 0),
+                            platform: 'web',
+                            success: true,
+                            toolCalls: toolCallCount,
+                            streaming: true,
+                            createdAt: new Date(),
+                        }).catch(() => { });
+                    }
                 }
-            }
-            yield { type: 'meta', key: 'timing', data: timing };
-            // Fire-and-forget LLM log
-            if (logMeta) {
-                const provider = agent.config.llm.provider;
-                const model = agent.config.llm.model;
-                llmLogsCollection().insertOne({
-                    _id: `llm-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                    tenantId: logMeta.tenantId,
-                    userId: logMeta.userId,
-                    sessionId: sid,
-                    provider,
-                    model,
-                    promptTokens: 0,
-                    completionTokens: 0,
-                    totalTokens: 0,
-                    duration: timing.llmMs,
-                    costUsd: estimateCost(provider, model, 0, 0),
-                    platform: 'web',
-                    success: true,
-                    toolCalls: toolCallCount,
-                    streaming: true,
-                    createdAt: new Date(),
-                }).catch(() => { });
+                yield yield __await(event);
             }
         }
-        yield event;
-    }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (!_f && !_a && (_b = generator_1.return)) yield __await(_b.call(generator_1));
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+    });
 }
 export function createChatRoutes(ctx) {
     const app = new Hono();
@@ -422,6 +460,7 @@ export function createChatRoutes(ctx) {
     });
     // POST /api/chat — non-streaming (and streaming if stream=true)
     app.post('/', async (c) => {
+        var _a, _b;
         const body = await c.req.json();
         const parsed = ChatRequestSchema.safeParse(body);
         if (!parsed.success) {
@@ -430,8 +469,8 @@ export function createChatRoutes(ctx) {
         const { message, sessionId, stream, webSearch: enableWebSearch, domainId, agentConfigId } = parsed.data;
         const sid = sessionId || randomUUID();
         const user = c.get('user');
-        const tenantId = user?.tenantId || 'default';
-        const userId = user?.sub || 'anonymous';
+        const tenantId = (user === null || user === void 0 ? void 0 : user.tenantId) || 'default';
+        const userId = (user === null || user === void 0 ? void 0 : user.sub) || 'anonymous';
         // Resolve agent from config ID or use default
         const activeAgent = ctx.agentManager
             ? await ctx.agentManager.getAgent(agentConfigId, tenantId)
@@ -474,8 +513,8 @@ export function createChatRoutes(ctx) {
         if (!inputCheck.passed) {
             return c.json({
                 error: 'Message blocked by security policy.',
-                reason: inputCheck.blockedBy?.blockedReason,
-                guardrail: inputCheck.blockedBy?.guardrailName,
+                reason: (_a = inputCheck.blockedBy) === null || _a === void 0 ? void 0 : _a.blockedReason,
+                guardrail: (_b = inputCheck.blockedBy) === null || _b === void 0 ? void 0 : _b.guardrailName,
             }, 400);
         }
         // Track conversation — save user message to MongoDB
@@ -509,7 +548,7 @@ export function createChatRoutes(ctx) {
                 ragContext = retrieval.context;
             }
         }
-        catch {
+        catch (_c) {
             // RAG retrieval failure is non-fatal
         }
         // Check for workflow message triggers — if matched, return workflow result directly
@@ -536,7 +575,7 @@ export function createChatRoutes(ctx) {
                 fullMessage = `${memFragment}\n\n${fullMessage}`;
             }
         }
-        catch { /* memory load failure is non-fatal */ }
+        catch ( /* memory load failure is non-fatal */_d) { /* memory load failure is non-fatal */ }
         if (stream) {
             const generator = wrapStreamWithMeta(activeAgent, ctx, sid, fullMessage, message, ragContext, enableWebSearch, tSettings, { tenantId, userId }, domainTools.length > 0 ? domainTools : undefined, guardCtx);
             const sseStream = streamToSSE(generator);
@@ -583,6 +622,7 @@ export function createChatRoutes(ctx) {
     });
     // POST /api/chat/stream — dedicated streaming endpoint
     app.post('/stream', async (c) => {
+        var _a, _b;
         const body = await c.req.json();
         const parsed = ChatRequestSchema.safeParse(body);
         if (!parsed.success) {
@@ -592,8 +632,8 @@ export function createChatRoutes(ctx) {
         const sid = sessionId || randomUUID();
         // Resolve agent from config ID or use default
         const streamUser = c.get('user');
-        const streamTenantId = streamUser?.tenantId || 'default';
-        const streamUserId = streamUser?.sub || 'anonymous';
+        const streamTenantId = (streamUser === null || streamUser === void 0 ? void 0 : streamUser.tenantId) || 'default';
+        const streamUserId = (streamUser === null || streamUser === void 0 ? void 0 : streamUser.sub) || 'anonymous';
         const streamActiveAgent = ctx.agentManager
             ? await ctx.agentManager.getAgent(streamAgentConfigId, streamTenantId)
             : ctx.agent;
@@ -614,8 +654,8 @@ export function createChatRoutes(ctx) {
         if (!streamInputCheck.passed) {
             return c.json({
                 error: 'Message blocked by security policy.',
-                reason: streamInputCheck.blockedBy?.blockedReason,
-                guardrail: streamInputCheck.blockedBy?.guardrailName,
+                reason: (_a = streamInputCheck.blockedBy) === null || _a === void 0 ? void 0 : _a.blockedReason,
+                guardrail: (_b = streamInputCheck.blockedBy) === null || _b === void 0 ? void 0 : _b.guardrailName,
             }, 400);
         }
         // Resolve domain persona + tools
@@ -651,7 +691,7 @@ export function createChatRoutes(ctx) {
                 ragContext = retrieval.context;
             }
         }
-        catch {
+        catch (_c) {
             // RAG retrieval failure is non-fatal
         }
         const generator = wrapStreamWithMeta(streamActiveAgent, ctx, sid, streamMessage, message, ragContext, enableWebSearch, streamTSettings, { tenantId: streamTenantId, userId: streamUserId }, streamDomainTools.length > 0 ? streamDomainTools : undefined, streamGuardCtx);
@@ -668,7 +708,7 @@ export function createChatRoutes(ctx) {
     app.post('/save-search', async (c) => {
         const body = await c.req.json();
         const { results, query, collectionId } = body;
-        if (!results?.length || !query) {
+        if (!(results === null || results === void 0 ? void 0 : results.length) || !query) {
             return c.json({ error: 'results and query are required' }, 400);
         }
         // Build a text document from the search results
@@ -679,7 +719,7 @@ export function createChatRoutes(ctx) {
         const source = 'web-search';
         try {
             const saveUser = c.get('user');
-            const saveTenantId = saveUser?.tenantId || 'default';
+            const saveTenantId = (saveUser === null || saveUser === void 0 ? void 0 : saveUser.tenantId) || 'default';
             const doc = await ctx.rag.ingestText(textContent, title, source, {
                 tags: ['web-search', 'auto-saved'],
                 collectionId,
@@ -698,13 +738,14 @@ export function createChatRoutes(ctx) {
     });
     // POST /api/chat/feedback — Self-learning from user corrections
     app.post('/feedback', async (c) => {
+        var _a;
         const body = await c.req.json();
         const { originalQuestion, aiAnswer, feedback, correction } = body;
         if (!aiAnswer || !feedback) {
             return c.json({ error: 'aiAnswer and feedback are required' }, 400);
         }
         // When user provides a correction, ingest it into KB so the system learns
-        if (feedback === 'negative' && correction?.trim()) {
+        if (feedback === 'negative' && (correction === null || correction === void 0 ? void 0 : correction.trim())) {
             try {
                 const textContent = [
                     `## Correction`,
@@ -719,7 +760,7 @@ export function createChatRoutes(ctx) {
                         feedbackType: 'negative',
                         correctedAt: new Date().toISOString(),
                     },
-                    tenantId: c.get('user')?.tenantId || 'default',
+                    tenantId: ((_a = c.get('user')) === null || _a === void 0 ? void 0 : _a.tenantId) || 'default',
                 });
                 return c.json({ success: true, learned: true });
             }
@@ -733,7 +774,7 @@ export function createChatRoutes(ctx) {
     app.post('/generate-image', async (c) => {
         const body = await c.req.json();
         const { prompt, sessionId, width, height } = body;
-        if (!prompt?.trim()) {
+        if (!(prompt === null || prompt === void 0 ? void 0 : prompt.trim())) {
             return c.json({ error: 'prompt is required' }, 400);
         }
         const w = Math.min(width || 1024, 1536);
@@ -744,7 +785,7 @@ export function createChatRoutes(ctx) {
         // Track in conversation
         if (sessionId) {
             const imgUser = c.get('user');
-            await getOrCreateSession(sessionId, imgUser?.tenantId || 'default', imgUser?.sub || 'anonymous', `🎨 ${prompt.slice(0, 50)}`);
+            await getOrCreateSession(sessionId, (imgUser === null || imgUser === void 0 ? void 0 : imgUser.tenantId) || 'default', (imgUser === null || imgUser === void 0 ? void 0 : imgUser.sub) || 'anonymous', `🎨 ${prompt.slice(0, 50)}`);
             await addMessage(sessionId, 'user', `🎨 Generate image: ${prompt}`);
             await addMessage(sessionId, 'assistant', `![Generated Image](${imageUrl})`);
         }
@@ -770,7 +811,7 @@ export function createChatRoutes(ctx) {
     // GET /api/chat/conversations — List all conversations
     app.get('/conversations', async (c) => {
         const user = c.get('user');
-        const tenantId = user?.tenantId || 'default';
+        const tenantId = (user === null || user === void 0 ? void 0 : user.tenantId) || 'default';
         const sessions = sessionsCollection();
         const msgs = messagesCollection();
         const sessionList = await sessions
@@ -845,4 +886,3 @@ export function createChatRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=chat.js.map

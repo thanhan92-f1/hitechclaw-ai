@@ -78,6 +78,7 @@ export function createIntegrationRoutes(registry) {
     });
     // GET /integrations/:id/status — Check connection status
     app.get('/:id/status', (c) => {
+        var _a;
         const id = c.req.param('id');
         const userId = c.get('userId') || 'anonymous';
         const connection = registry.getConnection(id, userId);
@@ -88,7 +89,7 @@ export function createIntegrationRoutes(registry) {
             status: connection.status,
             integrationId: id,
             connectedAt: connection.connectedAt.toISOString(),
-            lastUsedAt: connection.lastUsedAt?.toISOString(),
+            lastUsedAt: (_a = connection.lastUsedAt) === null || _a === void 0 ? void 0 : _a.toISOString(),
         });
     });
     // POST /integrations/:id/execute — Execute an integration action
@@ -109,4 +110,3 @@ export function createIntegrationRoutes(registry) {
     });
     return app;
 }
-//# sourceMappingURL=integrations.js.map

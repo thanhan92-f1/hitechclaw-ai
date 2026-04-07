@@ -48,7 +48,7 @@ export function activityLoggerMiddleware() {
                 // For POST/PUT the body was already consumed by the route handler
                 // We store the path + method as the primary activity signal
             }
-            catch { /* skip */ }
+            catch ( /* skip */_a) { /* skip */ }
         }
         const entry = {
             _id: crypto.randomUUID(),
@@ -68,4 +68,3 @@ export function activityLoggerMiddleware() {
         activityLogsCollection().insertOne(entry).catch(() => { });
     };
 }
-//# sourceMappingURL=activity-logger.js.map

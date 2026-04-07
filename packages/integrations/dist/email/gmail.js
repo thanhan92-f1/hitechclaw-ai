@@ -14,7 +14,7 @@ async function gmailRequest(method, path, accessToken, body, params) {
             'Content-Type': 'application/json',
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -28,8 +28,8 @@ function buildMimeMessage(to, subject, body, cc, bcc) {
     const lines = [
         `To: ${to}`,
         `Subject: ${subject}`,
-        ...(cc?.length ? [`Cc: ${cc.join(', ')}`] : []),
-        ...(bcc?.length ? [`Bcc: ${bcc.join(', ')}`] : []),
+        ...((cc === null || cc === void 0 ? void 0 : cc.length) ? [`Cc: ${cc.join(', ')}`] : []),
+        ...((bcc === null || bcc === void 0 ? void 0 : bcc.length) ? [`Bcc: ${bcc.join(', ')}`] : []),
         'MIME-Version: 1.0',
         'Content-Type: text/html; charset=utf-8',
         '',
@@ -95,6 +95,7 @@ export const gmailIntegration = defineIntegration({
             }),
             riskLevel: 'safe',
             execute: async (args, ctx) => {
+                var _a;
                 const accessToken = ctx.credentials.access_token;
                 if (!accessToken)
                     return { success: false, error: 'Gmail access token not configured' };
@@ -103,7 +104,7 @@ export const gmailIntegration = defineIntegration({
                     if (args.query)
                         params.q = args.query;
                     const list = await gmailRequest('GET', '/messages', accessToken, undefined, params);
-                    const messageIds = list.messages ?? [];
+                    const messageIds = (_a = list.messages) !== null && _a !== void 0 ? _a : [];
                     const messages = await Promise.all(messageIds.slice(0, 10).map(async ({ id }) => {
                         const msg = await gmailRequest('GET', `/messages/${id}`, accessToken, undefined, {
                             format: 'metadata',
@@ -153,8 +154,9 @@ export const gmailIntegration = defineIntegration({
                 snippet: z.string(),
                 receivedAt: z.string(),
             }),
-            pollInterval: 30_000,
+            pollInterval: 30000,
             poll: async (lastPollTime, credentials) => {
+                var _a;
                 const accessToken = credentials.access_token;
                 if (!accessToken)
                     return [];
@@ -162,14 +164,15 @@ export const gmailIntegration = defineIntegration({
                     const since = lastPollTime.toISOString();
                     const params = { maxResults: '10', q: `after:${Math.floor(lastPollTime.getTime() / 1000)}` };
                     const list = await gmailRequest('GET', '/messages', accessToken, undefined, params);
-                    const messageIds = list.messages ?? [];
+                    const messageIds = (_a = list.messages) !== null && _a !== void 0 ? _a : [];
                     return await Promise.all(messageIds.map(async ({ id }) => {
+                        var _a, _b, _c;
                         const msg = await gmailRequest('GET', `/messages/${id}`, accessToken, undefined, {
                             format: 'metadata',
                             metadataHeaders: 'From,Subject,Date',
                         });
-                        const headers = msg.payload?.headers ?? [];
-                        const getHeader = (name) => headers.find(h => h.name === name)?.value ?? '';
+                        const headers = (_b = (_a = msg.payload) === null || _a === void 0 ? void 0 : _a.headers) !== null && _b !== void 0 ? _b : [];
+                        const getHeader = (name) => { var _a, _b; return (_b = (_a = headers.find(h => h.name === name)) === null || _a === void 0 ? void 0 : _a.value) !== null && _b !== void 0 ? _b : ''; };
                         return {
                             integrationId: 'gmail',
                             triggerName: 'new_email',
@@ -177,18 +180,17 @@ export const gmailIntegration = defineIntegration({
                                 messageId: id,
                                 from: getHeader('From'),
                                 subject: getHeader('Subject'),
-                                snippet: msg.snippet ?? '',
+                                snippet: (_c = msg.snippet) !== null && _c !== void 0 ? _c : '',
                                 receivedAt: getHeader('Date') || since,
                             },
                             timestamp: new Date(),
                         };
                     }));
                 }
-                catch {
+                catch (_b) {
                     return [];
                 }
             },
         },
     ],
 });
-//# sourceMappingURL=gmail.js.map

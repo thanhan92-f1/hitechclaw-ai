@@ -151,13 +151,14 @@ export function createSandboxRoutes(sandboxManager, tenantSandboxManager) {
     });
     // ─── Sandbox audit logs ──────────────────────────────────
     app.get('/audit', async (c) => {
+        var _a, _b;
         const tenantId = c.get('tenantId');
         const user = c.get('user');
         if (user.role !== 'admin' && user.role !== 'owner') {
             return c.json({ error: 'Admin access required' }, 403);
         }
-        const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
-        const offset = parseInt(c.req.query('offset') ?? '0', 10);
+        const limit = Math.min(parseInt((_a = c.req.query('limit')) !== null && _a !== void 0 ? _a : '50', 10), 200);
+        const offset = parseInt((_b = c.req.query('offset')) !== null && _b !== void 0 ? _b : '0', 10);
         try {
             const logs = await sandboxAuditLogsCollection()
                 .find({ tenantId })
@@ -184,4 +185,3 @@ export function createSandboxRoutes(sandboxManager, tenantSandboxManager) {
     });
     return app;
 }
-//# sourceMappingURL=sandbox.js.map

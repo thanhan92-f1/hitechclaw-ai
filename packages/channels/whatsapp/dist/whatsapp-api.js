@@ -3,10 +3,6 @@
  * Uses the official Meta WhatsApp Business Cloud API.
  */
 export class WhatsAppApi {
-    phoneNumberId;
-    accessToken;
-    apiVersion;
-    baseUrl;
     constructor(phoneNumberId, accessToken, apiVersion = 'v18.0') {
         this.phoneNumberId = phoneNumberId;
         this.accessToken = accessToken;
@@ -53,4 +49,3 @@ export class WhatsAppApi {
         return res.json();
     }
 }
-//# sourceMappingURL=whatsapp-api.js.map

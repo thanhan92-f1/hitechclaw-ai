@@ -8,7 +8,7 @@ export function authMiddleware(jwtSecret) {
     const secret = new TextEncoder().encode(jwtSecret);
     return async (c, next) => {
         const authHeader = c.req.header('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
+        if (!(authHeader === null || authHeader === void 0 ? void 0 : authHeader.startsWith('Bearer '))) {
             throw new HTTPException(401, { message: 'Missing or invalid Authorization header' });
         }
         const token = authHeader.slice(7);
@@ -23,7 +23,7 @@ export function authMiddleware(jwtSecret) {
             });
             await next();
         }
-        catch {
+        catch (_a) {
             throw new HTTPException(401, { message: 'Invalid or expired token' });
         }
     };
@@ -34,7 +34,7 @@ async function hashPassword(password, salt) {
     const passwordSalt = salt || Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, '0')).join('');
     const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(passwordSalt), iterations: 100_000, hash: 'SHA-256' }, keyMaterial, 256);
+    const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(passwordSalt), iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
     const hash = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
     return `pbkdf2:${passwordSalt}:${hash}`;
 }
@@ -55,11 +55,7 @@ export function createAuthRoutes(ctx) {
     const app = new Hono();
     const secret = new TextEncoder().encode(ctx.config.jwtSecret);
     const writeLoginLog = (entry) => {
-        activityLogsCollection().insertOne({
-            _id: randomUUID(),
-            createdAt: new Date(),
-            ...entry,
-        }).catch(() => { });
+        activityLogsCollection().insertOne(Object.assign({ _id: randomUUID(), createdAt: new Date() }, entry)).catch(() => { });
     };
     // POST /auth/login
     app.post('/login', async (c) => {
@@ -372,4 +368,3 @@ export function createAuthRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=auth.js.map

@@ -10,7 +10,7 @@ async function hfInference(model, token, body) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -25,7 +25,7 @@ async function hfHubGet(path, token, params = {}) {
             url.searchParams.set(k, v);
     const res = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -196,4 +196,3 @@ export const huggingfaceIntegration = defineIntegration({
         },
     ],
 });
-//# sourceMappingURL=huggingface.js.map

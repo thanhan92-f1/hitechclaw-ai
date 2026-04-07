@@ -7,11 +7,8 @@ import { watch, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
 import { loadPolicyFromYAML, BUILTIN_POLICIES } from './policy-builder.js';
 export class PolicyWatcher {
-    watcher = null;
-    policyDir;
-    onPolicyUpdate;
-    onError;
     constructor(options) {
+        this.watcher = null;
         this.policyDir = options.policyDir;
         this.onPolicyUpdate = options.onPolicyUpdate;
         this.onError = options.onError;
@@ -21,6 +18,7 @@ export class PolicyWatcher {
      * Returns the count of policies loaded.
      */
     loadAll() {
+        var _a, _b;
         let count = 0;
         try {
             const files = readdirSync(this.policyDir);
@@ -39,12 +37,12 @@ export class PolicyWatcher {
                     count++;
                 }
                 catch (err) {
-                    this.onError?.(err instanceof Error ? err : new Error(String(err)));
+                    (_a = this.onError) === null || _a === void 0 ? void 0 : _a.call(this, err instanceof Error ? err : new Error(String(err)));
                 }
             }
         }
         catch (err) {
-            this.onError?.(err instanceof Error ? err : new Error(String(err)));
+            (_b = this.onError) === null || _b === void 0 ? void 0 : _b.call(this, err instanceof Error ? err : new Error(String(err)));
         }
         return count;
     }
@@ -52,6 +50,7 @@ export class PolicyWatcher {
      * Start watching the policy directory for changes.
      */
     start() {
+        var _a;
         if (this.watcher)
             return;
         // Initial load
@@ -64,6 +63,7 @@ export class PolicyWatcher {
                     return;
                 // Debounce — file system events can fire multiple times
                 setTimeout(() => {
+                    var _a, _b;
                     try {
                         const filePath = join(this.policyDir, filename);
                         const yaml = readFileSync(filePath, 'utf8');
@@ -71,24 +71,24 @@ export class PolicyWatcher {
                         const name = basename(filename, extname(filename));
                         policy.name = name;
                         BUILTIN_POLICIES[name] = policy;
-                        this.onPolicyUpdate?.(name, policy);
+                        (_a = this.onPolicyUpdate) === null || _a === void 0 ? void 0 : _a.call(this, name, policy);
                     }
                     catch (err) {
-                        this.onError?.(err instanceof Error ? err : new Error(String(err)));
+                        (_b = this.onError) === null || _b === void 0 ? void 0 : _b.call(this, err instanceof Error ? err : new Error(String(err)));
                     }
                 }, 200);
             });
         }
         catch (err) {
-            this.onError?.(err instanceof Error ? err : new Error(String(err)));
+            (_a = this.onError) === null || _a === void 0 ? void 0 : _a.call(this, err instanceof Error ? err : new Error(String(err)));
         }
     }
     /**
      * Stop watching.
      */
     stop() {
-        this.watcher?.close();
+        var _a;
+        (_a = this.watcher) === null || _a === void 0 ? void 0 : _a.close();
         this.watcher = null;
     }
 }
-//# sourceMappingURL=policy-watcher.js.map

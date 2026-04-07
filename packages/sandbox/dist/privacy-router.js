@@ -14,9 +14,8 @@ const PII_PATTERNS = [
     { type: 'ssn', pattern: /\b\d{3}-\d{2}-\d{4}\b/g },
 ];
 export class PrivacyRouter {
-    enabled;
-    piiMap = new Map();
     constructor(enabled = true) {
+        this.piiMap = new Map();
         this.enabled = enabled;
     }
     /**
@@ -106,4 +105,3 @@ export class PrivacyRouter {
         this.piiMap.clear();
     }
 }
-//# sourceMappingURL=privacy-router.js.map

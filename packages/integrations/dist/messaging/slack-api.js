@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineIntegration } from '../base/define-integration.js';
 const SLACK_API = 'https://slack.com/api';
 async function slackPost(method, token, body) {
+    var _a;
     const res = await fetch(`${SLACK_API}/${method}`, {
         method: 'POST',
         headers: {
@@ -9,13 +10,13 @@ async function slackPost(method, token, body) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok)
         throw new Error(`Slack HTTP error ${res.status}`);
     const data = await res.json();
     if (!data.ok)
-        throw new Error(data.error ?? 'Slack API error');
+        throw new Error((_a = data.error) !== null && _a !== void 0 ? _a : 'Slack API error');
     return data;
 }
 export const slackApiIntegration = defineIntegration({
@@ -52,7 +53,8 @@ export const slackApiIntegration = defineIntegration({
             }),
             riskLevel: 'moderate',
             execute: async (args, ctx) => {
-                const token = ctx.credentials.access_token ?? ctx.credentials.token;
+                var _a;
+                const token = (_a = ctx.credentials.access_token) !== null && _a !== void 0 ? _a : ctx.credentials.token;
                 if (!token)
                     return { success: false, error: 'Slack token not configured' };
                 try {
@@ -76,7 +78,8 @@ export const slackApiIntegration = defineIntegration({
             }),
             riskLevel: 'safe',
             execute: async (args, ctx) => {
-                const token = ctx.credentials.access_token ?? ctx.credentials.token;
+                var _a;
+                const token = (_a = ctx.credentials.access_token) !== null && _a !== void 0 ? _a : ctx.credentials.token;
                 if (!token)
                     return { success: false, error: 'Slack token not configured' };
                 try {
@@ -97,7 +100,8 @@ export const slackApiIntegration = defineIntegration({
             }),
             riskLevel: 'safe',
             execute: async (args, ctx) => {
-                const token = ctx.credentials.access_token ?? ctx.credentials.token;
+                var _a;
+                const token = (_a = ctx.credentials.access_token) !== null && _a !== void 0 ? _a : ctx.credentials.token;
                 if (!token)
                     return { success: false, error: 'Slack token not configured' };
                 try {
@@ -120,7 +124,8 @@ export const slackApiIntegration = defineIntegration({
             }),
             riskLevel: 'moderate',
             execute: async (args, ctx) => {
-                const token = ctx.credentials.access_token ?? ctx.credentials.token;
+                var _a;
+                const token = (_a = ctx.credentials.access_token) !== null && _a !== void 0 ? _a : ctx.credentials.token;
                 if (!token)
                     return { success: false, error: 'Slack token not configured' };
                 try {
@@ -154,4 +159,3 @@ export const slackApiIntegration = defineIntegration({
         },
     ],
 });
-//# sourceMappingURL=slack-api.js.map

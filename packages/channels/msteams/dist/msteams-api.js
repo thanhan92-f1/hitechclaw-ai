@@ -3,12 +3,10 @@
  * Uses the Bot Framework REST API (Bot Connector).
  */
 export class MSTeamsApi {
-    appId;
-    appPassword;
-    tokenCache = null;
     constructor(appId, appPassword) {
         this.appId = appId;
         this.appPassword = appPassword;
+        this.tokenCache = null;
     }
     /**
      * Get OAuth2 access token from Microsoft identity platform.
@@ -41,11 +39,7 @@ export class MSTeamsApi {
      */
     async sendReply(serviceUrl, conversationId, text, replyToId) {
         const token = await this.getAccessToken();
-        const activity = {
-            type: 'message',
-            text,
-            ...(replyToId ? { replyToId } : {}),
-        };
+        const activity = Object.assign({ type: 'message', text }, (replyToId ? { replyToId } : {}));
         const url = `${serviceUrl}/v3/conversations/${encodeURIComponent(conversationId)}/activities`;
         const res = await fetch(url, {
             method: 'POST',
@@ -75,4 +69,3 @@ export class MSTeamsApi {
         }).catch(() => { });
     }
 }
-//# sourceMappingURL=msteams-api.js.map

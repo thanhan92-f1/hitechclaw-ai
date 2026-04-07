@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 // ─── Document Processor ─────────────────────────────────────
 export class DocumentProcessor {
-    defaultOptions = {
-        chunkSize: 512,
-        chunkOverlap: 50,
-        separator: '\n\n',
-    };
+    constructor() {
+        this.defaultOptions = {
+            chunkSize: 512,
+            chunkOverlap: 50,
+            separator: '\n\n',
+        };
+    }
     /**
      * Process raw text into a RagDocument with chunks.
      */
@@ -42,17 +44,8 @@ export class DocumentProcessor {
                     id: randomUUID(),
                     documentId: docId,
                     content: segment.content,
-                    metadata: {
-                        source,
-                        title,
-                        chunkIndex: chunkIdx++,
-                        totalChunks: 0, // updated later
-                        charStart: 0,
-                        charEnd: segment.content.length,
-                        createdAt: now,
-                        contentType: 'table',
-                        ...segment.metadata,
-                    },
+                    metadata: Object.assign({ source,
+                        title, chunkIndex: chunkIdx++, totalChunks: 0, charStart: 0, charEnd: segment.content.length, createdAt: now, contentType: 'table' }, segment.metadata),
                 });
             }
             else if (segment.type === 'image') {
@@ -61,17 +54,8 @@ export class DocumentProcessor {
                     id: randomUUID(),
                     documentId: docId,
                     content: segment.content,
-                    metadata: {
-                        source,
-                        title,
-                        chunkIndex: chunkIdx++,
-                        totalChunks: 0,
-                        charStart: 0,
-                        charEnd: segment.content.length,
-                        createdAt: now,
-                        contentType: 'image',
-                        ...segment.metadata,
-                    },
+                    metadata: Object.assign({ source,
+                        title, chunkIndex: chunkIdx++, totalChunks: 0, charStart: 0, charEnd: segment.content.length, createdAt: now, contentType: 'image' }, segment.metadata),
                 });
             }
             else if (segment.type === 'code') {
@@ -79,17 +63,8 @@ export class DocumentProcessor {
                     id: randomUUID(),
                     documentId: docId,
                     content: segment.content,
-                    metadata: {
-                        source,
-                        title,
-                        chunkIndex: chunkIdx++,
-                        totalChunks: 0,
-                        charStart: 0,
-                        charEnd: segment.content.length,
-                        createdAt: now,
-                        contentType: 'code',
-                        ...segment.metadata,
-                    },
+                    metadata: Object.assign({ source,
+                        title, chunkIndex: chunkIdx++, totalChunks: 0, charStart: 0, charEnd: segment.content.length, createdAt: now, contentType: 'code' }, segment.metadata),
                 });
             }
             else {
@@ -218,13 +193,13 @@ export class DocumentProcessor {
     }
     detectCodeLanguage(codeHtml) {
         const classMatch = codeHtml.match(/class=["'][^"']*language-(\w+)/i);
-        return classMatch?.[1] || 'unknown';
+        return (classMatch === null || classMatch === void 0 ? void 0 : classMatch[1]) || 'unknown';
     }
     /**
      * Split text into overlapping chunks using recursive splitting.
      */
     chunkText(text, documentId, title, source, options) {
-        const opts = { ...this.defaultOptions, ...options };
+        const opts = Object.assign(Object.assign({}, this.defaultOptions), options);
         const { chunkSize, chunkOverlap } = opts;
         // Recursive separators: paragraph → sentence → word → char
         const separators = ['\n\n', '\n', '. ', ' ', ''];
@@ -252,9 +227,10 @@ export class DocumentProcessor {
         });
     }
     recursiveSplit(text, separators, chunkSize, overlap) {
+        var _a;
         if (text.length <= chunkSize)
             return [text];
-        const sep = separators.find((s) => text.includes(s)) ?? '';
+        const sep = (_a = separators.find((s) => text.includes(s))) !== null && _a !== void 0 ? _a : '';
         const parts = sep ? text.split(sep) : [text];
         const chunks = [];
         let current = '';
@@ -285,4 +261,3 @@ export class DocumentProcessor {
         return result;
     }
 }
-//# sourceMappingURL=document-processor.js.map

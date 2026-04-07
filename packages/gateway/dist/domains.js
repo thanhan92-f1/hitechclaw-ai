@@ -128,4 +128,3 @@ export function createDomainRoutes(domainPacks) {
     });
     return app;
 }
-//# sourceMappingURL=domains.js.map

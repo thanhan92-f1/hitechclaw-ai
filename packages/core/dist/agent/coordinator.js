@@ -35,26 +35,19 @@ Available worker agent types: researcher, coder, analyst, general.
  *   const result = await coordinator.coordinate('session-123', 'Research and code a solution for X');
  */
 export class CoordinatorAgent {
-    inner;
-    taskManager;
-    coordinatorConfig;
-    agentFactory;
-    definitions;
     constructor(config, coordinatorConfig, agentFactory, definitions) {
+        var _a;
         this.coordinatorConfig = coordinatorConfig;
         this.agentFactory = agentFactory;
         this.taskManager = new TaskManager();
-        this.definitions = definitions ?? BUILT_IN_AGENT_DEFINITIONS;
+        this.definitions = definitions !== null && definitions !== void 0 ? definitions : BUILT_IN_AGENT_DEFINITIONS;
         // Build coordinator config: prepend coordinator system prompt
         const coordinatorSystemPrompt = coordinatorConfig.enabled
             ? `${COORDINATOR_SYSTEM_PREFIX}\n${config.systemPrompt}`
             : config.systemPrompt;
-        const coordinatorAgentConfig = {
-            ...config,
-            systemPrompt: coordinatorSystemPrompt,
+        const coordinatorAgentConfig = Object.assign(Object.assign({}, config), { systemPrompt: coordinatorSystemPrompt, 
             // Limit coordinator's direct tool use — it should delegate via spawn_agent
-            maxToolIterations: config.maxToolIterations ?? 50,
-        };
+            maxToolIterations: (_a = config.maxToolIterations) !== null && _a !== void 0 ? _a : 50 });
         this.inner = new Agent(coordinatorAgentConfig);
     }
     /**
@@ -124,21 +117,22 @@ export function buildWorkerToolRegistry(parentRegistry, allowedTools) {
 export function createInheritingAgentFactory(parentRegistry, coordinatorConfig) {
     const workerRegistry = buildWorkerToolRegistry(parentRegistry, coordinatorConfig.workerTools);
     return (config) => {
+        var _a, _b, _c, _d, _e, _f, _g;
         const agent = new Agent({
             id: config.id,
             name: config.name,
             description: config.description,
-            persona: config.persona ?? 'You are a helpful AI assistant.',
-            systemPrompt: config.systemPrompt ?? 'You are a helpful AI assistant.',
+            persona: (_a = config.persona) !== null && _a !== void 0 ? _a : 'You are a helpful AI assistant.',
+            systemPrompt: (_b = config.systemPrompt) !== null && _b !== void 0 ? _b : 'You are a helpful AI assistant.',
             llm: config.llm,
-            enabledSkills: config.enabledSkills ?? [],
-            memory: config.memory ?? { enabled: true, maxEntries: 100 },
-            security: config.security ?? {
+            enabledSkills: (_c = config.enabledSkills) !== null && _c !== void 0 ? _c : [],
+            memory: (_d = config.memory) !== null && _d !== void 0 ? _d : { enabled: true, maxEntries: 100 },
+            security: (_e = config.security) !== null && _e !== void 0 ? _e : {
                 requireApprovalForShell: false,
                 requireApprovalForNetwork: false,
             },
-            maxToolIterations: config.maxToolIterations ?? 20,
-            toolTimeout: config.toolTimeout ?? 30_000,
+            maxToolIterations: (_f = config.maxToolIterations) !== null && _f !== void 0 ? _f : 20,
+            toolTimeout: (_g = config.toolTimeout) !== null && _g !== void 0 ? _g : 30000,
             allowTransfer: false,
         });
         // Copy worker tools into the subagent's registry
@@ -162,4 +156,3 @@ export function isCoordinatorModeEnabled(config) {
     return process.env.HITECHCLAW_COORDINATOR_MODE === '1' ||
         process.env.HITECHCLAW_COORDINATOR_MODE === 'true';
 }
-//# sourceMappingURL=coordinator.js.map

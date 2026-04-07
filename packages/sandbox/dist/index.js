@@ -19,4 +19,3 @@ export { OCSFEventLogger, toOCSFEvent } from './ocsf-logger.js';
 export { PrivacyRouter } from './privacy-router.js';
 // GPU Sandbox Bridge
 export { GPUSandboxBridge, GPU_SANDBOX_IMAGES, POLICY_ML, POLICY_INFERENCE } from './gpu-sandbox.js';
-//# sourceMappingURL=index.js.map

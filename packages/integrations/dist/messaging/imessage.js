@@ -53,4 +53,3 @@ export const imessageIntegration = defineIntegration({
         return process.platform === 'darwin';
     },
 });
-//# sourceMappingURL=imessage.js.map

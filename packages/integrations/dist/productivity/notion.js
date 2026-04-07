@@ -2,15 +2,16 @@ import { z } from 'zod';
 import { defineIntegration } from '../base/define-integration.js';
 const NOTION_API = 'https://api.notion.com/v1';
 async function notionFetch(path, token, options = {}) {
+    var _a;
     const res = await fetch(`${NOTION_API}${path}`, {
-        method: options.method ?? 'GET',
+        method: (_a = options.method) !== null && _a !== void 0 ? _a : 'GET',
         headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Notion-Version': '2022-06-28',
         },
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -145,4 +146,3 @@ export const notionIntegration = defineIntegration({
         },
     ],
 });
-//# sourceMappingURL=notion.js.map

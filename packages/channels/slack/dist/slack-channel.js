@@ -7,16 +7,14 @@ import { SlackApi } from './slack-api.js';
  * which require a public webhook endpoint.
  */
 export class SlackChannel {
-    id = 'slack-channel';
-    platform = 'slack';
-    name = 'Slack Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
-    pollTimer;
-    lastTimestamps = new Map();
+    constructor() {
+        this.id = 'slack-channel';
+        this.platform = 'slack';
+        this.name = 'Slack Channel';
+        this.version = '2.0.0';
+        this.running = false;
+        this.lastTimestamps = new Map();
+    }
     async initialize(config) {
         const botToken = config.botToken;
         if (!botToken) {
@@ -116,4 +114,3 @@ export class SlackChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=slack-channel.js.map

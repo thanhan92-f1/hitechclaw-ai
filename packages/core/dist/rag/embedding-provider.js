@@ -1,13 +1,11 @@
 // ─── OpenAI Embedding Provider ──────────────────────────────
 export class OpenAIEmbeddingProvider {
-    dimension = 1536; // text-embedding-3-small default
-    apiKey;
-    model;
-    baseUrl;
     constructor(opts) {
+        var _a, _b;
+        this.dimension = 1536; // text-embedding-3-small default
         this.apiKey = opts.apiKey;
-        this.model = opts.model ?? 'text-embedding-3-small';
-        this.baseUrl = opts.baseUrl ?? 'https://api.openai.com/v1';
+        this.model = (_a = opts.model) !== null && _a !== void 0 ? _a : 'text-embedding-3-small';
+        this.baseUrl = (_b = opts.baseUrl) !== null && _b !== void 0 ? _b : 'https://api.openai.com/v1';
         if (this.model === 'text-embedding-3-large')
             this.dimension = 3072;
     }
@@ -35,7 +33,9 @@ export class OpenAIEmbeddingProvider {
  * NOT for production — just allows RAG pipeline to work without API keys.
  */
 export class LocalEmbeddingProvider {
-    dimension = 384;
+    constructor() {
+        this.dimension = 384;
+    }
     async embed(texts) {
         return texts.map((text) => this.simpleEmbed(text));
     }
@@ -69,4 +69,3 @@ export class LocalEmbeddingProvider {
         return h;
     }
 }
-//# sourceMappingURL=embedding-provider.js.map

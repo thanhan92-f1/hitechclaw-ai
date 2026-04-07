@@ -60,6 +60,7 @@ function buildRoutingInstruction(opts) {
     return `[Routing instruction]\n${instructions.join('\n')}`;
 }
 async function main() {
+    var _a, _b;
     console.log('🐾 HiTechClaw v2.1.0 — Open Platform Starting...');
     // Run PostgreSQL migrations (idempotent)
     try {
@@ -106,7 +107,7 @@ async function main() {
                 });
                 console.log('   Channels:  ✅ seeded Telegram from TELEGRAM_BOT_TOKEN env');
             }
-            else if (existing.config?.botToken !== TELEGRAM_BOT_TOKEN) {
+            else if (((_a = existing.config) === null || _a === void 0 ? void 0 : _a.botToken) !== TELEGRAM_BOT_TOKEN) {
                 // Token rotated in .env → update MongoDB automatically
                 await channels.updateOne({ _id: existing._id }, { $set: { 'config.botToken': TELEGRAM_BOT_TOKEN, status: 'active', updatedAt: now } });
                 console.log('   Channels:  🔄 updated Telegram token from env (token rotated)');
@@ -128,7 +129,7 @@ async function main() {
                 });
                 console.log('   Channels:  ✅ seeded Discord from DISCORD_BOT_TOKEN env');
             }
-            else if (existing.config?.botToken !== DISCORD_BOT_TOKEN) {
+            else if (((_b = existing.config) === null || _b === void 0 ? void 0 : _b.botToken) !== DISCORD_BOT_TOKEN) {
                 await channels.updateOne({ _id: existing._id }, { $set: { 'config.botToken': DISCORD_BOT_TOKEN, status: 'active', updatedAt: now } });
                 console.log('   Channels:  🔄 updated Discord token from env');
             }
@@ -418,7 +419,7 @@ async function main() {
             try {
                 return getMongo();
             }
-            catch {
+            catch (_a) {
                 return null;
             }
         },
@@ -434,6 +435,7 @@ async function main() {
     // Debug mode per chat (channelId-userId → true/false)
     const debugSessions = new Set();
     const makeChannelHandler = (platform, send) => async (incoming) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         const prefix = platform.substring(0, 3);
         const sessionId = `${prefix}-${incoming.channelId}-${incoming.userId}`;
         const debugKey = `${platform}-${incoming.channelId}-${incoming.userId}`;
@@ -442,17 +444,17 @@ async function main() {
         if (trimmed === '/debug' || trimmed === '/debug on' || trimmed === '/debug off' || trimmed.startsWith('/debug ')) {
             try {
                 const channelConn = await channelConnectionsCollection().findOne({ channelType: platform, status: 'active' });
-                const channelAgent = channelConn?.agentConfigId
+                const channelAgent = (channelConn === null || channelConn === void 0 ? void 0 : channelConn.agentConfigId)
                     ? await agentManager.getAgent(channelConn.agentConfigId, 'default')
                     : await agentManager.getDefaultForTenant('default');
                 if (trimmed === '/debug off') {
                     debugSessions.delete(debugKey);
-                    await send(incoming.channelId, '🔇 Debug mode OFF', incoming.metadata?.messageId ? String(incoming.metadata.messageId) : undefined);
+                    await send(incoming.channelId, '🔇 Debug mode OFF', ((_a = incoming.metadata) === null || _a === void 0 ? void 0 : _a.messageId) ? String(incoming.metadata.messageId) : undefined);
                     return;
                 }
                 if (trimmed === '/debug on') {
                     debugSessions.add(debugKey);
-                    await send(incoming.channelId, '🔊 Debug mode ON — mỗi response sẽ kèm debug info', incoming.metadata?.messageId ? String(incoming.metadata.messageId) : undefined);
+                    await send(incoming.channelId, '🔊 Debug mode ON — mỗi response sẽ kèm debug info', ((_b = incoming.metadata) === null || _b === void 0 ? void 0 : _b.messageId) ? String(incoming.metadata.messageId) : undefined);
                     return;
                 }
                 // /debug → show full agent config
@@ -466,8 +468,8 @@ async function main() {
                     `📌 Agent: ${agentCfg.name || agentCfg.id}`,
                     `🤖 Provider: ${agentCfg.llm.provider}`,
                     `🧠 Model: ${agentCfg.llm.model}`,
-                    `🌡️ Temperature: ${agentCfg.llm.temperature ?? 0.7}`,
-                    `📏 Max Tokens: ${agentCfg.llm.maxTokens ?? 'default'}`,
+                    `🌡️ Temperature: ${(_c = agentCfg.llm.temperature) !== null && _c !== void 0 ? _c : 0.7}`,
+                    `📏 Max Tokens: ${(_d = agentCfg.llm.maxTokens) !== null && _d !== void 0 ? _d : 'default'}`,
                     `━━━━━━━━━━━━━━━━━━━━━━`,
                     `👁️ Vision: ${caps.vision ? '✅' : '❌'}`,
                     `🎤 Audio: ${caps.audio ? '✅' : '❌'}`,
@@ -478,10 +480,10 @@ async function main() {
                     `📜 History: ${historyCount} messages`,
                     `🧰 Tools: ${toolDefs.length} (${toolDefs.slice(0, 5).map(t => t.name).join(', ')}${toolDefs.length > 5 ? '...' : ''})`,
                     `🧲 RAG: ${rag ? '✅ Active' : '❌ Disabled'}`,
-                    `🏢 Channel: ${channelConn?.name || 'default'}`,
-                    `🔑 Agent Config ID: ${channelConn?.agentConfigId || 'default'}`,
-                    `🏷️ Domain: ${channelConn?.domainId || 'general'}`,
-                    `🖼️ Images: ${incoming.attachments?.length || 0} attachment(s)`,
+                    `🏢 Channel: ${(channelConn === null || channelConn === void 0 ? void 0 : channelConn.name) || 'default'}`,
+                    `🔑 Agent Config ID: ${(channelConn === null || channelConn === void 0 ? void 0 : channelConn.agentConfigId) || 'default'}`,
+                    `🏷️ Domain: ${(channelConn === null || channelConn === void 0 ? void 0 : channelConn.domainId) || 'general'}`,
+                    `🖼️ Images: ${((_e = incoming.attachments) === null || _e === void 0 ? void 0 : _e.length) || 0} attachment(s)`,
                     `━━━━━━━━━━━━━━━━━━━━━━`,
                     `📝 System Prompt (first 200 chars):`,
                     `${(agentCfg.systemPrompt || agentCfg.persona || '(none)').slice(0, 200)}...`,
@@ -489,16 +491,16 @@ async function main() {
                     `🔊 /debug on  — kèm debug sau mỗi response`,
                     `🔇 /debug off — tắt debug`,
                 ].join('\n');
-                await send(incoming.channelId, debugInfo, incoming.metadata?.messageId ? String(incoming.metadata.messageId) : undefined);
+                await send(incoming.channelId, debugInfo, ((_f = incoming.metadata) === null || _f === void 0 ? void 0 : _f.messageId) ? String(incoming.metadata.messageId) : undefined);
             }
             catch (err) {
-                await send(incoming.channelId, `❌ Debug error: ${err instanceof Error ? err.message : 'Unknown'}`, incoming.metadata?.messageId ? String(incoming.metadata.messageId) : undefined);
+                await send(incoming.channelId, `❌ Debug error: ${err instanceof Error ? err.message : 'Unknown'}`, ((_g = incoming.metadata) === null || _g === void 0 ? void 0 : _g.messageId) ? String(incoming.metadata.messageId) : undefined);
             }
             return;
         }
         try {
             const channelConn = await channelConnectionsCollection().findOne({ channelType: platform, status: 'active' });
-            const channelAgent = channelConn?.agentConfigId
+            const channelAgent = (channelConn === null || channelConn === void 0 ? void 0 : channelConn.agentConfigId)
                 ? await agentManager.getAgent(channelConn.agentConfigId, 'default')
                 : await agentManager.getDefaultForTenant('default');
             const sessions = sessionsCollection();
@@ -533,9 +535,9 @@ async function main() {
                 if (retrieval.context)
                     ragContext = retrieval.context;
             }
-            catch { /* RAG failure is non-fatal */ }
+            catch ( /* RAG failure is non-fatal */_l) { /* RAG failure is non-fatal */ }
             let channelMessage = incoming.content;
-            const hasImageAttachments = !!incoming.attachments?.some((a) => a.type === 'image');
+            const hasImageAttachments = !!((_h = incoming.attachments) === null || _h === void 0 ? void 0 : _h.some((a) => a.type === 'image'));
             const shouldUseWebSearch = wantsRealtimeSearch(incoming.content);
             const routingInstruction = buildRoutingInstruction({
                 hasImages: hasImageAttachments,
@@ -544,9 +546,9 @@ async function main() {
             if (routingInstruction) {
                 channelMessage = `${routingInstruction}\n\n${channelMessage}`;
             }
-            if (channelConn?.domainId && channelConn.domainId !== 'general') {
+            if ((channelConn === null || channelConn === void 0 ? void 0 : channelConn.domainId) && channelConn.domainId !== 'general') {
                 const domain = allDomainPacks.find((d) => d.id === channelConn.domainId);
-                if (domain?.agentPersona) {
+                if (domain === null || domain === void 0 ? void 0 : domain.agentPersona) {
                     channelMessage = `[System instruction — Domain specialist mode]\n${domain.agentPersona}\n\n[User message]\n${incoming.content}`;
                     if (routingInstruction) {
                         channelMessage = `${routingInstruction}\n\n${channelMessage}`;
@@ -554,7 +556,7 @@ async function main() {
                 }
             }
             // Inject per-tenant language instruction
-            const tenantId = channelConn?.tenantId || 'default';
+            const tenantId = (channelConn === null || channelConn === void 0 ? void 0 : channelConn.tenantId) || 'default';
             const tSettings = await TenantService.getSettings(tenantId);
             if (tSettings) {
                 const langInstruction = getTenantLanguageInstruction(tSettings);
@@ -563,15 +565,13 @@ async function main() {
                 }
             }
             // Extract image data URLs from attachments for vision models
-            const imageDataUrls = incoming.attachments
-                ?.filter((a) => a.type === 'image' && a.url.startsWith('data:'))
-                .map((a) => a.url);
+            const imageDataUrls = (_j = incoming.attachments) === null || _j === void 0 ? void 0 : _j.filter((a) => a.type === 'image' && a.url.startsWith('data:')).map((a) => a.url);
             // Hard-switch model: if images present, use VISION_FALLBACK_CHAIN (Ollama-vision first)
             const llmOptions = hasImageAttachments
                 ? { fallbackChain: VISION_FALLBACK_CHAIN }
                 : undefined;
             const llmStart = Date.now();
-            const response = await channelAgent.chat(sessionId, channelMessage, ragContext, imageDataUrls?.length ? imageDataUrls : undefined, undefined, llmOptions);
+            const response = await channelAgent.chat(sessionId, channelMessage, ragContext, (imageDataUrls === null || imageDataUrls === void 0 ? void 0 : imageDataUrls.length) ? imageDataUrls : undefined, undefined, llmOptions);
             const llmDuration = Date.now() - llmStart;
             llmLogsCollection().insertOne({
                 tenantId: 'default',
@@ -604,21 +604,21 @@ async function main() {
                 finalResponse += `\n\n━━━ 🔍 DEBUG ━━━\n`
                     + `🤖 ${channelAgent.config.llm.provider}/${channelAgent.config.llm.model}\n`
                     + `⏱️ ${llmDuration}ms\n`
-                    + `👁️ Vision: ${caps.vision ? '✅' : '❌'} | 🖼️ Images: ${imageDataUrls?.length || 0}\n`
+                    + `👁️ Vision: ${caps.vision ? '✅' : '❌'} | 🖼️ Images: ${(imageDataUrls === null || imageDataUrls === void 0 ? void 0 : imageDataUrls.length) || 0}\n`
                     + `🧭 Routing: vision=${hasImageAttachments ? 'on' : 'off'}, webSearchHint=${shouldUseWebSearch ? 'on' : 'off'}\n`
                     + `🔀 Model chain: ${llmOptions ? VISION_FALLBACK_CHAIN.join(' → ') : channelAgent.config.llm.provider + '/' + channelAgent.config.llm.model}\n`
                     + `📚 RAG: ${ragContext ? `✅ (${ragContext.length} chars)` : '❌ no context'}\n`
-                    + `🏷️ Domain: ${channelConn?.domainId || 'general'}\n`
+                    + `🏷️ Domain: ${(channelConn === null || channelConn === void 0 ? void 0 : channelConn.domainId) || 'general'}\n`
                     + `💬 Session: ${sessionId}`;
             }
-            await send(incoming.channelId, finalResponse, incoming.metadata?.messageId ? String(incoming.metadata.messageId) : undefined);
+            await send(incoming.channelId, finalResponse, ((_k = incoming.metadata) === null || _k === void 0 ? void 0 : _k.messageId) ? String(incoming.metadata.messageId) : undefined);
         }
         catch (err) {
             console.error(`${platform} agent error:`, err instanceof Error ? err.message : err);
             try {
                 await send(incoming.channelId, '❌ Xin lỗi, có lỗi xảy ra khi xử lý yêu cầu.');
             }
-            catch { /* ignore */ }
+            catch ( /* ignore */_m) { /* ignore */ }
         }
     };
     // ─── Channel Manager (per-tenant, DB-driven) ──────────────
@@ -733,4 +733,3 @@ main().catch((err) => {
     console.error('❌ Failed to start HiTechClaw:', err);
     process.exit(1);
 });
-//# sourceMappingURL=index.js.map

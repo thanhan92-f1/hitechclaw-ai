@@ -29,25 +29,26 @@ export function createMarketplaceRoutes(domainPacks) {
     const app = new Hono();
     // GET /marketplace/skills — Return all skills as marketplace items
     app.get('/skills', (c) => {
+        var _a, _b, _c, _d;
         const installed = getInstalledDomainIds();
         const items = [];
         for (const domain of domainPacks) {
             const isInstalled = installed.has(domain.id);
             for (const skill of domain.skills) {
                 // Map skill category → marketplace category bucket
-                const cat = skill.category ?? 'productivity';
+                const cat = (_a = skill.category) !== null && _a !== void 0 ? _a : 'productivity';
                 items.push({
                     id: `${domain.id}:${skill.id}`,
                     name: skill.name,
                     description: skill.description,
-                    version: skill.version ?? '1.0.0',
+                    version: (_b = skill.version) !== null && _b !== void 0 ? _b : '1.0.0',
                     author: `HiTechClaw – ${domain.name}`,
                     category: cat,
                     rating: 0,
                     downloads: 0,
                     installed: isInstalled,
-                    icon: domain.icon ?? '🧩',
-                    tags: [domain.id, skill.category ?? cat].filter(Boolean),
+                    icon: (_c = domain.icon) !== null && _c !== void 0 ? _c : '🧩',
+                    tags: [domain.id, (_d = skill.category) !== null && _d !== void 0 ? _d : cat].filter(Boolean),
                     domainId: domain.id,
                 });
             }
@@ -126,4 +127,3 @@ export function createMarketplaceRoutes(domainPacks) {
     });
     return app;
 }
-//# sourceMappingURL=marketplace.js.map

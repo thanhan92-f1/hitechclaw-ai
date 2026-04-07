@@ -10,8 +10,10 @@ import { EventBus } from './event-bus.js';
  * - `supervisor`: A supervisor agent delegates and synthesizes sub-results
  */
 export class MultiAgentOrchestrator {
-    agents = new Map();
-    events = new EventBus();
+    constructor() {
+        this.agents = new Map();
+        this.events = new EventBus();
+    }
     registerAgent(agent) {
         this.agents.set(agent.config.id, agent);
     }
@@ -122,7 +124,8 @@ export class MultiAgentOrchestrator {
      * Debate: Agents take turns refining the answer across multiple rounds.
      */
     async executeDebate(task, agents) {
-        const maxRounds = task.maxRounds ?? 3;
+        var _a;
+        const maxRounds = (_a = task.maxRounds) !== null && _a !== void 0 ? _a : 3;
         const sessionId = `multi-${task.id}`;
         const agentResults = [];
         let currentAnswer = '';
@@ -156,7 +159,8 @@ export class MultiAgentOrchestrator {
      * Supervisor: A designated supervisor agent delegates subtasks and synthesizes.
      */
     async executeSupervisor(task, agents) {
-        const supervisorId = task.supervisorAgentId ?? agents[0].config.id;
+        var _a;
+        const supervisorId = (_a = task.supervisorAgentId) !== null && _a !== void 0 ? _a : agents[0].config.id;
         const supervisor = this.agents.get(supervisorId);
         if (!supervisor) {
             throw new Error(`Supervisor agent "${supervisorId}" not found`);
@@ -183,12 +187,13 @@ export class MultiAgentOrchestrator {
             const jsonMatch = planContent.match(/\[[\s\S]*\]/);
             subtasks = jsonMatch ? JSON.parse(jsonMatch[0]) : workers.map((w) => ({ agentName: w.config.name, subtask: task.input }));
         }
-        catch {
+        catch (_b) {
             subtasks = workers.map((w) => ({ agentName: w.config.name, subtask: task.input }));
         }
         // Execute subtasks in parallel
         const workerResults = await Promise.all(subtasks.map(async (st) => {
-            const worker = workers.find((w) => w.config.name === st.agentName) ?? workers[0];
+            var _a;
+            const worker = (_a = workers.find((w) => w.config.name === st.agentName)) !== null && _a !== void 0 ? _a : workers[0];
             const wStart = Date.now();
             const content = await worker.chat(`multi-${task.id}-${worker.config.id}`, st.subtask);
             const result = {
@@ -220,7 +225,8 @@ export class MultiAgentOrchestrator {
         };
     }
     selectAgents(task) {
-        if (task.requiredAgentIds?.length) {
+        var _a;
+        if ((_a = task.requiredAgentIds) === null || _a === void 0 ? void 0 : _a.length) {
             return task.requiredAgentIds
                 .map((id) => this.agents.get(id))
                 .filter((a) => a !== undefined);
@@ -228,4 +234,3 @@ export class MultiAgentOrchestrator {
         return [...this.agents.values()];
     }
 }
-//# sourceMappingURL=multi-agent.js.map

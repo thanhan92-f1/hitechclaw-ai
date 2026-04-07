@@ -5,7 +5,6 @@
 // the tool's sandbox policy requires it.
 import { randomUUID } from 'node:crypto';
 export class SandboxedToolExecutor {
-    manager;
     constructor(manager) {
         this.manager = manager;
     }
@@ -14,9 +13,10 @@ export class SandboxedToolExecutor {
      * Falls back to direct execution for tools without sandbox requirements.
      */
     async execute(call, definition, handler, options) {
+        var _a;
         const start = Date.now();
         // If tool requires sandbox execution, run inside sandbox
-        if (definition.sandbox?.required) {
+        if ((_a = definition.sandbox) === null || _a === void 0 ? void 0 : _a.required) {
             return this.executeInSandbox(call, definition, options);
         }
         // Otherwise, execute directly (trusted built-in tools)
@@ -44,6 +44,7 @@ export class SandboxedToolExecutor {
      * Serializes the call as JSON, runs node inside sandbox, returns parsed result.
      */
     async executeInSandbox(call, definition, options) {
+        var _a, _b, _c, _d;
         const start = Date.now();
         let sandboxId = options.reuseSandboxId;
         try {
@@ -55,7 +56,7 @@ export class SandboxedToolExecutor {
                     name: `tool-exec-${call.name}-${Date.now()}`,
                     tenantId: options.tenantId,
                     policy,
-                    timeoutMs: options.timeoutMs ?? definition.timeout ?? 15_000,
+                    timeoutMs: (_b = (_a = options.timeoutMs) !== null && _a !== void 0 ? _a : definition.timeout) !== null && _b !== void 0 ? _b : 15000,
                 };
                 const instance = await this.manager.create(config);
                 sandboxId = instance.id;
@@ -91,13 +92,13 @@ export class SandboxedToolExecutor {
                 const parsed = JSON.parse(String(execResult.output));
                 return {
                     toolCallId: call.id,
-                    success: parsed.success ?? true,
-                    result: parsed.result ?? parsed,
+                    success: (_c = parsed.success) !== null && _c !== void 0 ? _c : true,
+                    result: (_d = parsed.result) !== null && _d !== void 0 ? _d : parsed,
                     error: parsed.error,
                     duration: Date.now() - start,
                 };
             }
-            catch {
+            catch (_e) {
                 return {
                     toolCallId: call.id,
                     success: true,
@@ -127,27 +128,22 @@ export class SandboxedToolExecutor {
      * requirements with the default policy.
      */
     buildToolPolicy(definition, defaultPolicy) {
+        var _a, _b;
         const toolSandbox = definition.sandbox;
         if (!toolSandbox)
             return defaultPolicy;
-        const policy = { ...defaultPolicy };
+        const policy = Object.assign({}, defaultPolicy);
         // Merge tool-specific network allowlist
-        if (toolSandbox.networkAllowlist?.length) {
+        if ((_a = toolSandbox.networkAllowlist) === null || _a === void 0 ? void 0 : _a.length) {
             const additionalRules = toolSandbox.networkAllowlist.map((host) => ({
                 host,
                 allow: true,
             }));
-            policy.network = {
-                ...policy.network,
-                rules: [...policy.network.rules, ...additionalRules],
-            };
+            policy.network = Object.assign(Object.assign({}, policy.network), { rules: [...policy.network.rules, ...additionalRules] });
         }
         // Merge tool-specific filesystem paths
-        if (toolSandbox.filesystemPaths?.length) {
-            policy.filesystem = {
-                ...policy.filesystem,
-                rules: [...policy.filesystem.rules, ...toolSandbox.filesystemPaths],
-            };
+        if ((_b = toolSandbox.filesystemPaths) === null || _b === void 0 ? void 0 : _b.length) {
+            policy.filesystem = Object.assign(Object.assign({}, policy.filesystem), { rules: [...policy.filesystem.rules, ...toolSandbox.filesystemPaths] });
         }
         return policy;
     }
@@ -159,4 +155,3 @@ export class SandboxedToolExecutor {
         return str.replace(/'/g, "'\\''");
     }
 }
-//# sourceMappingURL=sandboxed-tool-executor.js.map

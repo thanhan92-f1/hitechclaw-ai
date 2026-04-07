@@ -51,7 +51,7 @@ function getProviderConfig(provider) {
     const clientSecret = process.env[`OAUTH2_${envPrefix}_CLIENT_SECRET`];
     if (!clientId || !clientSecret)
         return null;
-    return { ...base, clientId, clientSecret };
+    return Object.assign(Object.assign({}, base), { clientId, clientSecret });
 }
 // ─── OAuth2 Token Exchange ─────────────────────────────────
 async function exchangeCodeForTokens(config, code, redirectUri) {
@@ -175,7 +175,7 @@ export function createOAuth2Routes(ctx) {
             const stateData = JSON.parse(atob(stateParam));
             tenantSlug = stateData.tenantSlug;
         }
-        catch {
+        catch (_a) {
             return c.json({ error: 'Invalid state parameter' }, 400);
         }
         const db = getDB();
@@ -377,7 +377,7 @@ export function createOAuth2Routes(ctx) {
             .where(eq(users.id, currentUser.sub)).limit(1);
         const oauthLinks = await db.select().from(oauthAccounts)
             .where(eq(oauthAccounts.userId, currentUser.sub));
-        const hasPassword = !!userRecord?.passwordHash;
+        const hasPassword = !!(userRecord === null || userRecord === void 0 ? void 0 : userRecord.passwordHash);
         const otherLinks = oauthLinks.filter(l => l.provider !== provider);
         if (!hasPassword && otherLinks.length === 0) {
             return c.json({
@@ -403,4 +403,3 @@ export function createOAuth2Routes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=oauth2.js.map

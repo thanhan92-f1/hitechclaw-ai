@@ -39,19 +39,20 @@ export function validateWorkflow(workflow) {
     const visited = new Set();
     const inStack = new Set();
     function hasCycle(nodeId) {
+        var _a;
         const node = workflow.nodes.find(n => n.id === nodeId);
-        if (node?.type === 'loop')
+        if ((node === null || node === void 0 ? void 0 : node.type) === 'loop')
             return false;
         visited.add(nodeId);
         inStack.add(nodeId);
-        for (const next of adj.get(nodeId) ?? []) {
+        for (const next of (_a = adj.get(nodeId)) !== null && _a !== void 0 ? _a : []) {
             if (!visited.has(next)) {
                 if (hasCycle(next))
                     return true;
             }
             else if (inStack.has(next)) {
                 const target = workflow.nodes.find(n => n.id === next);
-                if (target?.type !== 'loop')
+                if ((target === null || target === void 0 ? void 0 : target.type) !== 'loop')
                     return true;
             }
         }
@@ -124,15 +125,11 @@ export function validateWorkflow(workflow) {
 }
 // ─── Workflow Engine ────────────────────────────────────────
 export class WorkflowEngine {
-    toolRegistry;
-    llmRouter;
-    eventBus;
-    nodeHandlers = new Map();
-    sandboxConfig;
     constructor(toolRegistry, llmRouter, eventBus) {
         this.toolRegistry = toolRegistry;
         this.llmRouter = llmRouter;
         this.eventBus = eventBus;
+        this.nodeHandlers = new Map();
         this.registerBuiltinHandlers();
     }
     setSandboxConfig(config) {
@@ -148,10 +145,7 @@ export class WorkflowEngine {
             status: 'running',
             startedAt: new Date().toISOString(),
             nodeResults: new Map(),
-            variables: {
-                ...Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : []).map(v => [v.name, v.defaultValue])),
-                _trigger: triggerData ?? {},
-            },
+            variables: Object.assign(Object.assign({}, Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : []).map(v => [v.name, v.defaultValue]))), { _trigger: triggerData !== null && triggerData !== void 0 ? triggerData : {} }),
         };
         const context = {
             execution,
@@ -309,7 +303,8 @@ export class WorkflowEngine {
         return inputs;
     }
     gatherMergeInputs(node, context) {
-        const allInputs = context.mergeInputs.get(node.id) ?? [];
+        var _a;
+        const allInputs = (_a = context.mergeInputs.get(node.id)) !== null && _a !== void 0 ? _a : [];
         const merged = {};
         for (let i = 0; i < allInputs.length; i++) {
             for (const [key, value] of Object.entries(allInputs[i])) {
@@ -353,7 +348,7 @@ export class WorkflowEngine {
             const result = vm.runInContext(`!!(${normalized})`, sandbox, { timeout: 1000 });
             return !!result;
         }
-        catch {
+        catch (_a) {
             return false;
         }
     }
@@ -380,7 +375,8 @@ export class WorkflowEngine {
     // ─── Built-in Node Handlers ─────────────────────────────
     registerBuiltinHandlers() {
         this.nodeHandlers.set('trigger', async (_node, _inputs, context) => {
-            return { data: context.variables._trigger ?? {} };
+            var _a;
+            return { data: (_a = context.variables._trigger) !== null && _a !== void 0 ? _a : {} };
         });
         this.nodeHandlers.set('llm-call', async (node, inputs, context) => {
             const prompt = this.resolveTemplate(node.data.config.prompt, context.variables);
@@ -393,8 +389,9 @@ export class WorkflowEngine {
             return { response: response.content, usage: response.usage };
         });
         this.nodeHandlers.set('tool-call', async (node, inputs, context) => {
+            var _a;
             const toolName = node.data.config.toolName;
-            const args = node.data.config.arguments ?? inputs;
+            const args = (_a = node.data.config.arguments) !== null && _a !== void 0 ? _a : inputs;
             const resolvedArgs = {};
             for (const [key, value] of Object.entries(args)) {
                 resolvedArgs[key] = typeof value === 'string'
@@ -406,20 +403,21 @@ export class WorkflowEngine {
         });
         this.nodeHandlers.set('condition', async (node, inputs, context) => {
             const expression = node.data.config.expression;
-            const result = this.evaluateCondition(expression, { ...context.variables, ...inputs });
+            const result = this.evaluateCondition(expression, Object.assign(Object.assign({}, context.variables), inputs));
             return { result, branch: result ? 'true' : 'false' };
         });
         this.nodeHandlers.set('switch', async (node, inputs, context) => {
-            const expression = node.data.config.expression ?? '';
-            const cases = node.data.config.cases ?? [];
+            var _a, _b;
+            const expression = (_a = node.data.config.expression) !== null && _a !== void 0 ? _a : '';
+            const cases = (_b = node.data.config.cases) !== null && _b !== void 0 ? _b : [];
             let matchValue;
             try {
                 const sanitized = expression.replace(/[^a-zA-Z0-9_.><=!&|() "'\-]/g, '');
                 const normalized = this.normalizeExpression(sanitized);
-                const sandbox = vm.createContext(Object.freeze(this.buildSandbox({ ...context.variables, ...inputs })));
+                const sandbox = vm.createContext(Object.freeze(this.buildSandbox(Object.assign(Object.assign({}, context.variables), inputs))));
                 matchValue = vm.runInContext(`(${normalized})`, sandbox, { timeout: 1000 });
             }
-            catch {
+            catch (_c) {
                 matchValue = this.resolveTemplate(expression, context.variables);
             }
             let matchedCase = 'default';
@@ -432,10 +430,11 @@ export class WorkflowEngine {
             return { value: matchValue, matchedCase, branch: matchedCase };
         });
         this.nodeHandlers.set('loop', async (node, inputs, context) => {
-            const maxIterations = node.data.config.maxIterations ?? 10;
-            const condition = node.data.config.condition ?? '';
-            const loopVar = node.data.config.loopVariable ?? 'i';
-            const items = node.data.config.items ?? inputs.items ?? null;
+            var _a, _b, _c, _d, _e;
+            const maxIterations = (_a = node.data.config.maxIterations) !== null && _a !== void 0 ? _a : 10;
+            const condition = (_b = node.data.config.condition) !== null && _b !== void 0 ? _b : '';
+            const loopVar = (_c = node.data.config.loopVariable) !== null && _c !== void 0 ? _c : 'i';
+            const items = (_e = (_d = node.data.config.items) !== null && _d !== void 0 ? _d : inputs.items) !== null && _e !== void 0 ? _e : null;
             const results = [];
             const iterations = items ? Math.min(items.length, maxIterations) : maxIterations;
             for (let i = 0; i < iterations; i++) {
@@ -443,9 +442,7 @@ export class WorkflowEngine {
                 context.variables[`${node.id}.${loopVar}`] = items ? items[i] : i;
                 context.variables[loopVar] = items ? items[i] : i;
                 if (condition) {
-                    const shouldContinue = this.evaluateCondition(condition, {
-                        ...context.variables, ...inputs, index: i, [loopVar]: items ? items[i] : i,
-                    });
+                    const shouldContinue = this.evaluateCondition(condition, Object.assign(Object.assign(Object.assign({}, context.variables), inputs), { index: i, [loopVar]: items ? items[i] : i }));
                     if (!shouldContinue)
                         break;
                 }
@@ -454,7 +451,7 @@ export class WorkflowEngine {
             return { iterations: results.length, results, completed: true };
         });
         this.nodeHandlers.set('merge', async (_node, inputs) => {
-            return { merged: true, ...inputs };
+            return Object.assign({ merged: true }, inputs);
         });
         this.nodeHandlers.set('sub-workflow', async (node, inputs, context) => {
             const subWorkflowId = node.data.config.workflowId;
@@ -469,13 +466,14 @@ export class WorkflowEngine {
             return { subWorkflowId, delegated: true, inputs };
         });
         this.nodeHandlers.set('http-request', async (node, _inputs, context) => {
+            var _a, _b;
             const url = this.resolveTemplate(node.data.config.url, context.variables);
-            const method = node.data.config.method ?? 'GET';
-            const headers = node.data.config.headers ?? {};
+            const method = (_a = node.data.config.method) !== null && _a !== void 0 ? _a : 'GET';
+            const headers = (_b = node.data.config.headers) !== null && _b !== void 0 ? _b : {};
             const body = node.data.config.body;
             const res = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json', ...headers },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
                 body: body ? this.resolveTemplate(body, context.variables) : undefined,
             });
             const responseText = await res.text();
@@ -483,7 +481,7 @@ export class WorkflowEngine {
             try {
                 responseData = JSON.parse(responseText);
             }
-            catch {
+            catch (_c) {
                 responseData = responseText;
             }
             return { status: res.status, data: responseData, ok: res.ok };
@@ -491,17 +489,18 @@ export class WorkflowEngine {
         this.nodeHandlers.set('transform', async (node, inputs, context) => {
             const template = node.data.config.template;
             if (template) {
-                const result = this.resolveTemplate(template, { ...context.variables, ...inputs });
+                const result = this.resolveTemplate(template, Object.assign(Object.assign({}, context.variables), inputs));
                 return { result };
             }
             return inputs;
         });
         this.nodeHandlers.set('code', async (node, inputs, context) => {
+            var _a, _b;
             const code = node.data.config.code;
-            const timeoutMs = this.sandboxConfig?.timeoutMs ?? 5000;
+            const timeoutMs = (_b = (_a = this.sandboxConfig) === null || _a === void 0 ? void 0 : _a.timeoutMs) !== null && _b !== void 0 ? _b : 5000;
             const sandbox = vm.createContext({
-                inputs: Object.freeze({ ...inputs }),
-                variables: Object.freeze({ ...context.variables }),
+                inputs: Object.freeze(Object.assign({}, inputs)),
+                variables: Object.freeze(Object.assign({}, context.variables)),
                 JSON, Math, Date, Array, Object, String, Number, Boolean,
                 parseInt, parseFloat, isNaN, isFinite,
                 console: { log: () => { }, warn: () => { }, error: () => { } },
@@ -511,13 +510,15 @@ export class WorkflowEngine {
             return { result };
         });
         this.nodeHandlers.set('wait', async (node) => {
-            const ms = (node.data.config.seconds ?? 1) * 1000;
+            var _a;
+            const ms = ((_a = node.data.config.seconds) !== null && _a !== void 0 ? _a : 1) * 1000;
             await new Promise(resolve => setTimeout(resolve, ms));
             return { waited: ms };
         });
         this.nodeHandlers.set('notification', async (node, _inputs, context) => {
+            var _a;
             const message = this.resolveTemplate(node.data.config.message, context.variables);
-            const channel = node.data.config.channel ?? 'default';
+            const channel = (_a = node.data.config.channel) !== null && _a !== void 0 ? _a : 'default';
             await context.eventBus.emit({
                 type: 'notification:send',
                 payload: { message, channel },
@@ -532,9 +533,8 @@ export class WorkflowEngine {
             return { query, note: 'Memory operations delegated to agent' };
         });
         this.nodeHandlers.set('memory-write', async (node, inputs, context) => {
-            const content = this.resolveTemplate(node.data.config.content, { ...context.variables, ...inputs });
+            const content = this.resolveTemplate(node.data.config.content, Object.assign(Object.assign({}, context.variables), inputs));
             return { content, note: 'Memory operations delegated to agent' };
         });
     }
 }
-//# sourceMappingURL=workflow-engine.js.map

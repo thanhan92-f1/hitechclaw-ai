@@ -1,6 +1,8 @@
 // ─── In-Memory Vector Store ─────────────────────────────────
 export class InMemoryVectorStore {
-    chunks = [];
+    constructor() {
+        this.chunks = [];
+    }
     async add(chunks) {
         this.chunks.push(...chunks);
     }
@@ -37,4 +39,3 @@ function cosineSimilarity(a, b) {
     const denom = Math.sqrt(normA) * Math.sqrt(normB);
     return denom === 0 ? 0 : dot / denom;
 }
-//# sourceMappingURL=vector-store.js.map

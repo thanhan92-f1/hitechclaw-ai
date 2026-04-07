@@ -7,14 +7,13 @@ import { ZaloApi } from './zalo-api.js';
  * Specially designed for Vietnamese enterprise market.
  */
 export class ZaloChannel {
-    id = 'zalo-channel';
-    platform = 'zalo';
-    name = 'Zalo Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
+    constructor() {
+        this.id = 'zalo-channel';
+        this.platform = 'zalo';
+        this.name = 'Zalo Channel';
+        this.version = '2.0.0';
+        this.running = false;
+    }
     async initialize(config) {
         const oaId = config.oaId;
         const appId = config.appId;
@@ -34,9 +33,9 @@ export class ZaloChannel {
             try {
                 const info = await this.api.getOAInfo();
                 const data = info.data;
-                console.log(`   Zalo:       connected to OA "${data?.name || oaId}"`);
+                console.log(`   Zalo:       connected to OA "${(data === null || data === void 0 ? void 0 : data.name) || oaId}"`);
             }
-            catch {
+            catch (_a) {
                 console.log(`   Zalo:       initialized for OA ${oaId} (could not verify token)`);
             }
         }
@@ -71,9 +70,10 @@ export class ZaloChannel {
      * Process incoming Zalo OA webhook event.
      */
     async handleWebhook(event) {
+        var _a;
         if (!this.running || !this.messageHandler)
             return;
-        if (event.event_name !== 'user_send_text' || !event.message?.text)
+        if (event.event_name !== 'user_send_text' || !((_a = event.message) === null || _a === void 0 ? void 0 : _a.text))
             return;
         const incoming = {
             platform: 'zalo',
@@ -120,4 +120,3 @@ export class ZaloChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=zalo-channel.js.map

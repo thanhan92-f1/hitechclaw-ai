@@ -5,4 +5,3 @@
 export function defineIntegration(definition) {
     return definition;
 }
-//# sourceMappingURL=define-integration.js.map

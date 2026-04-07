@@ -3,10 +3,13 @@ import { randomUUID } from 'node:crypto';
  * In-memory store for development / testing.
  */
 class InMemoryStore {
-    history = new Map();
-    entries = [];
+    constructor() {
+        this.history = new Map();
+        this.entries = [];
+    }
     async getHistory(sessionId, limit = 50) {
-        const msgs = this.history.get(sessionId) ?? [];
+        var _a;
+        const msgs = (_a = this.history.get(sessionId)) !== null && _a !== void 0 ? _a : [];
         return msgs.slice(-limit);
     }
     async addMessage(sessionId, message) {
@@ -19,31 +22,29 @@ class InMemoryStore {
         this.history.delete(sessionId);
     }
     async search(query, options) {
+        var _a;
         const q = query.toLowerCase();
         const results = this.entries.filter((e) => e.content.toLowerCase().includes(q));
-        return results.slice(0, options?.limit ?? 10);
+        return results.slice(0, (_a = options === null || options === void 0 ? void 0 : options.limit) !== null && _a !== void 0 ? _a : 10);
     }
     async store(entry) {
-        const full = {
-            ...entry,
-            id: randomUUID(),
-        };
+        const full = Object.assign(Object.assign({}, entry), { id: randomUUID() });
         this.entries.push(full);
         return full;
     }
 }
 export class MemoryManager {
-    store;
-    historyCache = new Map();
     constructor(store) {
-        this.store = store ?? new InMemoryStore();
+        this.historyCache = new Map();
+        this.store = store !== null && store !== void 0 ? store : new InMemoryStore();
     }
     async getHistory(sessionId, limit) {
         return this.store.getHistory(sessionId, limit);
     }
     /** Sync helper — returns cached history for building LLM messages */
     getHistorySync(sessionId) {
-        return this.historyCache.get(sessionId) ?? [];
+        var _a;
+        return (_a = this.historyCache.get(sessionId)) !== null && _a !== void 0 ? _a : [];
     }
     async loadHistory(sessionId, limit) {
         const history = await this.store.getHistory(sessionId, limit);
@@ -69,4 +70,3 @@ export class MemoryManager {
         return this.store.store(entry);
     }
 }
-//# sourceMappingURL=memory-manager.js.map

@@ -74,20 +74,11 @@ export const tavilySearchIntegration = defineIntegration({
             }),
             riskLevel: 'safe',
             execute: async (args, ctx) => {
+                var _a, _b;
                 const params = args;
                 const apiKey = ctx.credentials.apiKey;
                 try {
-                    const data = await tavilyFetch('search', {
-                        query: params.query,
-                        search_depth: params.search_depth,
-                        max_results: params.max_results,
-                        include_answer: params.include_answer,
-                        include_raw_content: params.include_raw_content,
-                        topic: params.topic,
-                        ...(params.days && { days: params.days }),
-                        ...(params.include_domains?.length && { include_domains: params.include_domains }),
-                        ...(params.exclude_domains?.length && { exclude_domains: params.exclude_domains }),
-                    }, apiKey);
+                    const data = await tavilyFetch('search', Object.assign(Object.assign(Object.assign({ query: params.query, search_depth: params.search_depth, max_results: params.max_results, include_answer: params.include_answer, include_raw_content: params.include_raw_content, topic: params.topic }, (params.days && { days: params.days })), (((_a = params.include_domains) === null || _a === void 0 ? void 0 : _a.length) && { include_domains: params.include_domains })), (((_b = params.exclude_domains) === null || _b === void 0 ? void 0 : _b.length) && { exclude_domains: params.exclude_domains })), apiKey);
                     return {
                         success: true,
                         data: {
@@ -142,10 +133,13 @@ export const tavilySearchIntegration = defineIntegration({
                     const data = (await res.json());
                     return {
                         success: true,
-                        data: data.results.map((r) => ({
-                            url: r.url,
-                            content: r.raw_content?.slice(0, 10000),
-                        })),
+                        data: data.results.map((r) => {
+                            var _a;
+                            return ({
+                                url: r.url,
+                                content: (_a = r.raw_content) === null || _a === void 0 ? void 0 : _a.slice(0, 10000),
+                            });
+                        }),
                     };
                 }
                 catch (err) {
@@ -179,8 +173,7 @@ export async function tavilyWebSearch(query, apiKey, maxResults = 5) {
             snippet: r.content.slice(0, 500),
         }));
     }
-    catch {
+    catch (_a) {
         return [];
     }
 }
-//# sourceMappingURL=tavily-search.js.map

@@ -1,5 +1,7 @@
 export class EventBus {
-    handlers = new Map();
+    constructor() {
+        this.handlers = new Map();
+    }
     on(pattern, handler) {
         if (!this.handlers.has(pattern)) {
             this.handlers.set(pattern, new Set());
@@ -7,7 +9,8 @@ export class EventBus {
         this.handlers.get(pattern).add(handler);
         // Return unsubscribe function
         return () => {
-            this.handlers.get(pattern)?.delete(handler);
+            var _a;
+            (_a = this.handlers.get(pattern)) === null || _a === void 0 ? void 0 : _a.delete(handler);
         };
     }
     async emit(event) {
@@ -44,4 +47,3 @@ export class EventBus {
         return false;
     }
 }
-//# sourceMappingURL=event-bus.js.map

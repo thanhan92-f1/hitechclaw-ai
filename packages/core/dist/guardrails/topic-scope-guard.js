@@ -20,7 +20,9 @@ const DOMAIN_BLOCK_RULES = {
  * Only active when a domain is configured.
  */
 export class TopicScopeGuard {
-    name = 'topic-scope-guard';
+    constructor() {
+        this.name = 'topic-scope-guard';
+    }
     async check(input, context) {
         const start = Date.now();
         // No domain = no restrictions
@@ -46,4 +48,3 @@ export class TopicScopeGuard {
         return { pass: true, guardrailName: this.name, durationMs: Date.now() - start };
     }
 }
-//# sourceMappingURL=topic-scope-guard.js.map

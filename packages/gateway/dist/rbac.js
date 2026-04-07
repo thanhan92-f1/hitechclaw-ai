@@ -176,7 +176,7 @@ export async function hasPermission(userId, resource, action) {
     // Super admins bypass permission checks
     const db = getDB();
     const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-    if (user?.role === 'super_admin')
+    if ((user === null || user === void 0 ? void 0 : user.role) === 'super_admin')
         return true;
     const perms = await getUserPermissions(userId);
     return perms.has(`${resource}:${action}`);
@@ -185,7 +185,7 @@ export async function hasPermission(userId, resource, action) {
 export function requirePermission(resource, action) {
     return async (c, next) => {
         const user = c.get('user');
-        if (!user?.sub) {
+        if (!(user === null || user === void 0 ? void 0 : user.sub)) {
             throw new HTTPException(401, { message: 'Unauthorized' });
         }
         // Super admin bypasses
@@ -206,7 +206,7 @@ export function requirePermission(resource, action) {
 export function requireSuperAdmin() {
     return async (c, next) => {
         const user = c.get('user');
-        if (!user?.sub) {
+        if (!(user === null || user === void 0 ? void 0 : user.sub)) {
             throw new HTTPException(401, { message: 'Unauthorized' });
         }
         if (!user.isSuperAdmin) {
@@ -219,7 +219,7 @@ export function requireSuperAdmin() {
 export function requireRole(...roleNames) {
     return async (c, next) => {
         const user = c.get('user');
-        if (!user?.sub) {
+        if (!(user === null || user === void 0 ? void 0 : user.sub)) {
             throw new HTTPException(401, { message: 'Unauthorized' });
         }
         const db = getDB();
@@ -252,7 +252,7 @@ export function createRBACRoutes() {
                 .from(rolePermissions)
                 .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
                 .where(eq(rolePermissions.roleId, role.id));
-            return { ...role, permissionCount: rpRows.length, permissions: rpRows.map(r => r.id) };
+            return Object.assign(Object.assign({}, role), { permissionCount: rpRows.length, permissions: rpRows.map(r => r.id) });
         }));
         return c.json({ roles: rolesWithPerms });
     });
@@ -461,7 +461,7 @@ export function createRBACRoutes() {
         const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
             .map(b => b.toString(16).padStart(2, '0')).join('');
         const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100_000, hash: 'SHA-256' }, keyMaterial, 256);
+        const derivedBits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
         const hash = Array.from(new Uint8Array(derivedBits)).map(b => b.toString(16).padStart(2, '0')).join('');
         const passwordHash = `${salt}:${hash}`;
         const now = new Date();
@@ -503,7 +503,7 @@ export function createRBACRoutes() {
             }).from(userRoles)
                 .innerJoin(roles, eq(userRoles.roleId, roles.id))
                 .where(eq(userRoles.userId, u.id));
-            return { ...u, roles: userRoleRecords.map(r => r.roleName) };
+            return Object.assign(Object.assign({}, u), { roles: userRoleRecords.map(r => r.roleName) });
         }));
         return c.json({ users: usersWithRoles });
     });
@@ -529,4 +529,3 @@ export function createRBACRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=rbac.js.map

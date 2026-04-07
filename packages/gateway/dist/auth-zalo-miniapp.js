@@ -25,6 +25,7 @@ export function createZaloMiniAppAuthRoutes(ctx) {
     const jwtSecret = new TextEncoder().encode(ctx.config.jwtSecret);
     // POST /auth/zalo-miniapp — Exchange Zalo access token for HiTechClaw JWT
     app.post('/', async (c) => {
+        var _a, _b;
         try {
             const body = await c.req.json();
             const { accessToken, tenantSlug } = body;
@@ -55,7 +56,7 @@ export function createZaloMiniAppAuthRoutes(ctx) {
             }
             // Zalo users don't have email — use zalo_{id}@zalo.miniapp as identifier
             const zaloEmail = `zalo_${profile.id}@zalo.miniapp`;
-            const avatarUrl = profile.picture?.data?.url || null;
+            const avatarUrl = ((_b = (_a = profile.picture) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.url) || null;
             // Check if Zalo OAuth account already linked in this tenant
             const [existingOAuth] = await db.select().from(oauthAccounts)
                 .where(and(eq(oauthAccounts.provider, 'zalo-miniapp'), eq(oauthAccounts.providerAccountId, profile.id), eq(oauthAccounts.tenantId, tenant.id)))
@@ -179,4 +180,3 @@ export function createZaloMiniAppAuthRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=auth-zalo-miniapp.js.map

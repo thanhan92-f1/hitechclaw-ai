@@ -7,32 +7,30 @@ export function createSearchRoutes(ctx) {
     const app = new Hono();
     // POST /api/search — Global search across KB and chat
     app.post('/', async (c) => {
+        var _a, _b, _c;
         const body = await c.req.json();
         if (!body.query) {
             return c.json({ error: 'query is required' }, 400);
         }
-        const sources = body.sources ?? ['knowledge'];
+        const sources = (_a = body.sources) !== null && _a !== void 0 ? _a : ['knowledge'];
         const results = [];
         // Search Knowledge Base
         if (sources.includes('knowledge')) {
             try {
-                const retrieval = await ctx.rag.retrieve(body.query, body.topK ?? 10, body.collectionId);
+                const retrieval = await ctx.rag.retrieve(body.query, (_b = body.topK) !== null && _b !== void 0 ? _b : 10, body.collectionId);
                 if (retrieval.chunks) {
                     for (const r of retrieval.chunks) {
                         results.push({
                             type: 'knowledge',
-                            title: r.chunk.metadata?.title || r.chunk.documentId || 'Document',
+                            title: ((_c = r.chunk.metadata) === null || _c === void 0 ? void 0 : _c.title) || r.chunk.documentId || 'Document',
                             content: r.chunk.content,
                             score: r.score,
-                            metadata: {
-                                documentId: r.chunk.documentId,
-                                ...r.chunk.metadata,
-                            },
+                            metadata: Object.assign({ documentId: r.chunk.documentId }, r.chunk.metadata),
                         });
                     }
                 }
             }
-            catch {
+            catch (_d) {
                 // KB search failure is non-fatal
             }
         }
@@ -46,4 +44,3 @@ export function createSearchRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=search.js.map

@@ -69,103 +69,71 @@ export const POLICY_PERMISSIVE = {
 };
 // ─── Integration-Specific Policies ──────────────────────────
 /** Gmail integration — only allow Google APIs */
-export const POLICY_GMAIL = {
-    ...POLICY_DEFAULT,
-    name: 'gmail',
-    network: {
+export const POLICY_GMAIL = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'gmail', network: {
         rules: [
             { host: '*.googleapis.com', methods: ['GET', 'POST'], allow: true },
             { host: 'oauth2.googleapis.com', methods: ['POST'], allow: true },
             { host: 'accounts.google.com', methods: ['GET', 'POST'], allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** GitHub integration — only allow GitHub API */
-export const POLICY_GITHUB = {
-    ...POLICY_DEFAULT,
-    name: 'github',
-    network: {
+export const POLICY_GITHUB = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'github', network: {
         rules: [
             { host: 'api.github.com', allow: true },
             { host: 'github.com', methods: ['GET'], allow: true },
             { host: 'raw.githubusercontent.com', methods: ['GET'], allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** Slack integration */
-export const POLICY_SLACK = {
-    ...POLICY_DEFAULT,
-    name: 'slack',
-    network: {
+export const POLICY_SLACK = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'slack', network: {
         rules: [
             { host: 'slack.com', allow: true },
             { host: '*.slack.com', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** Notion integration */
-export const POLICY_NOTION = {
-    ...POLICY_DEFAULT,
-    name: 'notion',
-    network: {
+export const POLICY_NOTION = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'notion', network: {
         rules: [
             { host: 'api.notion.com', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** Web search (Tavily/Brave) */
-export const POLICY_WEB_SEARCH = {
-    ...POLICY_DEFAULT,
-    name: 'web-search',
-    network: {
+export const POLICY_WEB_SEARCH = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'web-search', network: {
         rules: [
             { host: 'api.tavily.com', allow: true },
             { host: 'api.search.brave.com', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 // ─── Channel Policies ───────────────────────────────────────
 /** Telegram channel */
-export const POLICY_TELEGRAM = {
-    ...POLICY_DEFAULT,
-    name: 'telegram',
-    network: {
+export const POLICY_TELEGRAM = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'telegram', network: {
         rules: [
             { host: 'api.telegram.org', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** Discord channel */
-export const POLICY_DISCORD = {
-    ...POLICY_DEFAULT,
-    name: 'discord',
-    network: {
+export const POLICY_DISCORD = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'discord', network: {
         rules: [
             { host: 'discord.com', allow: true },
             { host: '*.discord.com', allow: true },
             { host: 'gateway.discord.gg', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 /** Zalo channel */
-export const POLICY_ZALO = {
-    ...POLICY_DEFAULT,
-    name: 'zalo',
-    network: {
+export const POLICY_ZALO = Object.assign(Object.assign({}, POLICY_DEFAULT), { name: 'zalo', network: {
         rules: [
             { host: 'openapi.zalo.me', allow: true },
             { host: 'oauth.zaloapp.com', allow: true },
         ],
         defaultAction: 'deny',
-    },
-};
+    } });
 // ─── Policy Maps ────────────────────────────────────────────
 /** Map of all built-in policies by name */
 export const BUILTIN_POLICIES = {
@@ -202,7 +170,6 @@ export const INTEGRATION_POLICIES = {
 };
 // ─── PolicyBuilder Class ────────────────────────────────────
 export class PolicyBuilder {
-    policy;
     constructor(baseName = 'custom') {
         this.policy = {
             name: baseName,
@@ -248,7 +215,7 @@ export class PolicyBuilder {
     }
     /** Set process policy */
     processPolicy(policy) {
-        this.policy.process = { ...this.policy.process, ...policy };
+        this.policy.process = Object.assign(Object.assign({}, this.policy.process), policy);
         return this;
     }
     /** Set inference routing */
@@ -262,6 +229,7 @@ export class PolicyBuilder {
     }
     /** Convert to OpenShell YAML format string */
     toYAML() {
+        var _a, _b;
         const p = this.policy;
         const lines = [
             `# OpenShell Policy: ${p.name}`,
@@ -283,10 +251,10 @@ export class PolicyBuilder {
         for (const rule of p.network.rules) {
             lines.push(`    - host: "${rule.host}"`);
             lines.push(`      allow: ${rule.allow}`);
-            if (rule.methods?.length) {
+            if ((_a = rule.methods) === null || _a === void 0 ? void 0 : _a.length) {
                 lines.push(`      methods: [${rule.methods.join(', ')}]`);
             }
-            if (rule.pathPatterns?.length) {
+            if ((_b = rule.pathPatterns) === null || _b === void 0 ? void 0 : _b.length) {
                 lines.push(`      paths: [${rule.pathPatterns.map((pp) => `"${pp}"`).join(', ')}]`);
             }
         }
@@ -311,6 +279,7 @@ export class PolicyBuilder {
  * For production, use a proper YAML library.
  */
 export function loadPolicyFromYAML(yaml) {
+    var _a, _b, _c, _d, _e, _f;
     // Simple line-by-line parsing for the structured format
     const policy = {
         name: 'loaded',
@@ -327,10 +296,10 @@ export function loadPolicyFromYAML(yaml) {
         if (!line || line.startsWith('#'))
             continue;
         if (line.startsWith('name:')) {
-            policy.name = line.split(':')[1]?.trim() ?? 'loaded';
+            policy.name = (_b = (_a = line.split(':')[1]) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : 'loaded';
         }
         else if (line.startsWith('version:')) {
-            policy.version = line.split(':')[1]?.trim().replace(/"/g, '') ?? '1.0.0';
+            policy.version = (_d = (_c = line.split(':')[1]) === null || _c === void 0 ? void 0 : _c.trim().replace(/"/g, '')) !== null && _d !== void 0 ? _d : '1.0.0';
         }
         else if (line === 'filesystem:') {
             section = 'filesystem';
@@ -345,10 +314,10 @@ export function loadPolicyFromYAML(yaml) {
             section = 'inference';
         }
         else if (line.startsWith('default:') && section === 'filesystem') {
-            policy.filesystem.defaultAccess = line.split(':')[1]?.trim();
+            policy.filesystem.defaultAccess = (_e = line.split(':')[1]) === null || _e === void 0 ? void 0 : _e.trim();
         }
         else if (line.startsWith('default:') && section === 'network') {
-            policy.network.defaultAction = line.split(':')[1]?.trim();
+            policy.network.defaultAction = (_f = line.split(':')[1]) === null || _f === void 0 ? void 0 : _f.trim();
         }
         else if (line === 'rules:') {
             subsection = 'rules';
@@ -356,4 +325,3 @@ export function loadPolicyFromYAML(yaml) {
     }
     return policy;
 }
-//# sourceMappingURL=policy-builder.js.map

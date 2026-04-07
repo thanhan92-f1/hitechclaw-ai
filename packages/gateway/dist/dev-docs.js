@@ -35,7 +35,7 @@ export function createDevDocsRoutes() {
                 docs = results.map(r => r.doc);
             }
             else {
-                docs = store.listDocs(category ?? undefined);
+                docs = store.listDocs(category !== null && category !== void 0 ? category : undefined);
             }
             const stats = store.getStats();
             return c.json({
@@ -73,6 +73,7 @@ export function createDevDocsRoutes() {
     });
     // ─── CREATE / UPDATE document ───────────────────────────
     app.post('/', async (c) => {
+        var _a, _b;
         try {
             const body = await c.req.json();
             if (!body.path || !body.title || !body.content) {
@@ -85,8 +86,8 @@ export function createDevDocsRoutes() {
             }
             const relPath = normalized.endsWith('.md') ? normalized : `${normalized}.md`;
             // Build content with frontmatter
-            const tags = body.tags ?? [];
-            const version = body.version ?? '1.0.0';
+            const tags = (_a = body.tags) !== null && _a !== void 0 ? _a : [];
+            const version = (_b = body.version) !== null && _b !== void 0 ? _b : '1.0.0';
             const fullContent = [
                 '---',
                 `tags: [${tags.join(', ')}]`,
@@ -106,6 +107,7 @@ export function createDevDocsRoutes() {
     });
     // ─── UPDATE document content ────────────────────────────
     app.put('/doc/:id{.+}', async (c) => {
+        var _a, _b, _c;
         try {
             store.loadAll();
             const id = c.req.param('id');
@@ -116,10 +118,10 @@ export function createDevDocsRoutes() {
             if (!body.content) {
                 return c.json({ error: 'content is required' }, 400);
             }
-            const tags = body.tags ?? existing.tags;
-            const title = body.title ?? existing.title;
+            const tags = (_a = body.tags) !== null && _a !== void 0 ? _a : existing.tags;
+            const title = (_b = body.title) !== null && _b !== void 0 ? _b : existing.title;
             // Bump version based on bump type (default: patch)
-            const bumpType = body.versionBump ?? 'patch';
+            const bumpType = (_c = body.versionBump) !== null && _c !== void 0 ? _c : 'patch';
             const oldVersion = existing.version;
             const parts = oldVersion.split('.').map(Number);
             let newVersion;
@@ -203,12 +205,13 @@ export function createDevDocsRoutes() {
     });
     // ─── SEARCH documents ───────────────────────────────────
     app.post('/search', async (c) => {
+        var _a;
         try {
             store.loadAll();
             const body = await c.req.json();
             if (!body.query)
                 return c.json({ error: 'query is required' }, 400);
-            const results = store.search(body.query, body.limit ?? 10);
+            const results = store.search(body.query, (_a = body.limit) !== null && _a !== void 0 ? _a : 10);
             return c.json({
                 ok: true,
                 results: results.map(r => ({
@@ -238,4 +241,3 @@ export function createDevDocsRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=dev-docs.js.map

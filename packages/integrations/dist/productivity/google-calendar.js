@@ -14,7 +14,7 @@ async function gcalRequest(method, path, accessToken, body, params) {
             'Content-Type': 'application/json',
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -92,6 +92,7 @@ export const googleCalendarIntegration = defineIntegration({
             riskLevel: 'moderate',
             requiresApproval: true,
             execute: async (args, ctx) => {
+                var _a;
                 const accessToken = ctx.credentials.access_token;
                 if (!accessToken)
                     return { success: false, error: 'Google Calendar access token not configured' };
@@ -105,7 +106,7 @@ export const googleCalendarIntegration = defineIntegration({
                         body.description = args.description;
                     if (args.location)
                         body.location = args.location;
-                    if (args.attendees?.length)
+                    if ((_a = args.attendees) === null || _a === void 0 ? void 0 : _a.length)
                         body.attendees = args.attendees.map((email) => ({ email }));
                     const data = await gcalRequest('POST', `/calendars/${encodeURIComponent(args.calendarId)}/events`, accessToken, body);
                     return { success: true, data };
@@ -148,8 +149,9 @@ export const googleCalendarIntegration = defineIntegration({
                 start: z.string(),
                 minutesUntilStart: z.number(),
             }),
-            pollInterval: 60_000,
+            pollInterval: 60000,
             poll: async (lastPollTime, credentials) => {
+                var _a;
                 const accessToken = credentials.access_token;
                 if (!accessToken)
                     return [];
@@ -164,24 +166,26 @@ export const googleCalendarIntegration = defineIntegration({
                         timeMax: new Date(now.getTime() + lookAheadMs).toISOString(),
                     };
                     const data = await gcalRequest('GET', '/calendars/primary/events', accessToken, undefined, params);
-                    const items = data.items ?? [];
-                    return items.map(event => ({
-                        integrationId: 'google-calendar',
-                        triggerName: 'event_starting_soon',
-                        data: {
-                            eventId: event.id,
-                            summary: event.summary ?? '(No title)',
-                            start: (event.start?.dateTime ?? event.start?.date) ?? '',
-                            minutesUntilStart: Math.round((new Date((event.start?.dateTime ?? '') || now.toISOString()).getTime() - now.getTime()) / 60000),
-                        },
-                        timestamp: new Date(),
-                    }));
+                    const items = (_a = data.items) !== null && _a !== void 0 ? _a : [];
+                    return items.map(event => {
+                        var _a, _b, _c, _d, _e, _f, _g;
+                        return ({
+                            integrationId: 'google-calendar',
+                            triggerName: 'event_starting_soon',
+                            data: {
+                                eventId: event.id,
+                                summary: (_a = event.summary) !== null && _a !== void 0 ? _a : '(No title)',
+                                start: (_e = ((_c = (_b = event.start) === null || _b === void 0 ? void 0 : _b.dateTime) !== null && _c !== void 0 ? _c : (_d = event.start) === null || _d === void 0 ? void 0 : _d.date)) !== null && _e !== void 0 ? _e : '',
+                                minutesUntilStart: Math.round((new Date(((_g = (_f = event.start) === null || _f === void 0 ? void 0 : _f.dateTime) !== null && _g !== void 0 ? _g : '') || now.toISOString()).getTime() - now.getTime()) / 60000),
+                            },
+                            timestamp: new Date(),
+                        });
+                    });
                 }
-                catch {
+                catch (_b) {
                     return [];
                 }
             },
         },
     ],
 });
-//# sourceMappingURL=google-calendar.js.map

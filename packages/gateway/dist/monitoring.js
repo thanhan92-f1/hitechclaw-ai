@@ -153,4 +153,3 @@ export function createMonitoringRoutes(monitoring) {
     });
     return app;
 }
-//# sourceMappingURL=monitoring.js.map

@@ -265,8 +265,9 @@ export function createMedicalRoutes(ctx) {
     const app = new Hono();
     // POST /api/medical/drug-interaction — Check drug interactions
     app.post('/drug-interaction', async (c) => {
+        var _a;
         const body = await c.req.json();
-        if (!body.drugs?.length || body.drugs.length < 2) {
+        if (!((_a = body.drugs) === null || _a === void 0 ? void 0 : _a.length) || body.drugs.length < 2) {
             return c.json({ error: 'At least 2 drugs are required' }, 400);
         }
         const drugClasses = body.drugs.map((d) => getDrugClass(d));
@@ -300,7 +301,7 @@ export function createMedicalRoutes(ctx) {
             const prompt = `As a pharmacist, briefly analyze potential interactions between these medications: ${body.drugs.join(', ')}. Be concise (3-5 sentences). Focus on clinically significant interactions.`;
             aiAnalysis = await ctx.agent.chat(`medical-${Date.now()}`, prompt);
         }
-        catch {
+        catch (_b) {
             // AI analysis is optional
         }
         return c.json({
@@ -372,7 +373,7 @@ Format as a proper SOAP note with Subjective, Objective, Assessment, and Plan se
         }
         // Sort by severity
         const severityOrder = { emergency: 0, urgent: 1, warning: 2 };
-        alerts.sort((a, b) => (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3));
+        alerts.sort((a, b) => { var _a, _b; return ((_a = severityOrder[a.severity]) !== null && _a !== void 0 ? _a : 3) - ((_b = severityOrder[b.severity]) !== null && _b !== void 0 ? _b : 3); });
         return c.json({
             text: body.text.slice(0, 200) + (body.text.length > 200 ? '...' : ''),
             alerts,
@@ -417,4 +418,3 @@ Format as a proper SOAP note with Subjective, Objective, Assessment, and Plan se
     });
     return app;
 }
-//# sourceMappingURL=medical.js.map

@@ -7,14 +7,13 @@ import { WhatsAppApi } from './whatsapp-api.js';
  * and responses are sent via the Cloud API.
  */
 export class WhatsAppChannel {
-    id = 'whatsapp-channel';
-    platform = 'whatsapp';
-    name = 'WhatsApp Channel';
-    version = '2.0.0';
-    api;
-    config;
-    messageHandler;
-    running = false;
+    constructor() {
+        this.id = 'whatsapp-channel';
+        this.platform = 'whatsapp';
+        this.name = 'WhatsApp Channel';
+        this.version = '2.0.0';
+        this.running = false;
+    }
     async initialize(config) {
         const phoneNumberId = config.phoneNumberId;
         const accessToken = config.accessToken;
@@ -58,6 +57,7 @@ export class WhatsAppChannel {
      * Process incoming WhatsApp webhook payload.
      */
     async handleWebhook(payload) {
+        var _a;
         if (!this.running || !this.messageHandler)
             return;
         for (const entry of payload.entry) {
@@ -66,7 +66,7 @@ export class WhatsAppChannel {
                 if (!messages)
                     continue;
                 for (const msg of messages) {
-                    if (msg.type !== 'text' || !msg.text?.body)
+                    if (msg.type !== 'text' || !((_a = msg.text) === null || _a === void 0 ? void 0 : _a.body))
                         continue;
                     // Mark as read
                     this.api.markAsRead(msg.id).catch(() => { });
@@ -116,4 +116,3 @@ export class WhatsAppChannel {
         return chunks;
     }
 }
-//# sourceMappingURL=whatsapp-channel.js.map

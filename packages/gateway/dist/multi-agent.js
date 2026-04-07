@@ -19,6 +19,7 @@ export function createMultiAgentRoutes(orchestrator) {
     });
     // Execute a multi-agent task
     app.post('/execute', async (c) => {
+        var _a;
         try {
             const body = await c.req.json();
             if (!body.input) {
@@ -28,7 +29,7 @@ export function createMultiAgentRoutes(orchestrator) {
                 id: randomUUID(),
                 description: body.input.slice(0, 100),
                 input: body.input,
-                orchestrationMode: body.mode ?? 'parallel',
+                orchestrationMode: (_a = body.mode) !== null && _a !== void 0 ? _a : 'parallel',
                 requiredAgentIds: body.agentIds,
                 maxRounds: body.maxRounds,
                 supervisorAgentId: body.supervisorAgentId,
@@ -42,4 +43,3 @@ export function createMultiAgentRoutes(orchestrator) {
     });
     return app;
 }
-//# sourceMappingURL=multi-agent.js.map

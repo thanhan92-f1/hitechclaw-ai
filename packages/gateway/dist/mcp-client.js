@@ -25,20 +25,15 @@ function schemaToParams(inputSchema) {
     const required = (inputSchema.required || []);
     const params = [];
     for (const [name, schema] of Object.entries(props)) {
-        params.push({
-            name,
-            type: jsonSchemaTypeToParam(schema.type),
-            description: schema.description || '',
-            required: required.includes(name),
-            ...(schema.enum ? { enum: schema.enum } : {}),
-            ...(schema.default !== undefined ? { default: schema.default } : {}),
-        });
+        params.push(Object.assign(Object.assign({ name, type: jsonSchemaTypeToParam(schema.type), description: schema.description || '', required: required.includes(name) }, (schema.enum ? { enum: schema.enum } : {})), (schema.default !== undefined ? { default: schema.default } : {})));
     }
     return params;
 }
 export class MCPClientManager {
-    connections = new Map();
-    toolRegistry = null;
+    constructor() {
+        this.connections = new Map();
+        this.toolRegistry = null;
+    }
     setToolRegistry(registry) {
         this.toolRegistry = registry;
     }
@@ -149,7 +144,7 @@ export class MCPClientManager {
         try {
             await conn.client.close();
         }
-        catch {
+        catch (_a) {
             // Ignore close errors
         }
         this.connections.delete(serverId);
@@ -178,4 +173,3 @@ export class MCPClientManager {
         }
     }
 }
-//# sourceMappingURL=mcp-client.js.map

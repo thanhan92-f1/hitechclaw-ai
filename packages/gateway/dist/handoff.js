@@ -29,7 +29,7 @@ export function createHandoffRoutes() {
             const result = await escalationRulesCollection().insertOne({
                 tenantId,
                 type,
-                enabled: enabled ?? true,
+                enabled: enabled !== null && enabled !== void 0 ? enabled : true,
                 config: config || {},
                 createdAt: now,
                 updatedAt: now,
@@ -46,7 +46,7 @@ export function createHandoffRoutes() {
             const ruleId = c.req.param('ruleId');
             const updates = await c.req.json();
             const { ObjectId: ObjId } = await import('mongodb');
-            await escalationRulesCollection().updateOne({ _id: new ObjId(ruleId), tenantId }, { $set: { ...updates, updatedAt: new Date() } });
+            await escalationRulesCollection().updateOne({ _id: new ObjId(ruleId), tenantId }, { $set: Object.assign(Object.assign({}, updates), { updatedAt: new Date() }) });
             return c.json({ ok: true });
         }
         catch (err) {
@@ -245,8 +245,7 @@ export async function checkEscalationTriggers(tenantId, message, sessionId, user
         }
         return { shouldEscalate: false };
     }
-    catch {
+    catch (_a) {
         return { shouldEscalate: false };
     }
 }
-//# sourceMappingURL=handoff.js.map

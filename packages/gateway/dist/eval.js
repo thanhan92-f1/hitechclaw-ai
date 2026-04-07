@@ -4,9 +4,10 @@ export function createEvalRoutes(evalFramework, agentManager, defaultAgent) {
     const app = new Hono();
     // Run evaluation suite
     app.post('/run', async (c) => {
+        var _a;
         try {
             const body = await c.req.json();
-            if (!body.testCases?.length) {
+            if (!((_a = body.testCases) === null || _a === void 0 ? void 0 : _a.length)) {
                 return c.json({ error: 'testCases array is required' }, 400);
             }
             // Resolve agent
@@ -14,15 +15,12 @@ export function createEvalRoutes(evalFramework, agentManager, defaultAgent) {
             if (body.agentConfigId && agentManager) {
                 agent = await agentManager.getAgent(body.agentConfigId);
             }
-            agent = agent ?? defaultAgent;
+            agent = agent !== null && agent !== void 0 ? agent : defaultAgent;
             if (!agent) {
                 return c.json({ error: 'No agent available' }, 400);
             }
             // Ensure test case IDs
-            const testCases = body.testCases.map((tc) => ({
-                ...tc,
-                id: tc.id || randomUUID(),
-            }));
+            const testCases = body.testCases.map((tc) => (Object.assign(Object.assign({}, tc), { id: tc.id || randomUUID() })));
             const result = await evalFramework.runSuite(body.suiteName || 'default', agent, testCases);
             return c.json({ ok: true, result });
         }
@@ -41,7 +39,7 @@ export function createEvalRoutes(evalFramework, agentManager, defaultAgent) {
             if (body.agentConfigId && agentManager) {
                 agent = await agentManager.getAgent(body.agentConfigId);
             }
-            agent = agent ?? defaultAgent;
+            agent = agent !== null && agent !== void 0 ? agent : defaultAgent;
             if (!agent) {
                 return c.json({ error: 'No agent available' }, 400);
             }
@@ -59,4 +57,3 @@ export function createEvalRoutes(evalFramework, agentManager, defaultAgent) {
     });
     return app;
 }
-//# sourceMappingURL=eval.js.map

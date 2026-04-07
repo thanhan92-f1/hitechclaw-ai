@@ -22,12 +22,13 @@ export function createHealthRoutes() {
             await mongo.command({ ping: 1 });
             return c.json({ status: 'ok' });
         }
-        catch {
+        catch (_a) {
             return c.json({ status: 'unhealthy' }, 503);
         }
     });
     // Deep health — detailed dependency status
     app.get('/health/deep', async (c) => {
+        var _a, _b, _c;
         const checks = {};
         let overall = 'ok';
         // PostgreSQL
@@ -53,8 +54,8 @@ export function createHealthRoutes() {
             overall = 'unhealthy';
         }
         // LLM Provider (Ollama / external)
-        const llmProvider = process.env.LLM_PROVIDER ?? 'ollama';
-        const llmBaseUrl = process.env.LLM_BASE_URL ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+        const llmProvider = (_a = process.env.LLM_PROVIDER) !== null && _a !== void 0 ? _a : 'ollama';
+        const llmBaseUrl = (_c = (_b = process.env.LLM_BASE_URL) !== null && _b !== void 0 ? _b : process.env.OLLAMA_BASE_URL) !== null && _c !== void 0 ? _c : 'http://localhost:11434';
         try {
             const start = performance.now();
             const controller = new AbortController();
@@ -112,4 +113,3 @@ export function createHealthRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=health.js.map

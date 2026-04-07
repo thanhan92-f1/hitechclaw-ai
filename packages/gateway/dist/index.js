@@ -21,4 +21,3 @@ export { TenantService, createTenantRoutes, getTenantLanguageInstruction, tenant
 export { createVoiceRoutes } from './voice.js';
 export { createWidgetRoutes } from './widget.js';
 export { startWorkflowScheduler, stopWorkflowScheduler } from './workflow-scheduler.js';
-//# sourceMappingURL=index.js.map

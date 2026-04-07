@@ -1,6 +1,35 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
+        "noEmit": false,
+        "allowJs": false,
+        "baseUrl": "../..",
+        "paths": {
+            "@hitechclaw/shared": [
+                "./packages/shared/dist/index.d.ts"
+            ],
+            "@hitechclaw/core": [
+                "./packages/core/dist/index.d.ts"
+            ],
+            "@hitechclaw/db": [
+                "./packages/db/dist/index.d.ts"
+            ],
+            "@hitechclaw/doc-mcp": [
+                "./packages/doc-mcp/dist/index.d.ts"
+            ],
+            "@hitechclaw/domains": [
+                "./packages/domains/dist/index.d.ts"
+            ],
+            "@hitechclaw/integrations": [
+                "./packages/integrations/dist/index.d.ts"
+            ],
+            "@hitechclaw/ml": [
+                "./packages/ml/dist/index.d.ts"
+            ],
+            "@hitechclaw/sandbox": [
+                "./packages/sandbox/dist/index.d.ts"
+            ]
+        },
         "outDir": "./dist",
         "rootDir": "./src"
     },

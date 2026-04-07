@@ -14,7 +14,7 @@ export const AGENT_MEMORY_FILENAME = 'MEMORY.md';
 /** Max lines to load from MEMORY.md (prevents unbounded context growth) */
 export const MAX_MEMORY_LINES = 200;
 /** Max bytes to load from MEMORY.md */
-export const MAX_MEMORY_BYTES = 25_000;
+export const MAX_MEMORY_BYTES = 25000;
 /**
  * Sanitize an agent type name for use as a safe directory name.
  * Replaces colons (plugin-namespaced types like "my-plugin:my-agent") with dashes.
@@ -37,7 +37,7 @@ export function resolveAgentMemoryPath(agentType, scope, projectRoot) {
         return join(homedir(), '.hitechclaw', 'agent-memory', safeName, AGENT_MEMORY_FILENAME);
     }
     if (scope === 'project') {
-        const base = projectRoot ?? process.cwd();
+        const base = projectRoot !== null && projectRoot !== void 0 ? projectRoot : process.cwd();
         return join(base, '.hitechclaw', 'agent-memory', safeName, AGENT_MEMORY_FILENAME);
     }
     // session scope — in-memory only, this path is never written to disk
@@ -79,11 +79,9 @@ export function truncateMemoryContent(raw) {
  *   await mem.append('- Learned: user prefers TypeScript');
  */
 export class AgentFileMemory {
-    filePath;
-    scope;
-    /** In-memory store for session scope */
-    sessionContent = '';
     constructor(agentType, scope = 'project', projectRoot) {
+        /** In-memory store for session scope */
+        this.sessionContent = '';
         this.scope = scope;
         this.filePath = resolveAgentMemoryPath(agentType, scope, projectRoot);
     }
@@ -157,4 +155,3 @@ export class AgentFileMemory {
         await this.save('');
     }
 }
-//# sourceMappingURL=agent-file-memory.js.map

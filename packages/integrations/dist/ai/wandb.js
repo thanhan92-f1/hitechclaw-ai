@@ -15,7 +15,7 @@ async function wandbRequest(method, path, apiKey, body, params) {
             'Content-Type': 'application/json',
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
         const err = await res.text();
@@ -63,6 +63,7 @@ export const wandbIntegration = defineIntegration({
             }),
             riskLevel: 'moderate',
             execute: async (args, ctx) => {
+                var _a;
                 const apiKey = ctx.credentials.apiKey;
                 const entity = ctx.credentials.entity;
                 if (!apiKey)
@@ -79,7 +80,7 @@ export const wandbIntegration = defineIntegration({
                     if (args.tags)
                         runBody.tags = args.tags;
                     const run = await wandbRequest('POST', `/${entity}/${args.project}/runs`, apiKey, runBody);
-                    const runId = (run.name ?? run.id);
+                    const runId = ((_a = run.name) !== null && _a !== void 0 ? _a : run.id);
                     await wandbRequest('PUT', `/${entity}/${args.project}/runs/${runId}/summary`, apiKey, { summary: args.metrics });
                     return { success: true, data: { runId, url: `https://wandb.ai/${entity}/${args.project}/runs/${runId}` } };
                 }
@@ -99,6 +100,7 @@ export const wandbIntegration = defineIntegration({
             }),
             riskLevel: 'safe',
             execute: async (args, ctx) => {
+                var _a;
                 const apiKey = ctx.credentials.apiKey;
                 const entity = ctx.credentials.entity;
                 if (!apiKey)
@@ -106,7 +108,7 @@ export const wandbIntegration = defineIntegration({
                 if (!entity)
                     return { success: false, error: 'W&B entity not configured' };
                 try {
-                    const params = { perPage: String(args.perPage), order: args.order ?? '-created_at' };
+                    const params = { perPage: String(args.perPage), order: (_a = args.order) !== null && _a !== void 0 ? _a : '-created_at' };
                     if (args.filters)
                         params.filters = JSON.stringify(args.filters);
                     const data = await wandbRequest('GET', `/${entity}/${args.project}/runs`, apiKey, undefined, params);
@@ -187,6 +189,7 @@ export const wandbIntegration = defineIntegration({
             }),
             riskLevel: 'moderate',
             execute: async (args, ctx) => {
+                var _a;
                 const apiKey = ctx.credentials.apiKey;
                 const entity = ctx.credentials.entity;
                 if (!apiKey)
@@ -203,7 +206,7 @@ export const wandbIntegration = defineIntegration({
                             entityName: entity,
                             projectName: args.project,
                             name: args.title,
-                            description: args.description ?? '',
+                            description: (_a = args.description) !== null && _a !== void 0 ? _a : '',
                             type: 'runs',
                         },
                     };
@@ -214,7 +217,7 @@ export const wandbIntegration = defineIntegration({
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({ query, variables }),
-                        signal: AbortSignal.timeout(15_000),
+                        signal: AbortSignal.timeout(15000),
                     });
                     const data = await res.json();
                     return { success: true, data };
@@ -226,4 +229,3 @@ export const wandbIntegration = defineIntegration({
         },
     ],
 });
-//# sourceMappingURL=wandb.js.map

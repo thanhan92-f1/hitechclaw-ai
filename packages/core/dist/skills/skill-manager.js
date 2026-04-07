@@ -2,9 +2,11 @@ export function defineSkill(skill) {
     return skill;
 }
 export class SkillManager {
-    skills = new Map();
-    activeSkills = new Set();
-    selector = null;
+    constructor() {
+        this.skills = new Map();
+        this.activeSkills = new Set();
+        this.selector = null;
+    }
     /** Attach a bandit/RL selector for intelligent skill ranking */
     setSelector(selector) {
         this.selector = selector;
@@ -17,8 +19,9 @@ export class SkillManager {
         return this.selector;
     }
     register(skill) {
+        var _a;
         this.skills.set(skill.manifest.name, skill);
-        this.selector?.addArm(skill.manifest.name);
+        (_a = this.selector) === null || _a === void 0 ? void 0 : _a.addArm(skill.manifest.name);
     }
     async activate(name) {
         const skill = this.skills.get(name);
@@ -86,7 +89,7 @@ export class SkillManager {
             const skill = this.skills.get(name);
             if (skill) {
                 for (const tool of skill.tools) {
-                    tools.push({ ...tool, skillName: name });
+                    tools.push(Object.assign(Object.assign({}, tool), { skillName: name }));
                 }
             }
         }
@@ -94,7 +97,8 @@ export class SkillManager {
     }
     /** Send a reward signal for a skill (from user feedback or tool success) */
     rewardSkill(skillName, reward, source = 'tool-success') {
-        this.selector?.reward({
+        var _a;
+        (_a = this.selector) === null || _a === void 0 ? void 0 : _a.reward({
             armId: skillName,
             reward,
             source,
@@ -111,4 +115,3 @@ export class SkillManager {
         return this.activeSkills.has(name);
     }
 }
-//# sourceMappingURL=skill-manager.js.map

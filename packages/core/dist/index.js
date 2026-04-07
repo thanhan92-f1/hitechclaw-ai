@@ -57,4 +57,3 @@ export { PluginManager } from './plugins/plugin-manager.js';
 export { IMAGE_MODELS, ImageGenService } from './image/image-gen.js';
 // Evaluation
 export { EvalFramework } from './evaluation/eval-framework.js';
-//# sourceMappingURL=index.js.map

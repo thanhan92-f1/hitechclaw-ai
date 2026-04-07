@@ -3,13 +3,14 @@ import { Hono } from 'hono';
 export function createChannelWebhookRoutes(ctx) {
     const app = new Hono();
     app.get('/:connectionId', async (c) => {
+        var _a, _b;
         try {
             const connectionId = c.req.param('connectionId');
             const conn = await channelConnectionsCollection().findOne({ _id: connectionId, status: 'active' });
             if (!conn)
                 return c.text('Channel not found', 404);
-            const instance = ctx.channelManager?.getInstance?.(connectionId);
-            if (!instance?.verifyWebhook)
+            const instance = (_b = (_a = ctx.channelManager) === null || _a === void 0 ? void 0 : _a.getInstance) === null || _b === void 0 ? void 0 : _b.call(_a, connectionId);
+            if (!(instance === null || instance === void 0 ? void 0 : instance.verifyWebhook))
                 return c.text('Webhook verification not supported', 400);
             const mode = c.req.query('hub.mode') || c.req.query('mode') || '';
             const token = c.req.query('hub.verify_token') || c.req.query('verify_token') || '';
@@ -24,13 +25,14 @@ export function createChannelWebhookRoutes(ctx) {
         }
     });
     app.post('/:connectionId', async (c) => {
+        var _a, _b;
         try {
             const connectionId = c.req.param('connectionId');
             const conn = await channelConnectionsCollection().findOne({ _id: connectionId, status: 'active' });
             if (!conn)
                 return c.json({ error: 'Channel not found' }, 404);
-            const instance = ctx.channelManager?.getInstance?.(connectionId);
-            if (!instance?.handleWebhook) {
+            const instance = (_b = (_a = ctx.channelManager) === null || _a === void 0 ? void 0 : _a.getInstance) === null || _b === void 0 ? void 0 : _b.call(_a, connectionId);
+            if (!(instance === null || instance === void 0 ? void 0 : instance.handleWebhook)) {
                 return c.json({ error: 'Webhook handling not supported for this channel' }, 400);
             }
             const payload = await c.req.json();
@@ -43,4 +45,3 @@ export function createChannelWebhookRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=channel-webhooks.js.map

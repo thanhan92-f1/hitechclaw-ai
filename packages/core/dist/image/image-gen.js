@@ -39,7 +39,6 @@ export const IMAGE_MODELS = {
 };
 // ─── Image Generation Service ───────────────────────────────
 export class ImageGenService {
-    config;
     constructor(config) {
         this.config = config;
     }
@@ -69,6 +68,7 @@ export class ImageGenService {
     }
     // ─── Gemini (Google Imagen) ──────────────────────────────
     async generateGemini(req, count, start) {
+        var _a;
         const apiKey = this.config.apiKey;
         if (!apiKey)
             throw new Error('GEMINI_API_KEY is required');
@@ -78,12 +78,7 @@ export class ImageGenService {
         // Gemini Imagen API: POST /models/{model}:predict
         const body = {
             instances: [{ prompt: req.prompt }],
-            parameters: {
-                sampleCount: Math.min(count, 4), // Imagen supports up to 4 per request
-                aspectRatio: this.getAspectRatio(req.width || 1024, req.height || 1024),
-                ...(req.negativePrompt && { negativePrompt: req.negativePrompt }),
-                ...(req.seed !== undefined && { seed: req.seed }),
-            },
+            parameters: Object.assign(Object.assign({ sampleCount: Math.min(count, 4), aspectRatio: this.getAspectRatio(req.width || 1024, req.height || 1024) }, (req.negativePrompt && { negativePrompt: req.negativePrompt })), (req.seed !== undefined && { seed: req.seed })),
         };
         const res = await fetch(`${baseUrl}/models/${model}:predict?key=${apiKey}`, {
             method: 'POST',
@@ -95,7 +90,7 @@ export class ImageGenService {
             throw new Error(`Gemini Imagen API error: ${res.status} ${errText}`);
         }
         const data = await res.json();
-        if (!data.predictions?.length)
+        if (!((_a = data.predictions) === null || _a === void 0 ? void 0 : _a.length))
             throw new Error('Gemini Imagen: no images returned');
         for (let i = 0; i < data.predictions.length && i < count; i++) {
             const pred = data.predictions[i];
@@ -134,15 +129,7 @@ export class ImageGenService {
         const images = [];
         for (let i = 0; i < count; i++) {
             const body = {
-                input: {
-                    prompt: req.prompt,
-                    width: req.width || 1024,
-                    height: req.height || 1024,
-                    num_inference_steps: req.steps || 4,
-                    guidance_scale: req.guidanceScale || 7.5,
-                    ...(req.negativePrompt && { negative_prompt: req.negativePrompt }),
-                    ...(req.seed !== undefined && { seed: req.seed + i }),
-                },
+                input: Object.assign(Object.assign({ prompt: req.prompt, width: req.width || 1024, height: req.height || 1024, num_inference_steps: req.steps || 4, guidance_scale: req.guidanceScale || 7.5 }, (req.negativePrompt && { negative_prompt: req.negativePrompt })), (req.seed !== undefined && { seed: req.seed + i })),
             };
             // Create prediction
             const createRes = await fetch(`https://api.replicate.com/v1/models/${model}/predictions`, {
@@ -180,17 +167,7 @@ export class ImageGenService {
             throw new Error('TOGETHER_API_KEY is required');
         const model = req.model || this.config.defaultModel || 'black-forest-labs/FLUX.1-schnell-Free';
         const baseUrl = this.config.baseUrl || 'https://api.together.xyz/v1';
-        const body = {
-            model,
-            prompt: req.prompt,
-            width: req.width || 1024,
-            height: req.height || 1024,
-            steps: req.steps || 4,
-            n: count,
-            response_format: 'b64_json',
-            ...(req.negativePrompt && { negative_prompt: req.negativePrompt }),
-            ...(req.seed !== undefined && { seed: req.seed }),
-        };
+        const body = Object.assign(Object.assign({ model, prompt: req.prompt, width: req.width || 1024, height: req.height || 1024, steps: req.steps || 4, n: count, response_format: 'b64_json' }, (req.negativePrompt && { negative_prompt: req.negativePrompt })), (req.seed !== undefined && { seed: req.seed }));
         const res = await fetch(`${baseUrl}/images/generations`, {
             method: 'POST',
             headers: {
@@ -252,6 +229,7 @@ export class ImageGenService {
         };
     }
     async pollComfyResult(baseUrl, promptId, maxWait = 120000) {
+        var _a;
         const deadline = Date.now() + maxWait;
         while (Date.now() < deadline) {
             await new Promise((r) => setTimeout(r, 1000));
@@ -260,10 +238,10 @@ export class ImageGenService {
                 continue;
             const history = await historyRes.json();
             const entry = history[promptId];
-            if (!entry?.outputs)
+            if (!(entry === null || entry === void 0 ? void 0 : entry.outputs))
                 continue;
             for (const nodeOutput of Object.values(entry.outputs)) {
-                if (nodeOutput.images?.length) {
+                if ((_a = nodeOutput.images) === null || _a === void 0 ? void 0 : _a.length) {
                     const img = nodeOutput.images[0];
                     // Fetch image as base64
                     const imgRes = await fetch(`${baseUrl}/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || '')}`);
@@ -320,4 +298,3 @@ export class ImageGenService {
         return { images, model: 'placeholder', provider: 'placeholder', durationMs: Date.now() - start };
     }
 }
-//# sourceMappingURL=image-gen.js.map

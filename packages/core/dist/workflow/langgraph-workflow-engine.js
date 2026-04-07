@@ -9,6 +9,26 @@
 // - Built-in cycle & recursion limits
 // - Stream-able execution events
 // ============================================================
+var __await = (this && this.__await) || function (v) { return this instanceof __await ? (this.v = v, this) : new __await(v); }
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
+var __asyncGenerator = (this && this.__asyncGenerator) || function (thisArg, _arguments, generator) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var g = generator.apply(thisArg, _arguments || []), i, q = [];
+    return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function () { return this; }, i;
+    function awaitReturn(f) { return function (v) { return Promise.resolve(v).then(f, reject); }; }
+    function verb(n, f) { if (g[n]) { i[n] = function (v) { return new Promise(function (a, b) { q.push([n, v, a, b]) > 1 || resume(n, v); }); }; if (f) i[n] = f(i[n]); } }
+    function resume(n, v) { try { step(g[n](v)); } catch (e) { settle(q[0][3], e); } }
+    function step(r) { r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r); }
+    function fulfill(value) { resume("next", value); }
+    function reject(value) { resume("throw", value); }
+    function settle(f, v) { if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]); }
+};
 import { Annotation, END, MemorySaver, START, StateGraph, } from '@langchain/langgraph';
 import { randomUUID } from 'node:crypto';
 import vm from 'node:vm';
@@ -23,7 +43,7 @@ const WorkflowState = Annotation.Root({
     }),
     /** Per-node execution results */
     nodeResults: Annotation({
-        reducer: (prev, next) => ({ ...prev, ...next }),
+        reducer: (prev, next) => (Object.assign(Object.assign({}, prev), next)),
         default: () => ({}),
     }),
     /** Current execution status */
@@ -49,16 +69,12 @@ const WorkflowState = Annotation.Root({
 });
 // ─── LangGraph Workflow Engine ──────────────────────────────
 export class LangGraphWorkflowEngine {
-    toolRegistry;
-    llmRouter;
-    eventBus;
-    nodeHandlers = new Map();
-    sandboxConfig;
-    checkpointer = new MemorySaver();
     constructor(toolRegistry, llmRouter, eventBus) {
         this.toolRegistry = toolRegistry;
         this.llmRouter = llmRouter;
         this.eventBus = eventBus;
+        this.nodeHandlers = new Map();
+        this.checkpointer = new MemorySaver();
         this.registerBuiltinHandlers();
     }
     setSandboxConfig(config) {
@@ -83,11 +99,8 @@ export class LangGraphWorkflowEngine {
         try {
             const graph = this.compileGraph(workflow);
             // Build initial variables from workflow variable defaults + trigger data
-            const initialVars = {
-                ...Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : [])
-                    .map(v => [v.name, v.defaultValue])),
-                _trigger: triggerData ?? {},
-            };
+            const initialVars = Object.assign(Object.assign({}, Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : [])
+                .map(v => [v.name, v.defaultValue]))), { _trigger: triggerData !== null && triggerData !== void 0 ? triggerData : {} });
             // Pre-compute merge node expected counts
             const mergeArrived = {};
             const mergeInputs = {};
@@ -149,41 +162,54 @@ export class LangGraphWorkflowEngine {
         }
     }
     // ─── Stream Execute (LangGraph bonus) ───────────────────
-    async *executeStream(workflow, triggerData) {
-        const executionId = randomUUID();
-        const graph = this.compileGraph(workflow);
-        const initialVars = {
-            ...Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : [])
-                .map(v => [v.name, v.defaultValue])),
-            _trigger: triggerData ?? {},
-        };
-        const mergeArrived = {};
-        const mergeInputs = {};
-        for (const node of workflow.nodes) {
-            if (node.type === 'merge') {
-                mergeArrived[node.id] = workflow.edges.filter(e => e.target === node.id).length;
-                mergeInputs[node.id] = [];
+    executeStream(workflow, triggerData) {
+        return __asyncGenerator(this, arguments, function* executeStream_1() {
+            var _a, e_1, _b, _c;
+            const executionId = randomUUID();
+            const graph = this.compileGraph(workflow);
+            const initialVars = Object.assign(Object.assign({}, Object.fromEntries((Array.isArray(workflow.variables) ? workflow.variables : [])
+                .map(v => [v.name, v.defaultValue]))), { _trigger: triggerData !== null && triggerData !== void 0 ? triggerData : {} });
+            const mergeArrived = {};
+            const mergeInputs = {};
+            for (const node of workflow.nodes) {
+                if (node.type === 'merge') {
+                    mergeArrived[node.id] = workflow.edges.filter(e => e.target === node.id).length;
+                    mergeInputs[node.id] = [];
+                }
             }
-        }
-        const stream = await graph.stream({
-            variables: initialVars,
-            nodeResults: {},
-            status: 'running',
-            error: undefined,
-            mergeArrived,
-            mergeInputs,
-        }, {
-            configurable: { thread_id: executionId },
-            recursionLimit: 100,
-            streamMode: 'updates',
+            const stream = yield __await(graph.stream({
+                variables: initialVars,
+                nodeResults: {},
+                status: 'running',
+                error: undefined,
+                mergeArrived,
+                mergeInputs,
+            }, {
+                configurable: { thread_id: executionId },
+                recursionLimit: 100,
+                streamMode: 'updates',
+            }));
+            try {
+                for (var _d = true, stream_1 = __asyncValues(stream), stream_1_1; stream_1_1 = yield __await(stream_1.next()), _a = stream_1_1.done, !_a; _d = true) {
+                    _c = stream_1_1.value;
+                    _d = false;
+                    const chunk = _c;
+                    yield yield __await({ event: 'node-update', data: chunk });
+                }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (!_d && !_a && (_b = stream_1.return)) yield __await(_b.call(stream_1));
+                }
+                finally { if (e_1) throw e_1.error; }
+            }
+            yield yield __await({ event: 'done', data: { executionId } });
         });
-        for await (const chunk of stream) {
-            yield { event: 'node-update', data: chunk };
-        }
-        yield { event: 'done', data: { executionId } };
     }
     // ─── Graph Compilation ──────────────────────────────────
     compileGraph(workflow) {
+        var _a;
         const builder = new StateGraph(WorkflowState);
         const deps = {
             toolRegistry: this.toolRegistry,
@@ -211,6 +237,7 @@ export class LangGraphWorkflowEngine {
         for (const node of workflow.nodes) {
             const nodeId = this.sanitizeNodeId(node.id);
             builder.addNode(nodeId, async (state) => {
+                var _a, _b;
                 // Bail if already failed
                 if (state.status === 'failed') {
                     return { status: 'failed' };
@@ -226,11 +253,11 @@ export class LangGraphWorkflowEngine {
                 const inputs = this.gatherInputs(node, workflow.edges, state.variables);
                 // Handle merge synchronization
                 if (node.type === 'merge') {
-                    const newMergeInputs = { ...state.mergeInputs };
-                    const newMergeArrived = { ...state.mergeArrived };
-                    const arrived = [...(newMergeInputs[node.id] ?? []), inputs];
+                    const newMergeInputs = Object.assign({}, state.mergeInputs);
+                    const newMergeArrived = Object.assign({}, state.mergeArrived);
+                    const arrived = [...((_a = newMergeInputs[node.id]) !== null && _a !== void 0 ? _a : []), inputs];
                     newMergeInputs[node.id] = arrived;
-                    const expected = newMergeArrived[node.id] ?? 2;
+                    const expected = (_b = newMergeArrived[node.id]) !== null && _b !== void 0 ? _b : 2;
                     if (arrived.length < expected) {
                         // Not all branches arrived yet — update merge state but don't execute
                         return {
@@ -255,7 +282,7 @@ export class LangGraphWorkflowEngine {
         // Wire up edges between nodes
         for (const node of workflow.nodes) {
             const nodeId = this.sanitizeNodeId(node.id);
-            const edges = outgoing.get(node.id) ?? [];
+            const edges = (_a = outgoing.get(node.id)) !== null && _a !== void 0 ? _a : [];
             if (edges.length === 0) {
                 // Terminal node → END
                 builder.addEdge(nodeId, END);
@@ -274,11 +301,12 @@ export class LangGraphWorkflowEngine {
                     routeMap[routeKey] = targetId;
                 }
                 builder.addConditionalEdges(nodeId, (state) => {
+                    var _a, _b, _c, _d;
                     if (state.status === 'failed')
                         return END;
                     const lastResult = state.nodeResults[node.id];
                     if (node.type === 'condition') {
-                        const branch = lastResult?.output?.branch;
+                        const branch = (_a = lastResult === null || lastResult === void 0 ? void 0 : lastResult.output) === null || _a === void 0 ? void 0 : _a.branch;
                         // Find edge matching true/false branch
                         for (const edge of edges) {
                             if (edge.condition === branch || edge.sourcePort === branch) {
@@ -286,10 +314,10 @@ export class LangGraphWorkflowEngine {
                             }
                         }
                         // Default: first edge
-                        return targetNodeIds[0] ?? END;
+                        return (_b = targetNodeIds[0]) !== null && _b !== void 0 ? _b : END;
                     }
                     if (node.type === 'switch') {
-                        const matchedCase = lastResult?.output?.matchedCase;
+                        const matchedCase = (_c = lastResult === null || lastResult === void 0 ? void 0 : lastResult.output) === null || _c === void 0 ? void 0 : _c.matchedCase;
                         for (const edge of edges) {
                             if (edge.condition === matchedCase || edge.sourcePort === matchedCase) {
                                 return this.sanitizeNodeId(edge.target);
@@ -299,7 +327,7 @@ export class LangGraphWorkflowEngine {
                         const defaultEdge = edges.find(e => e.condition === 'default' || e.sourcePort === 'default');
                         if (defaultEdge)
                             return this.sanitizeNodeId(defaultEdge.target);
-                        return targetNodeIds[0] ?? END;
+                        return (_d = targetNodeIds[0]) !== null && _d !== void 0 ? _d : END;
                     }
                     // Generic conditional edges
                     for (const edge of edges) {
@@ -356,7 +384,7 @@ export class LangGraphWorkflowEngine {
                 input: inputs, output, duration,
             };
             // Update variables with node outputs
-            const newVars = { ...state.variables };
+            const newVars = Object.assign({}, state.variables);
             for (const [key, value] of Object.entries(output)) {
                 newVars[`${node.id}.${key}`] = value;
             }
@@ -452,7 +480,7 @@ export class LangGraphWorkflowEngine {
             const result = vm.runInContext(`!!(${normalized})`, sandbox, { timeout: 1000 });
             return !!result;
         }
-        catch {
+        catch (_a) {
             return false;
         }
     }
@@ -477,7 +505,8 @@ export class LangGraphWorkflowEngine {
     // ─── Built-in Node Handlers ─────────────────────────────
     registerBuiltinHandlers() {
         this.nodeHandlers.set('trigger', async (_node, _inputs, vars) => {
-            return { data: vars._trigger ?? {} };
+            var _a;
+            return { data: (_a = vars._trigger) !== null && _a !== void 0 ? _a : {} };
         });
         this.nodeHandlers.set('llm-call', async (node, _inputs, vars, deps) => {
             const prompt = this.resolveTemplate(node.data.config.prompt, vars);
@@ -490,8 +519,9 @@ export class LangGraphWorkflowEngine {
             return { response: response.content, usage: response.usage };
         });
         this.nodeHandlers.set('tool-call', async (node, inputs, vars, deps) => {
+            var _a;
             const toolName = node.data.config.toolName;
-            const args = node.data.config.arguments ?? inputs;
+            const args = (_a = node.data.config.arguments) !== null && _a !== void 0 ? _a : inputs;
             const resolvedArgs = {};
             for (const [key, value] of Object.entries(args)) {
                 resolvedArgs[key] = typeof value === 'string'
@@ -503,20 +533,21 @@ export class LangGraphWorkflowEngine {
         });
         this.nodeHandlers.set('condition', async (node, inputs, vars) => {
             const expression = node.data.config.expression;
-            const result = this.evaluateCondition(expression, { ...vars, ...inputs });
+            const result = this.evaluateCondition(expression, Object.assign(Object.assign({}, vars), inputs));
             return { result, branch: result ? 'true' : 'false' };
         });
         this.nodeHandlers.set('switch', async (node, inputs, vars) => {
-            const expression = node.data.config.expression ?? '';
-            const cases = node.data.config.cases ?? [];
+            var _a, _b;
+            const expression = (_a = node.data.config.expression) !== null && _a !== void 0 ? _a : '';
+            const cases = (_b = node.data.config.cases) !== null && _b !== void 0 ? _b : [];
             let matchValue;
             try {
                 const sanitized = expression.replace(/[^a-zA-Z0-9_.><=!&|() "'\-]/g, '');
                 const normalized = this.normalizeExpression(sanitized);
-                const sandbox = vm.createContext(Object.freeze(this.buildSandbox({ ...vars, ...inputs })));
+                const sandbox = vm.createContext(Object.freeze(this.buildSandbox(Object.assign(Object.assign({}, vars), inputs))));
                 matchValue = vm.runInContext(`(${normalized})`, sandbox, { timeout: 1000 });
             }
-            catch {
+            catch (_c) {
                 matchValue = this.resolveTemplate(expression, vars);
             }
             let matchedCase = 'default';
@@ -529,10 +560,11 @@ export class LangGraphWorkflowEngine {
             return { value: matchValue, matchedCase, branch: matchedCase };
         });
         this.nodeHandlers.set('loop', async (node, inputs, vars) => {
-            const maxIterations = node.data.config.maxIterations ?? 10;
-            const condition = node.data.config.condition ?? '';
-            const loopVar = node.data.config.loopVariable ?? 'i';
-            const items = node.data.config.items ?? inputs.items ?? null;
+            var _a, _b, _c, _d, _e;
+            const maxIterations = (_a = node.data.config.maxIterations) !== null && _a !== void 0 ? _a : 10;
+            const condition = (_b = node.data.config.condition) !== null && _b !== void 0 ? _b : '';
+            const loopVar = (_c = node.data.config.loopVariable) !== null && _c !== void 0 ? _c : 'i';
+            const items = (_e = (_d = node.data.config.items) !== null && _d !== void 0 ? _d : inputs.items) !== null && _e !== void 0 ? _e : null;
             const results = [];
             const iterations = items ? Math.min(items.length, maxIterations) : maxIterations;
             for (let i = 0; i < iterations; i++) {
@@ -540,9 +572,7 @@ export class LangGraphWorkflowEngine {
                 vars[`${node.id}.${loopVar}`] = items ? items[i] : i;
                 vars[loopVar] = items ? items[i] : i;
                 if (condition) {
-                    const shouldContinue = this.evaluateCondition(condition, {
-                        ...vars, ...inputs, index: i, [loopVar]: items ? items[i] : i,
-                    });
+                    const shouldContinue = this.evaluateCondition(condition, Object.assign(Object.assign(Object.assign({}, vars), inputs), { index: i, [loopVar]: items ? items[i] : i }));
                     if (!shouldContinue)
                         break;
                 }
@@ -551,7 +581,7 @@ export class LangGraphWorkflowEngine {
             return { iterations: results.length, results, completed: true };
         });
         this.nodeHandlers.set('merge', async (_node, inputs) => {
-            return { merged: true, ...inputs };
+            return Object.assign({ merged: true }, inputs);
         });
         this.nodeHandlers.set('sub-workflow', async (node, inputs, _vars, deps) => {
             const subWorkflowId = node.data.config.workflowId;
@@ -566,13 +596,14 @@ export class LangGraphWorkflowEngine {
             return { subWorkflowId, delegated: true, inputs };
         });
         this.nodeHandlers.set('http-request', async (node, _inputs, vars) => {
+            var _a, _b;
             const url = this.resolveTemplate(node.data.config.url, vars);
-            const method = node.data.config.method ?? 'GET';
-            const headers = node.data.config.headers ?? {};
+            const method = (_a = node.data.config.method) !== null && _a !== void 0 ? _a : 'GET';
+            const headers = (_b = node.data.config.headers) !== null && _b !== void 0 ? _b : {};
             const body = node.data.config.body;
             const res = await fetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json', ...headers },
+                headers: Object.assign({ 'Content-Type': 'application/json' }, headers),
                 body: body ? this.resolveTemplate(body, vars) : undefined,
             });
             const responseText = await res.text();
@@ -580,7 +611,7 @@ export class LangGraphWorkflowEngine {
             try {
                 responseData = JSON.parse(responseText);
             }
-            catch {
+            catch (_c) {
                 responseData = responseText;
             }
             return { status: res.status, data: responseData, ok: res.ok };
@@ -588,17 +619,18 @@ export class LangGraphWorkflowEngine {
         this.nodeHandlers.set('transform', async (node, inputs, vars) => {
             const template = node.data.config.template;
             if (template) {
-                const result = this.resolveTemplate(template, { ...vars, ...inputs });
+                const result = this.resolveTemplate(template, Object.assign(Object.assign({}, vars), inputs));
                 return { result };
             }
             return inputs;
         });
         this.nodeHandlers.set('code', async (node, inputs, vars, deps) => {
+            var _a, _b;
             const code = node.data.config.code;
-            const timeoutMs = deps.sandboxConfig?.timeoutMs ?? 5000;
+            const timeoutMs = (_b = (_a = deps.sandboxConfig) === null || _a === void 0 ? void 0 : _a.timeoutMs) !== null && _b !== void 0 ? _b : 5000;
             const sandbox = vm.createContext({
-                inputs: Object.freeze({ ...inputs }),
-                variables: Object.freeze({ ...vars }),
+                inputs: Object.freeze(Object.assign({}, inputs)),
+                variables: Object.freeze(Object.assign({}, vars)),
                 JSON, Math, Date, Array, Object, String, Number, Boolean,
                 parseInt, parseFloat, isNaN, isFinite,
                 console: { log: () => { }, warn: () => { }, error: () => { } },
@@ -608,13 +640,15 @@ export class LangGraphWorkflowEngine {
             return { result };
         });
         this.nodeHandlers.set('wait', async (node) => {
-            const ms = (node.data.config.seconds ?? 1) * 1000;
+            var _a;
+            const ms = ((_a = node.data.config.seconds) !== null && _a !== void 0 ? _a : 1) * 1000;
             await new Promise(resolve => setTimeout(resolve, ms));
             return { waited: ms };
         });
         this.nodeHandlers.set('notification', async (node, _inputs, vars, deps) => {
+            var _a;
             const message = this.resolveTemplate(node.data.config.message, vars);
-            const channel = node.data.config.channel ?? 'default';
+            const channel = (_a = node.data.config.channel) !== null && _a !== void 0 ? _a : 'default';
             await deps.eventBus.emit({
                 type: 'notification:send',
                 payload: { message, channel },
@@ -629,9 +663,8 @@ export class LangGraphWorkflowEngine {
             return { query, note: 'Memory operations delegated to agent' };
         });
         this.nodeHandlers.set('memory-write', async (node, inputs, vars) => {
-            const content = this.resolveTemplate(node.data.config.content, { ...vars, ...inputs });
+            const content = this.resolveTemplate(node.data.config.content, Object.assign(Object.assign({}, vars), inputs));
             return { content, note: 'Memory operations delegated to agent' };
         });
     }
 }
-//# sourceMappingURL=langgraph-workflow-engine.js.map

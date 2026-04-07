@@ -5,22 +5,22 @@ import { randomUUID } from 'node:crypto';
 function getUserCtx(c) {
     const user = c.get('user');
     return {
-        tenantId: user?.tenantId || 'default',
-        userId: user?.sub || 'anonymous',
-        isSuperAdmin: !!(user?.isSuperAdmin),
-        role: user?.role || 'member',
+        tenantId: (user === null || user === void 0 ? void 0 : user.tenantId) || 'default',
+        userId: (user === null || user === void 0 ? void 0 : user.sub) || 'anonymous',
+        isSuperAdmin: !!(user === null || user === void 0 ? void 0 : user.isSuperAdmin),
+        role: (user === null || user === void 0 ? void 0 : user.role) || 'member',
     };
 }
 /** Build MongoDB filter for channel queries based on user role */
 function channelFilter(ctx, extra) {
     // Super admin sees ALL channels across all tenants
     if (ctx.isSuperAdmin)
-        return { ...extra };
+        return Object.assign({}, extra);
     // Tenant owner/admin sees all channels in their tenant
     if (ctx.role === 'owner' || ctx.role === 'admin')
-        return { tenantId: ctx.tenantId, ...extra };
+        return Object.assign({ tenantId: ctx.tenantId }, extra);
     // Regular member sees only their own channels
-    return { tenantId: ctx.tenantId, userId: ctx.userId, ...extra };
+    return Object.assign({ tenantId: ctx.tenantId, userId: ctx.userId }, extra);
 }
 // ─── Agents / Channel Connections Routes ────────────────────
 export function createAgentsRoutes(ctx) {
@@ -55,6 +55,7 @@ export function createAgentsRoutes(ctx) {
     });
     // Create a new agent config
     app.post('/configs', async (c) => {
+        var _a, _b;
         try {
             const { tenantId } = getUserCtx(c);
             const body = await c.req.json();
@@ -80,8 +81,8 @@ export function createAgentsRoutes(ctx) {
                 enabledSkills: enabledSkills || [],
                 memoryConfig: body.memoryConfig || { enabled: true, maxEntries: 100 },
                 securityConfig: body.securityConfig || { requireApprovalForShell: true, requireApprovalForNetwork: false },
-                maxToolIterations: body.maxToolIterations ?? 10,
-                toolTimeout: body.toolTimeout ?? 30000,
+                maxToolIterations: (_a = body.maxToolIterations) !== null && _a !== void 0 ? _a : 10,
+                toolTimeout: (_b = body.toolTimeout) !== null && _b !== void 0 ? _b : 30000,
                 isDefault,
                 createdAt: now,
                 updatedAt: now,
@@ -95,6 +96,7 @@ export function createAgentsRoutes(ctx) {
     });
     // Update an agent config
     app.put('/configs/:id', async (c) => {
+        var _a;
         try {
             const { tenantId } = getUserCtx(c);
             const id = c.req.param('id');
@@ -130,7 +132,7 @@ export function createAgentsRoutes(ctx) {
             await configs.updateOne({ _id: id }, { $set: updates });
             const updated = await configs.findOne({ _id: id });
             // Invalidate cached agent instance
-            ctx?.agentManager?.invalidate(id);
+            (_a = ctx === null || ctx === void 0 ? void 0 : ctx.agentManager) === null || _a === void 0 ? void 0 : _a.invalidate(id);
             return c.json({ ok: true, config: updated });
         }
         catch (err) {
@@ -139,6 +141,7 @@ export function createAgentsRoutes(ctx) {
     });
     // Delete an agent config
     app.delete('/configs/:id', async (c) => {
+        var _a;
         try {
             const { tenantId } = getUserCtx(c);
             const id = c.req.param('id');
@@ -148,7 +151,7 @@ export function createAgentsRoutes(ctx) {
                 return c.json({ error: 'Agent config not found' }, 404);
             await configs.deleteOne({ _id: id, tenantId });
             // Invalidate cached agent instance
-            ctx?.agentManager?.invalidate(id);
+            (_a = ctx === null || ctx === void 0 ? void 0 : ctx.agentManager) === null || _a === void 0 ? void 0 : _a.invalidate(id);
             // If we deleted the default, set the newest remaining as default
             if (existing.isDefault) {
                 const newest = await configs.findOne({ tenantId }, { sort: { updatedAt: -1 } });
@@ -169,10 +172,10 @@ export function createAgentsRoutes(ctx) {
             const userCtx = getUserCtx(c);
             const channels = channelConnectionsCollection();
             const list = await channels.find(channelFilter(userCtx)).sort({ updatedAt: -1 }).toArray();
-            const enriched = list.map((ch) => ({
-                ...ch,
-                isRunning: ctx?.channelManager?.isRunning(ch._id) ?? false,
-            }));
+            const enriched = list.map((ch) => {
+                var _a, _b;
+                return (Object.assign(Object.assign({}, ch), { isRunning: (_b = (_a = ctx === null || ctx === void 0 ? void 0 : ctx.channelManager) === null || _a === void 0 ? void 0 : _a.isRunning(ch._id)) !== null && _b !== void 0 ? _b : false }));
+            });
             return c.json({ ok: true, channels: enriched });
         }
         catch (err) {
@@ -256,7 +259,7 @@ export function createAgentsRoutes(ctx) {
                 updates.domainId = body.domainId || undefined;
             if (config) {
                 // Merge with existing config so partial updates don't wipe out fields
-                const mergedConfig = { ...existing.config, ...config };
+                const mergedConfig = Object.assign(Object.assign({}, existing.config), config);
                 const validation = validateChannelConfig(existing.channelType, mergedConfig);
                 if (!validation.ok)
                     return c.json({ error: validation.error }, 400);
@@ -308,7 +311,7 @@ export function createAgentsRoutes(ctx) {
                     },
                 });
                 // Also start the channel runtime so it begins polling/listening immediately
-                if (ctx?.channelManager) {
+                if (ctx === null || ctx === void 0 ? void 0 : ctx.channelManager) {
                     const updated = await channels.findOne({ _id: id });
                     if (updated) {
                         await ctx.channelManager.stopChannel(id).catch(() => { }); // stop if already running (token change)
@@ -321,7 +324,7 @@ export function createAgentsRoutes(ctx) {
                     $set: { status: 'error', updatedAt: new Date() },
                 });
                 // Stop any existing runtime (e.g. old token was revoked)
-                if (ctx?.channelManager)
+                if (ctx === null || ctx === void 0 ? void 0 : ctx.channelManager)
                     await ctx.channelManager.stopChannel(id).catch(() => { });
             }
             return c.json({ ok: testResult.ok, message: testResult.message, metadata: testResult.metadata });
@@ -353,7 +356,7 @@ export function createAgentsRoutes(ctx) {
                 },
             });
             // Start the channel runtime if ChannelManager is available
-            if (ctx?.channelManager) {
+            if (ctx === null || ctx === void 0 ? void 0 : ctx.channelManager) {
                 const updated = await channels.findOne({ _id: id });
                 if (updated)
                     await ctx.channelManager.startChannel(updated);
@@ -374,7 +377,7 @@ export function createAgentsRoutes(ctx) {
             if (result.matchedCount === 0)
                 return c.json({ error: 'Channel not found' }, 404);
             // Stop the channel runtime if ChannelManager is available
-            if (ctx?.channelManager) {
+            if (ctx === null || ctx === void 0 ? void 0 : ctx.channelManager) {
                 await ctx.channelManager.stopChannel(id);
             }
             return c.json({ ok: true, message: 'Channel deactivated' });
@@ -566,16 +569,17 @@ function validateChannelConfig(channelType, config) {
     return { ok: true };
 }
 function maskConfig(channel) {
-    const maskedConfig = { ...channel.config };
+    const maskedConfig = Object.assign({}, channel.config);
     for (const key of Object.keys(maskedConfig)) {
         if (typeof maskedConfig[key] === 'string' && (key.toLowerCase().includes('token') || key.toLowerCase().includes('secret') || key.toLowerCase().includes('key'))) {
             const val = maskedConfig[key];
             maskedConfig[key] = val.length > 8 ? val.slice(0, 4) + '****' + val.slice(-4) : '****';
         }
     }
-    return { ...channel, config: maskedConfig };
+    return Object.assign(Object.assign({}, channel), { config: maskedConfig });
 }
 async function testChannelConnection(channel) {
+    var _a, _b, _c;
     switch (channel.channelType) {
         case 'telegram': {
             try {
@@ -598,7 +602,7 @@ async function testChannelConnection(channel) {
                     },
                 };
             }
-            catch {
+            catch (_d) {
                 return { ok: false, message: 'Connection failed — check token' };
             }
         }
@@ -618,7 +622,7 @@ async function testChannelConnection(channel) {
                     metadata: { botId: data.id, botUsername: data.username },
                 };
             }
-            catch {
+            catch (_e) {
                 return { ok: false, message: 'Connection failed — check token' };
             }
         }
@@ -629,14 +633,14 @@ async function testChannelConnection(channel) {
                     return { ok: false, message: 'Invalid Page Access Token' };
                 const data = await res.json();
                 if (data.error)
-                    return { ok: false, message: `Facebook error: ${data.error?.message || 'Unknown error'}` };
+                    return { ok: false, message: `Facebook error: ${((_a = data.error) === null || _a === void 0 ? void 0 : _a.message) || 'Unknown error'}` };
                 return {
                     ok: true,
                     message: `Connected to Facebook page "${data.name || 'unknown'}"`,
                     metadata: { pageId: data.id, pageName: data.name },
                 };
             }
-            catch {
+            catch (_f) {
                 return { ok: false, message: 'Connection failed — check page access token' };
             }
         }
@@ -657,7 +661,7 @@ async function testChannelConnection(channel) {
                     metadata: { botId: data.user_id, botUsername: data.user, team: data.team },
                 };
             }
-            catch {
+            catch (_g) {
                 return { ok: false, message: 'Connection failed — check bot token' };
             }
         }
@@ -673,7 +677,7 @@ async function testChannelConnection(channel) {
                     metadata: { phoneNumberId: data.id, displayPhone: data.display_phone_number },
                 };
             }
-            catch {
+            catch (_h) {
                 return { ok: false, message: 'Connection failed — check credentials' };
             }
         }
@@ -690,11 +694,11 @@ async function testChannelConnection(channel) {
                         return { ok: false, message: `Zalo error: ${data.message}` };
                     return {
                         ok: true,
-                        message: `Connected to Zalo OA "${data.data?.name || channel.config.oaId}"`,
-                        metadata: { oaName: data.data?.name, oaId: channel.config.oaId, appId: channel.config.appId },
+                        message: `Connected to Zalo OA "${((_b = data.data) === null || _b === void 0 ? void 0 : _b.name) || channel.config.oaId}"`,
+                        metadata: { oaName: (_c = data.data) === null || _c === void 0 ? void 0 : _c.name, oaId: channel.config.oaId, appId: channel.config.appId },
                     };
                 }
-                catch {
+                catch (_j) {
                     return { ok: false, message: 'Connection failed — check access token' };
                 }
             }
@@ -726,7 +730,7 @@ async function testChannelConnection(channel) {
                     metadata: { appId: channel.config.appId, tenantId: channel.config.tenantId },
                 };
             }
-            catch {
+            catch (_k) {
                 return { ok: false, message: 'Connection failed — check app credentials' };
             }
         }
@@ -734,4 +738,3 @@ async function testChannelConnection(channel) {
             return { ok: true, message: 'Configuration saved (verification not available for this channel type)' };
     }
 }
-//# sourceMappingURL=agents.js.map

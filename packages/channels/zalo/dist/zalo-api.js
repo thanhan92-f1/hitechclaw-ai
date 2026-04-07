@@ -4,10 +4,9 @@
  * Docs: https://developers.zalo.me/docs/official-account/
  */
 export class ZaloApi {
-    accessToken;
-    baseUrl = 'https://openapi.zalo.me/v3.0/oa';
     constructor(accessToken) {
         this.accessToken = accessToken;
+        this.baseUrl = 'https://openapi.zalo.me/v3.0/oa';
     }
     async sendTextMessage(userId, text) {
         const res = await fetch(`${this.baseUrl}/message/cs`, {
@@ -54,4 +53,3 @@ export class ZaloApi {
         });
     }
 }
-//# sourceMappingURL=zalo-api.js.map

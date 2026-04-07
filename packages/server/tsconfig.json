@@ -1,6 +1,59 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
+        "noEmit": false,
+        "allowJs": false,
+        "baseUrl": "../..",
+        "paths": {
+            "@hitechclaw/shared": [
+                "./packages/shared/dist/index.d.ts"
+            ],
+            "@hitechclaw/core": [
+                "./packages/core/dist/index.d.ts"
+            ],
+            "@hitechclaw/db": [
+                "./packages/db/dist/index.d.ts"
+            ],
+            "@hitechclaw/gateway": [
+                "./packages/gateway/dist/index.d.ts"
+            ],
+            "@hitechclaw/integrations": [
+                "./packages/integrations/dist/index.d.ts"
+            ],
+            "@hitechclaw/domains": [
+                "./packages/domains/dist/index.d.ts"
+            ],
+            "@hitechclaw/ml": [
+                "./packages/ml/dist/index.d.ts"
+            ],
+            "@hitechclaw/sandbox": [
+                "./packages/sandbox/dist/index.d.ts"
+            ],
+            "@hitechclaw/skills": [
+                "./packages/skills/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-telegram": [
+                "./packages/channels/telegram/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-slack": [
+                "./packages/channels/slack/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-facebook": [
+                "./packages/channels/facebook/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-whatsapp": [
+                "./packages/channels/whatsapp/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-zalo": [
+                "./packages/channels/zalo/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-discord": [
+                "./packages/channels/discord/dist/index.d.ts"
+            ],
+            "@hitechclaw/channel-msteams": [
+                "./packages/channels/msteams/dist/index.d.ts"
+            ]
+        },
         "outDir": "./dist",
         "rootDir": "./src"
     },
@@ -10,55 +63,5 @@
     "exclude": [
         "node_modules",
         "dist"
-    ],
-    "references": [
-        {
-            "path": "../shared"
-        },
-        {
-            "path": "../core"
-        },
-        {
-            "path": "../db"
-        },
-        {
-            "path": "../gateway"
-        },
-        {
-            "path": "../integrations"
-        },
-        {
-            "path": "../domains"
-        },
-        {
-            "path": "../ml"
-        },
-        {
-            "path": "../sandbox"
-        },
-        {
-            "path": "../skills"
-        },
-        {
-            "path": "../channels/telegram"
-        },
-        {
-            "path": "../channels/slack"
-        },
-        {
-            "path": "../channels/facebook"
-        },
-        {
-            "path": "../channels/whatsapp"
-        },
-        {
-            "path": "../channels/zalo"
-        },
-        {
-            "path": "../channels/discord"
-        },
-        {
-            "path": "../channels/msteams"
-        }
     ]
 }

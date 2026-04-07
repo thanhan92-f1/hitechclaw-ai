@@ -1,3 +1,10 @@
+var __asyncValues = (this && this.__asyncValues) || function (o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+};
 import { Hono } from 'hono';
 export function createKnowledgeRoutes(ctx) {
     const app = new Hono();
@@ -52,12 +59,14 @@ export function createKnowledgeRoutes(ctx) {
         return c.json(ctx.rag.getAnalytics());
     });
     app.get('/query-history', (c) => {
-        const limit = parseInt(c.req.query('limit') ?? '20', 10);
+        var _a;
+        const limit = parseInt((_a = c.req.query('limit')) !== null && _a !== void 0 ? _a : '20', 10);
         return c.json({ history: ctx.rag.getQueryHistory(limit) });
     });
     // ─── Document Upload ────────────────────────────────────
     app.post('/upload', async (c) => {
-        const contentType = c.req.header('Content-Type') ?? '';
+        var _a;
+        const contentType = (_a = c.req.header('Content-Type')) !== null && _a !== void 0 ? _a : '';
         let text;
         let title;
         let source;
@@ -69,7 +78,7 @@ export function createKnowledgeRoutes(ctx) {
         if (contentType.includes('multipart/form-data')) {
             const form = await c.req.formData();
             const file = form.get('file');
-            title = form.get('title') || file?.name || 'Untitled';
+            title = form.get('title') || (file === null || file === void 0 ? void 0 : file.name) || 'Untitled';
             source = form.get('source') || 'upload';
             const tagsStr = form.get('tags');
             if (tagsStr)
@@ -80,7 +89,7 @@ export function createKnowledgeRoutes(ctx) {
                 try {
                     customMetadata = JSON.parse(metaStr);
                 }
-                catch { }
+                catch (_b) { }
             const cs = form.get('chunkSize');
             if (cs)
                 chunkSize = parseInt(cs, 10);
@@ -105,8 +114,8 @@ export function createKnowledgeRoutes(ctx) {
                 return c.json({ error: 'text is required' }, 400);
         }
         const chunkingOptions = (chunkSize || chunkOverlap) ? {
-            chunkSize: chunkSize ?? 512,
-            chunkOverlap: chunkOverlap ?? 50,
+            chunkSize: chunkSize !== null && chunkSize !== void 0 ? chunkSize : 512,
+            chunkOverlap: chunkOverlap !== null && chunkOverlap !== void 0 ? chunkOverlap : 50,
         } : undefined;
         const tenantId = c.get('tenantId');
         const doc = await ctx.rag.ingestText(text, title, source, {
@@ -127,12 +136,12 @@ export function createKnowledgeRoutes(ctx) {
         try {
             new URL(url);
         }
-        catch {
+        catch (_a) {
             return c.json({ error: 'Invalid URL' }, 400);
         }
         const chunkingOptions = (chunkSize || chunkOverlap) ? {
-            chunkSize: chunkSize ?? 512,
-            chunkOverlap: chunkOverlap ?? 50,
+            chunkSize: chunkSize !== null && chunkSize !== void 0 ? chunkSize : 512,
+            chunkOverlap: chunkOverlap !== null && chunkOverlap !== void 0 ? chunkOverlap : 50,
         } : undefined;
         const tenantId = c.get('tenantId');
         const doc = await ctx.rag.ingestUrl(url, title, {
@@ -207,10 +216,11 @@ export function createKnowledgeRoutes(ctx) {
         return c.json({ success: true });
     });
     app.post('/:id/reindex', async (c) => {
+        var _a, _b;
         const body = await c.req.json().catch(() => ({}));
         const chunkingOptions = (body.chunkSize || body.chunkOverlap) ? {
-            chunkSize: body.chunkSize ?? 512,
-            chunkOverlap: body.chunkOverlap ?? 50,
+            chunkSize: (_a = body.chunkSize) !== null && _a !== void 0 ? _a : 512,
+            chunkOverlap: (_b = body.chunkOverlap) !== null && _b !== void 0 ? _b : 50,
         } : undefined;
         const doc = await ctx.rag.reindexDocument(c.req.param('id'), chunkingOptions);
         if (!doc)
@@ -268,7 +278,7 @@ export function createKnowledgeRoutes(ctx) {
         if (!Array.isArray(documentIds))
             return c.json({ error: 'documentIds array required' }, 400);
         const chunkingOptions = (chunkSize || chunkOverlap) ? {
-            chunkSize: chunkSize ?? 512, chunkOverlap: chunkOverlap ?? 50,
+            chunkSize: chunkSize !== null && chunkSize !== void 0 ? chunkSize : 512, chunkOverlap: chunkOverlap !== null && chunkOverlap !== void 0 ? chunkOverlap : 50,
         } : undefined;
         const count = await ctx.rag.batchReindex(documentIds, chunkingOptions);
         return c.json({ reindexed: count });
@@ -282,6 +292,7 @@ export function createKnowledgeRoutes(ctx) {
     });
     // ─── Web Crawl ──────────────────────────────────────────
     app.post('/crawl', async (c) => {
+        var _a, e_1, _b, _c;
         try {
             const body = await c.req.json();
             const { url, maxPages, maxDepth, sameDomain, includePatterns, excludePatterns, tags, collectionId, chunkSize, chunkOverlap } = body;
@@ -291,36 +302,48 @@ export function createKnowledgeRoutes(ctx) {
             try {
                 new URL(url);
             }
-            catch {
+            catch (_d) {
                 return c.json({ error: 'Invalid URL' }, 400);
             }
             const results = [];
             const errors = [];
             let totalIngested = 0;
             const crawlTenantId = c.get('tenantId');
-            for await (const progress of ctx.rag.crawlSite(url, {
-                maxPages: Math.min(maxPages ?? 20, 100), // cap at 100
-                maxDepth: Math.min(maxDepth ?? 2, 5),
-                sameDomain: sameDomain ?? true,
-                includePatterns,
-                excludePatterns,
-            }, {
-                tags,
-                collectionId,
-                chunkingOptions: (chunkSize || chunkOverlap) ? { chunkSize, chunkOverlap } : undefined,
-                tenantId: crawlTenantId,
-            })) {
-                totalIngested = progress.ingested;
-                for (const page of progress.pages) {
-                    if (!results.find((r) => r.url === page.url)) {
-                        results.push({ url: page.url, title: page.title, status: 'ingested' });
+            try {
+                for (var _e = true, _f = __asyncValues(ctx.rag.crawlSite(url, {
+                    maxPages: Math.min(maxPages !== null && maxPages !== void 0 ? maxPages : 20, 100), // cap at 100
+                    maxDepth: Math.min(maxDepth !== null && maxDepth !== void 0 ? maxDepth : 2, 5),
+                    sameDomain: sameDomain !== null && sameDomain !== void 0 ? sameDomain : true,
+                    includePatterns,
+                    excludePatterns,
+                }, {
+                    tags,
+                    collectionId,
+                    chunkingOptions: (chunkSize || chunkOverlap) ? { chunkSize, chunkOverlap } : undefined,
+                    tenantId: crawlTenantId,
+                })), _g; _g = await _f.next(), _a = _g.done, !_a; _e = true) {
+                    _c = _g.value;
+                    _e = false;
+                    const progress = _c;
+                    totalIngested = progress.ingested;
+                    for (const page of progress.pages) {
+                        if (!results.find((r) => r.url === page.url)) {
+                            results.push({ url: page.url, title: page.title, status: 'ingested' });
+                        }
+                    }
+                    for (const err of progress.errors) {
+                        if (!errors.find((e) => e.url === err.url)) {
+                            errors.push(err);
+                        }
                     }
                 }
-                for (const err of progress.errors) {
-                    if (!errors.find((e) => e.url === err.url)) {
-                        errors.push(err);
-                    }
+            }
+            catch (e_1_1) { e_1 = { error: e_1_1 }; }
+            finally {
+                try {
+                    if (!_e && !_a && (_b = _f.return)) await _b.call(_f);
                 }
+                finally { if (e_1) throw e_1.error; }
             }
             return c.json({ ok: true, ingested: totalIngested, pages: results, errors });
         }
@@ -330,7 +353,8 @@ export function createKnowledgeRoutes(ctx) {
     });
     // ─── Knowledge Refresh ─────────────────────────────────
     app.get('/stale', (c) => {
-        const maxAge = parseInt(c.req.query('maxAgeDays') ?? '7');
+        var _a;
+        const maxAge = parseInt((_a = c.req.query('maxAgeDays')) !== null && _a !== void 0 ? _a : '7');
         const stale = ctx.rag.getStaleDocuments(maxAge * 24 * 60 * 60 * 1000);
         return c.json({ documents: stale });
     });
@@ -346,7 +370,8 @@ export function createKnowledgeRoutes(ctx) {
         }
     });
     app.post('/refresh-all', async (c) => {
-        const maxAge = parseInt(c.req.query('maxAgeDays') ?? '7');
+        var _a;
+        const maxAge = parseInt((_a = c.req.query('maxAgeDays')) !== null && _a !== void 0 ? _a : '7');
         const stale = ctx.rag.getStaleDocuments(maxAge * 24 * 60 * 60 * 1000);
         let refreshed = 0;
         const errors = [];
@@ -356,7 +381,7 @@ export function createKnowledgeRoutes(ctx) {
                 if (result)
                     refreshed++;
             }
-            catch {
+            catch (_b) {
                 errors.push(doc.id);
             }
         }
@@ -379,7 +404,7 @@ export function createKnowledgeRoutes(ctx) {
             if (!query)
                 return c.json({ error: 'query is required' }, 400);
             const searchTenantId = c.get('tenantId');
-            const results = await ctx.rag.searchWithReranking(query, { topK: topK ?? 5, collectionId, tenantId: searchTenantId });
+            const results = await ctx.rag.searchWithReranking(query, { topK: topK !== null && topK !== void 0 ? topK : 5, collectionId, tenantId: searchTenantId });
             return c.json({
                 ok: true,
                 results: results.map((r) => ({
@@ -399,4 +424,3 @@ export function createKnowledgeRoutes(ctx) {
     });
     return app;
 }
-//# sourceMappingURL=knowledge.js.map

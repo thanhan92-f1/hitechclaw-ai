@@ -30,7 +30,9 @@ const XSS_PATTERNS = [
  * 3. Checking for unexpected executable content
  */
 export class OutputSanitizer {
-    name = 'output-sanitizer';
+    constructor() {
+        this.name = 'output-sanitizer';
+    }
     async check(output, _context) {
         const start = Date.now();
         let sanitized = output;
@@ -71,4 +73,3 @@ export class OutputSanitizer {
         };
     }
 }
-//# sourceMappingURL=output-sanitizer.js.map

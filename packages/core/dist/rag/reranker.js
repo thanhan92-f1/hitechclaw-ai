@@ -11,8 +11,9 @@ export class CrossEncoderReranker {
      * Combines multiple scoring signals for better relevance ranking.
      */
     rerank(query, results, options) {
-        const topK = options?.topK ?? 5;
-        const threshold = options?.threshold ?? 0.0;
+        var _a, _b;
+        const topK = (_a = options === null || options === void 0 ? void 0 : options.topK) !== null && _a !== void 0 ? _a : 5;
+        const threshold = (_b = options === null || options === void 0 ? void 0 : options.threshold) !== null && _b !== void 0 ? _b : 0.0;
         const queryTokens = this.tokenize(query);
         const queryBigrams = this.bigrams(queryTokens);
         const scored = results.map((r) => {
@@ -47,7 +48,7 @@ export class CrossEncoderReranker {
         return scored
             .filter((r) => r.rerankedScore >= threshold)
             .slice(0, topK)
-            .map((r, i) => ({ ...r, rank: i + 1 }));
+            .map((r, i) => (Object.assign(Object.assign({}, r), { rank: i + 1 })));
     }
     tokenize(text) {
         return text.toLowerCase()
@@ -133,4 +134,3 @@ export class CrossEncoderReranker {
         return 0;
     }
 }
-//# sourceMappingURL=reranker.js.map

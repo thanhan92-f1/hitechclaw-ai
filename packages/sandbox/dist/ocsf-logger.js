@@ -38,6 +38,7 @@ const METADATA = {
  * Convert a sandbox audit entry to an OCSF security event.
  */
 export function toOCSFEvent(entry) {
+    var _a, _b;
     const activityMap = {
         create: { id: OCSFActivityId.Create, name: 'Sandbox Create' },
         connect: { id: OCSFActivityId.Read, name: 'Sandbox Connect' },
@@ -46,7 +47,7 @@ export function toOCSFEvent(entry) {
         destroy: { id: OCSFActivityId.Delete, name: 'Sandbox Destroy' },
         blocked: { id: OCSFActivityId.Other, name: 'Action Blocked' },
     };
-    const activity = activityMap[entry.action] ?? { id: OCSFActivityId.Other, name: entry.action };
+    const activity = (_a = activityMap[entry.action]) !== null && _a !== void 0 ? _a : { id: OCSFActivityId.Other, name: entry.action };
     const severityMap = {
         create: OCSFSeverityId.Informational,
         connect: OCSFSeverityId.Informational,
@@ -60,7 +61,7 @@ export function toOCSFEvent(entry) {
         category_uid: 2,
         activity_id: activity.id,
         activity_name: activity.name,
-        severity_id: severityMap[entry.action] ?? OCSFSeverityId.Unknown,
+        severity_id: (_b = severityMap[entry.action]) !== null && _b !== void 0 ? _b : OCSFSeverityId.Unknown,
         time: entry.timestamp,
         message: `Sandbox ${entry.action}: ${entry.sandboxId} (tenant: ${entry.tenantId})`,
         status: entry.action === 'blocked' ? 'failure' : 'success',
@@ -81,7 +82,9 @@ export function toOCSFEvent(entry) {
  * OCSF event emitter. Sends events to configured destinations.
  */
 export class OCSFEventLogger {
-    destinations = [];
+    constructor() {
+        this.destinations = [];
+    }
     /** Add a destination handler (e.g., console, SIEM, file) */
     addDestination(handler) {
         this.destinations.push(handler);
@@ -92,7 +95,7 @@ export class OCSFEventLogger {
             try {
                 dest(event);
             }
-            catch {
+            catch (_a) {
                 // Logging should never throw
             }
         }
@@ -109,4 +112,3 @@ export class OCSFEventLogger {
         };
     }
 }
-//# sourceMappingURL=ocsf-logger.js.map

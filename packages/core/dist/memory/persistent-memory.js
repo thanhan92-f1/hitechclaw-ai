@@ -10,21 +10,21 @@ const DEFAULT_CONFIG = {
  * Manages cross-session user knowledge that persists beyond individual conversations.
  */
 export class PersistentMemory {
-    config;
     constructor(config) {
-        this.config = { ...DEFAULT_CONFIG, ...config };
+        this.config = Object.assign(Object.assign({}, DEFAULT_CONFIG), config);
     }
     // ─── Helpers ───────────────────────────────────────────────────
     toEntry(doc) {
+        var _a, _b, _c, _d, _e, _f;
         return {
             id: doc._id,
-            userId: doc.userId ?? '',
+            userId: (_a = doc.userId) !== null && _a !== void 0 ? _a : '',
             tenantId: doc.tenantId,
             type: doc.type,
-            key: doc.metadata?.key ?? '',
+            key: (_c = (_b = doc.metadata) === null || _b === void 0 ? void 0 : _b.key) !== null && _c !== void 0 ? _c : '',
             value: doc.content,
-            confidence: doc.metadata?.confidence ?? 1,
-            source: doc.source ?? 'explicit',
+            confidence: (_e = (_d = doc.metadata) === null || _d === void 0 ? void 0 : _d.confidence) !== null && _e !== void 0 ? _e : 1,
+            source: (_f = doc.source) !== null && _f !== void 0 ? _f : 'explicit',
             createdAt: doc.createdAt,
             updatedAt: doc.updatedAt,
             expiresAt: doc.expiresAt,
@@ -63,6 +63,7 @@ export class PersistentMemory {
      * Store a persistent entry. Updates if same (userId, type, key) already exists.
      */
     async store(entry) {
+        var _a, _b;
         const col = memoryEntriesCollection();
         const now = new Date();
         // Check for existing entry with same key+type for this user
@@ -73,7 +74,7 @@ export class PersistentMemory {
             'metadata.key': entry.key,
         });
         if (existing) {
-            const newConfidence = Math.max(existing.metadata?.confidence ?? 0, entry.confidence);
+            const newConfidence = Math.max((_b = (_a = existing.metadata) === null || _a === void 0 ? void 0 : _a.confidence) !== null && _b !== void 0 ? _b : 0, entry.confidence);
             await col.updateOne({ _id: existing._id }, {
                 $set: {
                     content: entry.value,
@@ -83,7 +84,7 @@ export class PersistentMemory {
                     'metadata.confidence': newConfidence,
                 },
             });
-            return this.toEntry({ ...existing, content: entry.value, source: entry.source, updatedAt: now, expiresAt: entry.expiresAt, metadata: { ...existing.metadata, confidence: newConfidence } });
+            return this.toEntry(Object.assign(Object.assign({}, existing), { content: entry.value, source: entry.source, updatedAt: now, expiresAt: entry.expiresAt, metadata: Object.assign(Object.assign({}, existing.metadata), { confidence: newConfidence }) }));
         }
         // Enforce max entries — remove lowest-confidence inferred entry if needed
         const count = await col.countDocuments({ tenantId: entry.tenantId, userId: entry.userId });
@@ -186,4 +187,3 @@ export class PersistentMemory {
         return extracted;
     }
 }
-//# sourceMappingURL=persistent-memory.js.map

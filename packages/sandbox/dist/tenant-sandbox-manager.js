@@ -10,35 +10,32 @@ const DEFAULT_TENANT_SANDBOX_CONFIG = {
     enabled: true,
     defaultPolicy: 'default',
     maxConcurrentSandboxes: 5,
-    idleTimeoutMs: 5 * 60_000,
+    idleTimeoutMs: 5 * 60000,
     cpuLimit: '0.5',
     memoryLimit: '512Mi',
     gpuEnabled: false,
 };
 export class TenantSandboxManager {
-    manager;
-    /** Per-tenant configurations (loaded from DB tenantSettings) */
-    tenantConfigs = new Map();
-    /** Per-tenant sandbox pools: tenantId → Map<sandboxId, SandboxInstance> */
-    tenantPools = new Map();
     constructor(manager) {
         this.manager = manager;
+        /** Per-tenant configurations (loaded from DB tenantSettings) */
+        this.tenantConfigs = new Map();
+        /** Per-tenant sandbox pools: tenantId → Map<sandboxId, SandboxInstance> */
+        this.tenantPools = new Map();
     }
     // ─── Configuration ──────────────────────────────────────
     /**
      * Set tenant sandbox configuration (loaded from DB on startup or settings update).
      */
     setTenantConfig(tenantId, config) {
-        this.tenantConfigs.set(tenantId, {
-            ...DEFAULT_TENANT_SANDBOX_CONFIG,
-            ...config,
-        });
+        this.tenantConfigs.set(tenantId, Object.assign(Object.assign({}, DEFAULT_TENANT_SANDBOX_CONFIG), config));
     }
     /**
      * Get tenant sandbox configuration.
      */
     getTenantConfig(tenantId) {
-        return this.tenantConfigs.get(tenantId) ?? DEFAULT_TENANT_SANDBOX_CONFIG;
+        var _a;
+        return (_a = this.tenantConfigs.get(tenantId)) !== null && _a !== void 0 ? _a : DEFAULT_TENANT_SANDBOX_CONFIG;
     }
     // ─── Sandbox Operations ────────────────────────────────
     /**
@@ -57,20 +54,12 @@ export class TenantSandboxManager {
         }
         // Resolve policy
         const policy = this.resolvePolicy(config.defaultPolicy);
-        const sandboxConfig = {
-            id: randomUUID(),
-            name: `tenant-${tenantId.slice(0, 8)}-${Date.now()}`,
-            tenantId,
-            policy,
-            resources: {
+        const sandboxConfig = Object.assign({ id: randomUUID(), name: `tenant-${tenantId.slice(0, 8)}-${Date.now()}`, tenantId,
+            policy, resources: {
                 cpuLimit: config.cpuLimit,
                 memoryLimit: config.memoryLimit,
                 maxConcurrent: config.maxConcurrentSandboxes,
-            },
-            gpu: config.gpuEnabled,
-            timeoutMs: config.idleTimeoutMs,
-            ...overrides,
-        };
+            }, gpu: config.gpuEnabled, timeoutMs: config.idleTimeoutMs }, overrides);
         const instance = await this.manager.create(sandboxConfig);
         // Track in tenant pool
         if (!this.tenantPools.has(tenantId)) {
@@ -101,8 +90,9 @@ export class TenantSandboxManager {
      * Destroy a specific sandbox, removing from tenant pool.
      */
     async destroy(tenantId, sandboxId) {
+        var _a;
         await this.manager.destroy(sandboxId);
-        this.tenantPools.get(tenantId)?.delete(sandboxId);
+        (_a = this.tenantPools.get(tenantId)) === null || _a === void 0 ? void 0 : _a.delete(sandboxId);
     }
     /**
      * Destroy all sandboxes for a tenant.
@@ -148,4 +138,3 @@ export class TenantSandboxManager {
         return JSON.parse(JSON.stringify(policy));
     }
 }
-//# sourceMappingURL=tenant-sandbox-manager.js.map

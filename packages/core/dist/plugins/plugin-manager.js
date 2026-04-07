@@ -5,10 +5,9 @@
  * and provides PluginContext to each plugin.
  */
 export class PluginManager {
-    plugins = new Map();
-    deps;
-    pluginConfigs = new Map();
     constructor(deps) {
+        this.plugins = new Map();
+        this.pluginConfigs = new Map();
         this.deps = deps;
     }
     /**
@@ -150,7 +149,7 @@ export class PluginManager {
             config,
             getCollection: (name) => {
                 const fullName = `plugin_${pluginId}_${name}`;
-                return db?.collection(fullName);
+                return db === null || db === void 0 ? void 0 : db.collection(fullName);
             },
             llm: this.deps.llm,
             tools: this.deps.tools,
@@ -173,7 +172,7 @@ export class PluginManager {
             try {
                 await db.createCollection(fullName);
             }
-            catch {
+            catch (_a) {
                 // Collection may already exist
             }
             if (col.indexes) {
@@ -185,4 +184,3 @@ export class PluginManager {
         }
     }
 }
-//# sourceMappingURL=plugin-manager.js.map

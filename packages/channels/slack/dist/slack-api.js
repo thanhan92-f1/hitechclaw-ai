@@ -3,10 +3,9 @@
  * Uses plain HTTP calls to avoid heavy SDK dependencies.
  */
 export class SlackApi {
-    botToken;
-    baseUrl = 'https://slack.com/api';
     constructor(botToken) {
         this.botToken = botToken;
+        this.baseUrl = 'https://slack.com/api';
     }
     async call(method, body) {
         const res = await fetch(`${this.baseUrl}/${method}`, {
@@ -33,4 +32,3 @@ export class SlackApi {
         return data.messages || [];
     }
 }
-//# sourceMappingURL=slack-api.js.map

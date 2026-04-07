@@ -266,7 +266,7 @@ export function createReportRoutes(ctx: GatewayContext) {
   app.get('/download/:id', (c) => {
     const file = tempFiles.get(c.req.param('id'));
     if (!file) return c.json({ error: 'File not found or expired (30 min TTL)' }, 404);
-    return new Response(file.data, {
+    return new Response(new Uint8Array(file.data), {
       headers: {
         'Content-Type': file.type,
         'Content-Disposition': `attachment; filename="${encodeURIComponent(file.name)}"`,

@@ -7,7 +7,8 @@ import { join, resolve } from 'node:path';
 const PACKS_DIR = resolve(process.cwd(), 'data/knowledge-packs');
 /** Convert a JSON knowledge pack into text documents suitable for RAG ingestion */
 function packToDocuments(fileName, pack) {
-    const meta = pack._meta ?? {};
+    var _a;
+    const meta = (_a = pack._meta) !== null && _a !== void 0 ? _a : {};
     const docs = [];
     // Determine collection name from _meta description or filename
     const baseName = fileName.replace(/\.json$/, '');
@@ -61,7 +62,7 @@ export async function loadKnowledgePacks(rag) {
     try {
         packDirs = await readdir(PACKS_DIR);
     }
-    catch {
+    catch (_a) {
         console.log('   Knowledge: No data/knowledge-packs/ directory found, skipping auto-load');
         return 0;
     }
@@ -71,7 +72,7 @@ export async function loadKnowledgePacks(rag) {
         try {
             files = await readdir(dirPath);
         }
-        catch {
+        catch (_b) {
             // Not a directory, skip
             continue;
         }
@@ -98,4 +99,3 @@ export async function loadKnowledgePacks(rag) {
     }
     return totalDocs;
 }
-//# sourceMappingURL=knowledge-loader.js.map

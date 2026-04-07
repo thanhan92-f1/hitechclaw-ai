@@ -186,7 +186,7 @@ function buildXlsx(data, headers, sheetName = 'Sheet1', title) {
             for (let C = range.s.c; C <= range.e.c; C++) {
                 const addr = XLSX.utils.encode_cell({ r: R, c: C });
                 const cell = ws[addr];
-                if (cell?.v != null) {
+                if ((cell === null || cell === void 0 ? void 0 : cell.v) != null) {
                     const len = String(cell.v).length;
                     colWidths[C] = Math.max(colWidths[C] || 8, Math.min(len + 2, 40));
                 }
@@ -205,14 +205,14 @@ function extractJsonBlock(text) {
         try {
             return JSON.parse(fence[1]);
         }
-        catch { /* fall through */ }
+        catch ( /* fall through */_a) { /* fall through */ }
     }
     const inline = text.match(/\{[\s\S]*\}/);
     if (inline) {
         try {
             return JSON.parse(inline[0]);
         }
-        catch { /* fall through */ }
+        catch ( /* fall through */_b) { /* fall through */ }
     }
     return null;
 }
@@ -224,7 +224,7 @@ export function createReportRoutes(ctx) {
         const file = tempFiles.get(c.req.param('id'));
         if (!file)
             return c.json({ error: 'File not found or expired (30 min TTL)' }, 404);
-        return new Response(file.data, {
+        return new Response(new Uint8Array(file.data), {
             headers: {
                 'Content-Type': file.type,
                 'Content-Disposition': `attachment; filename="${encodeURIComponent(file.name)}"`,
@@ -236,13 +236,14 @@ export function createReportRoutes(ctx) {
     // Body: { data, headers?, sheetName?, title?, prompt? }
     // If `prompt` is provided, AI generates the data structure first.
     app.post('/excel', async (c) => {
+        var _a;
         try {
             const body = await c.req.json();
             let data = body.data;
             let headers = body.headers;
             let sheetName = body.sheetName || 'Report';
             let title = body.title;
-            if (body.prompt && !data?.length) {
+            if (body.prompt && !(data === null || data === void 0 ? void 0 : data.length)) {
                 // Ask AI to generate the table data
                 const aiPrompt = `You are a data generator. The user wants an Excel spreadsheet.
 
@@ -272,7 +273,7 @@ Generate realistic, meaningful data. Include at least 5-15 rows. Use numbers whe
                     return c.json({ error: 'AI could not generate table data. Try providing data directly.' }, 422);
                 }
             }
-            if (!data?.length) {
+            if (!(data === null || data === void 0 ? void 0 : data.length)) {
                 return c.json({ error: 'data array is required (or provide a prompt)' }, 400);
             }
             const buf = buildXlsx(data, headers, sheetName, title);
@@ -284,7 +285,7 @@ Generate realistic, meaningful data. Include at least 5-15 rows. Use numbers whe
                 fileName,
                 downloadUrl: `/api/report/download/${fileId}`,
                 rows: Array.isArray(data) ? data.length : 0,
-                cols: headers?.length ?? (Array.isArray(data[0]) ? data[0].length : Object.keys(data[0]).length),
+                cols: (_a = headers === null || headers === void 0 ? void 0 : headers.length) !== null && _a !== void 0 ? _a : (Array.isArray(data[0]) ? data[0].length : Object.keys(data[0]).length),
             });
         }
         catch (err) {
@@ -294,6 +295,7 @@ Generate realistic, meaningful data. Include at least 5-15 rows. Use numbers whe
     // POST /api/report/chart
     // Body: { type, labels, datasets, title?, prompt? }
     app.post('/chart', async (c) => {
+        var _a, _b;
         try {
             const body = await c.req.json();
             let chartType = body.type || 'bar';
@@ -336,7 +338,7 @@ For pie charts, use a single dataset. Generate 5-10 data points with realistic v
             }
             let svg;
             if (chartType === 'pie') {
-                const pieVals = values.length ? values : datasets[0]?.data ?? [];
+                const pieVals = values.length ? values : (_b = (_a = datasets[0]) === null || _a === void 0 ? void 0 : _a.data) !== null && _b !== void 0 ? _b : [];
                 svg = buildPieChartSvg(labels, pieVals, title);
             }
             else if (chartType === 'line') {
@@ -364,9 +366,10 @@ For pie charts, use a single dataset. Generate 5-10 data points with realistic v
     // POST /api/report/generate
     // Full AI report: prompt → summary text + Excel + chart SVG
     app.post('/generate', async (c) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         try {
             const body = await c.req.json();
-            if (!body.prompt?.trim()) {
+            if (!((_a = body.prompt) === null || _a === void 0 ? void 0 : _a.trim())) {
                 return c.json({ error: 'prompt is required' }, 400);
             }
             const includeExcel = body.includeExcel !== false;
@@ -406,7 +409,7 @@ Generate realistic and meaningful data with at least 8-12 rows. Make the chart d
                 insights: parsed.insights || [],
             };
             // Generate Excel
-            if (includeExcel && parsed.table?.data?.length) {
+            if (includeExcel && ((_c = (_b = parsed.table) === null || _b === void 0 ? void 0 : _b.data) === null || _c === void 0 ? void 0 : _c.length)) {
                 const buf = buildXlsx(parsed.table.data, parsed.table.headers, parsed.table.sheetName || 'Data', parsed.title);
                 const fileName = body.fileName
                     ? body.fileName.replace(/\.xlsx$/, '') + '.xlsx'
@@ -420,11 +423,11 @@ Generate realistic and meaningful data with at least 8-12 rows. Make the chart d
                 };
             }
             // Generate Chart
-            if (includeChart && parsed.chart?.labels?.length && parsed.chart?.datasets?.length) {
-                const ct = parsed.chart.type || (body.chartType ?? 'bar');
+            if (includeChart && ((_e = (_d = parsed.chart) === null || _d === void 0 ? void 0 : _d.labels) === null || _e === void 0 ? void 0 : _e.length) && ((_g = (_f = parsed.chart) === null || _f === void 0 ? void 0 : _f.datasets) === null || _g === void 0 ? void 0 : _g.length)) {
+                const ct = parsed.chart.type || ((_h = body.chartType) !== null && _h !== void 0 ? _h : 'bar');
                 let svgStr;
                 if (ct === 'pie') {
-                    svgStr = buildPieChartSvg(parsed.chart.labels, parsed.chart.datasets[0]?.data ?? [], parsed.chart.title);
+                    svgStr = buildPieChartSvg(parsed.chart.labels, (_k = (_j = parsed.chart.datasets[0]) === null || _j === void 0 ? void 0 : _j.data) !== null && _k !== void 0 ? _k : [], parsed.chart.title);
                 }
                 else if (ct === 'line') {
                     svgStr = buildLineChartSvg(parsed.chart.labels, parsed.chart.datasets, parsed.chart.title);
@@ -450,4 +453,3 @@ Generate realistic and meaningful data with at least 8-12 rows. Make the chart d
     });
     return app;
 }
-//# sourceMappingURL=report.js.map

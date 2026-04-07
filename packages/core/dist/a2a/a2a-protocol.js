@@ -13,37 +13,37 @@ import { EventBus } from '../agent/event-bus.js';
  *   const result = await server.handleTask(task);
  */
 export class A2AServer {
-    agent;
-    card;
-    events = new EventBus();
     constructor(agent, options) {
+        var _a, _b, _c, _d, _e;
+        this.events = new EventBus();
         this.agent = agent;
         this.card = {
-            name: options.name ?? agent.config.name,
-            description: options.description ?? agent.config.description ?? agent.config.persona.slice(0, 200),
+            name: (_a = options.name) !== null && _a !== void 0 ? _a : agent.config.name,
+            description: (_c = (_b = options.description) !== null && _b !== void 0 ? _b : agent.config.description) !== null && _c !== void 0 ? _c : agent.config.persona.slice(0, 200),
             url: options.url,
-            version: options.version ?? '1.0.0',
-            capabilities: options.capabilities ?? ['text', 'tools'],
+            version: (_d = options.version) !== null && _d !== void 0 ? _d : '1.0.0',
+            capabilities: (_e = options.capabilities) !== null && _e !== void 0 ? _e : ['text', 'tools'],
         };
     }
     /**
      * Returns the agent card for discovery.
      */
     getAgentCard() {
-        return { ...this.card };
+        return Object.assign({}, this.card);
     }
     /**
      * Handle an incoming A2A task.
      */
     async handleTask(task) {
+        var _a, _b, _c;
         await this.events.emit({
             type: 'a2a:task-received',
-            payload: { taskId: task.id, from: task.metadata?.sourceAgent ?? 'unknown' },
+            payload: { taskId: task.id, from: (_b = (_a = task.metadata) === null || _a === void 0 ? void 0 : _a.sourceAgent) !== null && _b !== void 0 ? _b : 'unknown' },
             source: this.card.name,
             timestamp: new Date().toISOString(),
         });
         try {
-            const sessionId = task.sessionId ?? `a2a-${task.id}`;
+            const sessionId = (_c = task.sessionId) !== null && _c !== void 0 ? _c : `a2a-${task.id}`;
             const response = await this.agent.chat(sessionId, task.message);
             const result = {
                 taskId: task.id,
@@ -88,17 +88,11 @@ export class A2AServer {
  *   parentAgent.tools.register(remote.getToolDefinition(), remote.createHandler());
  */
 export class RemoteA2AAgent {
-    baseUrl;
-    agentCard;
-    headers;
-    events = new EventBus();
     constructor(baseUrl, options) {
+        this.events = new EventBus();
         this.baseUrl = baseUrl.replace(/\/$/, '');
-        this.headers = {
-            'Content-Type': 'application/json',
-            ...options?.headers,
-        };
-        this.agentCard = options?.agentCard;
+        this.headers = Object.assign({ 'Content-Type': 'application/json' }, options === null || options === void 0 ? void 0 : options.headers);
+        this.agentCard = options === null || options === void 0 ? void 0 : options.agentCard;
     }
     /**
      * Discover the remote agent's capabilities.
@@ -122,8 +116,8 @@ export class RemoteA2AAgent {
         const task = {
             id: randomUUID(),
             message,
-            sessionId: options?.sessionId,
-            metadata: options?.metadata,
+            sessionId: options === null || options === void 0 ? void 0 : options.sessionId,
+            metadata: options === null || options === void 0 ? void 0 : options.metadata,
         };
         await this.events.emit({
             type: 'a2a:task-sent',
@@ -146,10 +140,11 @@ export class RemoteA2AAgent {
      * registered in a parent agent's ToolRegistry.
      */
     getToolDefinition() {
+        var _a, _b;
         const card = this.agentCard;
         return {
-            name: `a2a_${(card?.name ?? 'remote').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()}`,
-            description: card?.description ?? `Remote A2A agent at ${this.baseUrl}`,
+            name: `a2a_${((_a = card === null || card === void 0 ? void 0 : card.name) !== null && _a !== void 0 ? _a : 'remote').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase()}`,
+            description: (_b = card === null || card === void 0 ? void 0 : card.description) !== null && _b !== void 0 ? _b : `Remote A2A agent at ${this.baseUrl}`,
             category: 'a2a',
             parameters: [
                 {
@@ -186,14 +181,16 @@ export class RemoteA2AAgent {
  * A2ARegistry — Registry for managing multiple A2A servers and remote agents.
  */
 export class A2ARegistry {
-    servers = new Map();
-    remotes = new Map();
-    events = new EventBus();
+    constructor() {
+        this.servers = new Map();
+        this.remotes = new Map();
+        this.events = new EventBus();
+    }
     /**
      * Expose a local agent as an A2A server.
      */
     expose(agent, url, options) {
-        const server = new A2AServer(agent, { url, ...options });
+        const server = new A2AServer(agent, Object.assign({ url }, options));
         this.servers.set(server.card.name, server);
         return server;
     }
@@ -242,11 +239,10 @@ export class A2ARegistry {
             try {
                 cards.push(await remote.discover());
             }
-            catch {
+            catch (_a) {
                 // skip unreachable remotes
             }
         }
         return cards;
     }
 }
-//# sourceMappingURL=a2a-protocol.js.map

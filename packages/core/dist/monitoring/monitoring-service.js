@@ -3,10 +3,6 @@
 // ============================================================
 import { randomUUID } from 'node:crypto';
 export class MonitoringService {
-    eventBus;
-    store;
-    metrics;
-    metricsInterval;
     constructor(eventBus) {
         this.eventBus = eventBus;
         this.metrics = {
@@ -31,13 +27,14 @@ export class MonitoringService {
                 this.metrics.requestCountByMinute.shift();
             }
             this.metrics.requestCount = 0;
-        }, 60_000);
+        }, 60000);
     }
     setStore(store) {
         this.store = store;
     }
     // ─── Audit Logging ────────────────────────────────────────
     async audit(params) {
+        var _a;
         const entry = {
             _id: randomUUID(),
             tenantId: params.tenantId,
@@ -54,7 +51,7 @@ export class MonitoringService {
             await this.store.writeAuditLog(entry);
         }
         // Also emit event for real-time listeners
-        this.eventBus?.emit({
+        (_a = this.eventBus) === null || _a === void 0 ? void 0 : _a.emit({
             type: 'audit:log',
             payload: entry,
             source: 'monitoring',
@@ -63,13 +60,14 @@ export class MonitoringService {
     }
     // ─── System Logging ───────────────────────────────────────
     async log(level, source, message, extra) {
+        var _a;
         const entry = {
             _id: randomUUID(),
             level,
             source,
             message,
-            metadata: extra?.metadata,
-            error: extra?.error ? {
+            metadata: extra === null || extra === void 0 ? void 0 : extra.metadata,
+            error: (extra === null || extra === void 0 ? void 0 : extra.error) ? {
                 name: extra.error.name,
                 message: extra.error.message,
                 stack: extra.error.stack,
@@ -90,7 +88,7 @@ export class MonitoringService {
                 break;
             case 'error':
             case 'fatal':
-                console.error(prefix, message, extra?.error ?? '');
+                console.error(prefix, message, (_a = extra === null || extra === void 0 ? void 0 : extra.error) !== null && _a !== void 0 ? _a : '');
                 break;
         }
         if (this.store) {
@@ -133,13 +131,14 @@ export class MonitoringService {
         this.metrics.activeConnections = count;
     }
     getMetrics() {
+        var _a;
         const mem = process.memoryUsage();
         const cpu = process.cpuUsage();
         const avgLatency = this.metrics.llmLatencies.length > 0
             ? this.metrics.llmLatencies.reduce((a, b) => a + b, 0) / this.metrics.llmLatencies.length
             : 0;
         const rpm = this.metrics.requestCountByMinute.length > 0
-            ? this.metrics.requestCountByMinute[this.metrics.requestCountByMinute.length - 1] ?? 0
+            ? (_a = this.metrics.requestCountByMinute[this.metrics.requestCountByMinute.length - 1]) !== null && _a !== void 0 ? _a : 0
             : 0;
         return {
             uptime: Math.floor((Date.now() - this.metrics.startedAt) / 1000),
@@ -198,8 +197,9 @@ export class MonitoringService {
             this.trackWorkflowEnd(event.payload.status === 'failed');
         });
         this.eventBus.on('llm:*', async (event) => {
+            var _a;
             if (event.type === 'llm:completed' || event.type === 'llm:failed') {
-                const duration = event.payload.duration ?? 0;
+                const duration = (_a = event.payload.duration) !== null && _a !== void 0 ? _a : 0;
                 this.trackLLMCall(duration, event.type === 'llm:failed');
             }
         });
@@ -210,4 +210,3 @@ export class MonitoringService {
         }
     }
 }
-//# sourceMappingURL=monitoring-service.js.map

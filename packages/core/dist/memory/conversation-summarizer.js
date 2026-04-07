@@ -4,14 +4,11 @@ const SUMMARIZE_PROMPT = `You are a conversation summarizer. Condense the follow
  * When history exceeds `threshold`, older messages are compressed into a summary.
  */
 export class ConversationSummarizer {
-    llm;
-    threshold;
-    keepRecent;
-    summaryCache = new Map();
     constructor(llm, threshold = 15, keepRecent = 6) {
         this.llm = llm;
         this.threshold = threshold;
         this.keepRecent = keepRecent;
+        this.summaryCache = new Map();
     }
     /**
      * Check if a session's history needs summarization and apply if needed.
@@ -74,4 +71,3 @@ export class ConversationSummarizer {
         this.summaryCache.delete(sessionId);
     }
 }
-//# sourceMappingURL=conversation-summarizer.js.map

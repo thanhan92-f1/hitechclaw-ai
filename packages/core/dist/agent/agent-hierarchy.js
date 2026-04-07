@@ -11,14 +11,17 @@ import { EventBus } from './event-bus.js';
  * Inspired by Google ADK's Agent Hierarchy & AutoFlow.
  */
 export class AgentHierarchy {
-    agents = new Map();
-    children = new Map(); // parentId → childIds
-    parents = new Map(); // childId → parentId
-    events = new EventBus();
+    constructor() {
+        this.agents = new Map();
+        this.children = new Map(); // parentId → childIds
+        this.parents = new Map(); // childId → parentId
+        this.events = new EventBus();
+    }
     /**
      * Register an agent in the hierarchy.
      */
     registerAgent(agent, parentId) {
+        var _a;
         const id = agent.config.id;
         this.agents.set(id, agent);
         if (parentId) {
@@ -29,7 +32,7 @@ export class AgentHierarchy {
             this.parents.set(id, parentId);
         }
         // Register sub-agents from config
-        if (agent.config.subAgents?.length) {
+        if ((_a = agent.config.subAgents) === null || _a === void 0 ? void 0 : _a.length) {
             if (!this.children.has(id)) {
                 this.children.set(id, new Set());
             }
@@ -125,6 +128,7 @@ export class AgentHierarchy {
      * Targets include: sub-agents, siblings, and parent.
      */
     getTransferTargets(agentId) {
+        var _a, _b, _c;
         const targets = [];
         const agent = this.agents.get(agentId);
         if (!agent)
@@ -135,7 +139,7 @@ export class AgentHierarchy {
             targets.push({
                 agentConfigId: sub.config.id,
                 name: sub.config.name,
-                description: sub.config.description ?? sub.config.persona.slice(0, 100),
+                description: (_a = sub.config.description) !== null && _a !== void 0 ? _a : sub.config.persona.slice(0, 100),
             });
         }
         // Also include refs from config (may not be instantiated yet)
@@ -153,7 +157,7 @@ export class AgentHierarchy {
                 targets.push({
                     agentConfigId: sib.config.id,
                     name: sib.config.name,
-                    description: sib.config.description ?? sib.config.persona.slice(0, 100),
+                    description: (_b = sib.config.description) !== null && _b !== void 0 ? _b : sib.config.persona.slice(0, 100),
                 });
             }
         }
@@ -163,7 +167,7 @@ export class AgentHierarchy {
             targets.push({
                 agentConfigId: parent.config.id,
                 name: parent.config.name,
-                description: parent.config.description ?? 'Parent coordinator agent',
+                description: (_c = parent.config.description) !== null && _c !== void 0 ? _c : 'Parent coordinator agent',
             });
         }
         return targets;
@@ -173,6 +177,7 @@ export class AgentHierarchy {
      * Returns the target agent's response.
      */
     async executeTransfer(transfer, sessionId, originalMessage) {
+        var _a, _b;
         const targetAgent = this.findAgentByName(transfer.targetAgentName);
         if (!targetAgent) {
             throw new Error(`Transfer target agent "${transfer.targetAgentName}" not found in hierarchy`);
@@ -189,8 +194,8 @@ export class AgentHierarchy {
         });
         // Build context-enriched message for the target agent
         const contextMessage = transfer.context
-            ? `[Transferred from another agent. Reason: ${transfer.reason ?? 'delegation'}]\n\nContext: ${transfer.context}\n\nUser message: ${originalMessage}`
-            : `[Transferred from another agent. Reason: ${transfer.reason ?? 'delegation'}]\n\nUser message: ${originalMessage}`;
+            ? `[Transferred from another agent. Reason: ${(_a = transfer.reason) !== null && _a !== void 0 ? _a : 'delegation'}]\n\nContext: ${transfer.context}\n\nUser message: ${originalMessage}`
+            : `[Transferred from another agent. Reason: ${(_b = transfer.reason) !== null && _b !== void 0 ? _b : 'delegation'}]\n\nUser message: ${originalMessage}`;
         const response = await targetAgent.chat(sessionId, contextMessage);
         return { agent: targetAgent, response };
     }
@@ -198,12 +203,15 @@ export class AgentHierarchy {
      * List all agents in the hierarchy.
      */
     listAgents() {
-        return [...this.agents.values()].map((agent) => ({
-            id: agent.config.id,
-            name: agent.config.name,
-            parentId: this.parents.get(agent.config.id),
-            childCount: this.children.get(agent.config.id)?.size ?? 0,
-        }));
+        return [...this.agents.values()].map((agent) => {
+            var _a, _b;
+            return ({
+                id: agent.config.id,
+                name: agent.config.name,
+                parentId: this.parents.get(agent.config.id),
+                childCount: (_b = (_a = this.children.get(agent.config.id)) === null || _a === void 0 ? void 0 : _a.size) !== null && _b !== void 0 ? _b : 0,
+            });
+        });
     }
     /**
      * Clear all agents from the hierarchy.
@@ -214,4 +222,3 @@ export class AgentHierarchy {
         this.parents.clear();
     }
 }
-//# sourceMappingURL=agent-hierarchy.js.map

@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
  * Supports per-domain evaluation suites with customizable metrics.
  */
 export class EvalFramework {
-    llm;
     constructor(llm) {
         this.llm = llm;
     }
@@ -26,7 +25,7 @@ export class EvalFramework {
         const avgLatency = results.reduce((s, r) => s + r.metrics.latency_ms, 0) / results.length;
         const avgToolAccuracy = results
             .filter((r) => r.metrics.toolCallAccuracy !== undefined)
-            .reduce((s, r) => s + (r.metrics.toolCallAccuracy ?? 0), 0) / Math.max(1, results.filter((r) => r.metrics.toolCallAccuracy !== undefined).length);
+            .reduce((s, r) => { var _a; return s + ((_a = r.metrics.toolCallAccuracy) !== null && _a !== void 0 ? _a : 0); }, 0) / Math.max(1, results.filter((r) => r.metrics.toolCallAccuracy !== undefined).length);
         return {
             suiteId,
             suiteName,
@@ -78,6 +77,7 @@ export class EvalFramework {
         }
     }
     async computeMetrics(testCase, actualOutput, latencyMs) {
+        var _a;
         const metrics = {
             accuracy: 0,
             relevance: 0,
@@ -107,7 +107,7 @@ export class EvalFramework {
         }
         metrics.accuracy = expectedWords.size > 0 ? matchCount / expectedWords.size : 1;
         // Tool call accuracy
-        if (testCase.expectedToolCalls?.length) {
+        if ((_a = testCase.expectedToolCalls) === null || _a === void 0 ? void 0 : _a.length) {
             // Check if actual output mentions tool usage (heuristic)
             const toolMentions = testCase.expectedToolCalls.filter((t) => actual.includes(t.toLowerCase()));
             metrics.toolCallAccuracy = toolMentions.length / testCase.expectedToolCalls.length;
@@ -146,7 +146,7 @@ JSON:`;
                 };
             }
         }
-        catch {
+        catch (_a) {
             // Judge failed — return neutral scores
         }
         return {
@@ -156,4 +156,3 @@ JSON:`;
         };
     }
 }
-//# sourceMappingURL=eval-framework.js.map

@@ -38,6 +38,7 @@ export const imageGenDefinition = {
 };
 export function createImageGenHandler(apiKey) {
     return async (args) => {
+        var _a;
         const key = apiKey || process.env.OPENAI_API_KEY;
         if (!key)
             throw new Error('OPENAI_API_KEY is required for image generation');
@@ -65,7 +66,7 @@ export function createImageGenHandler(apiKey) {
         });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
-            throw new Error(`Image generation failed: ${err.error?.message || res.statusText}`);
+            throw new Error(`Image generation failed: ${((_a = err.error) === null || _a === void 0 ? void 0 : _a.message) || res.statusText}`);
         }
         const data = await res.json();
         const image = data.data[0];
@@ -79,4 +80,3 @@ export function createImageGenHandler(apiKey) {
         };
     };
 }
-//# sourceMappingURL=image-gen.js.map

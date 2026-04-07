@@ -8,22 +8,17 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 export class SandboxManager {
-    binary;
-    gatewayUrl;
-    maxPoolSize;
-    idleTimeoutMs;
-    mode;
-    onAudit;
-    /** Active sandbox instances */
-    instances = new Map();
-    /** Idle timers per sandbox */
-    idleTimers = new Map();
     constructor(options = {}) {
-        this.binary = options.binaryPath ?? 'openshell';
+        var _a, _b, _c, _d;
+        /** Active sandbox instances */
+        this.instances = new Map();
+        /** Idle timers per sandbox */
+        this.idleTimers = new Map();
+        this.binary = (_a = options.binaryPath) !== null && _a !== void 0 ? _a : 'openshell';
         this.gatewayUrl = options.gatewayUrl;
-        this.maxPoolSize = options.maxPoolSize ?? 50;
-        this.idleTimeoutMs = options.idleTimeoutMs ?? 5 * 60_000;
-        this.mode = options.mode ?? 'local';
+        this.maxPoolSize = (_b = options.maxPoolSize) !== null && _b !== void 0 ? _b : 50;
+        this.idleTimeoutMs = (_c = options.idleTimeoutMs) !== null && _c !== void 0 ? _c : 5 * 60000;
+        this.mode = (_d = options.mode) !== null && _d !== void 0 ? _d : 'local';
         this.onAudit = options.onAudit;
     }
     // ─── Lifecycle ──────────────────────────────────────────
@@ -32,6 +27,7 @@ export class SandboxManager {
      * Returns the sandbox instance once ready.
      */
     async create(config) {
+        var _a, _b, _c, _d, _e;
         if (this.instances.size >= this.maxPoolSize) {
             throw new Error(`Sandbox pool full (max ${this.maxPoolSize}). Destroy idle sandboxes first.`);
         }
@@ -40,9 +36,9 @@ export class SandboxManager {
             name: config.name,
             tenantId: config.tenantId,
             status: 'creating',
-            image: config.image ?? 'base',
+            image: (_a = config.image) !== null && _a !== void 0 ? _a : 'base',
             policy: config.policy,
-            gpu: config.gpu ?? false,
+            gpu: (_b = config.gpu) !== null && _b !== void 0 ? _b : false,
             createdAt: new Date().toISOString(),
             lastActivityAt: new Date().toISOString(),
             resources: config.resources,
@@ -57,13 +53,13 @@ export class SandboxManager {
                 args.push('--gpu');
             }
             // Resource limits
-            if (config.resources?.cpuLimit) {
+            if ((_c = config.resources) === null || _c === void 0 ? void 0 : _c.cpuLimit) {
                 args.push('--cpu', config.resources.cpuLimit);
             }
-            if (config.resources?.memoryLimit) {
+            if ((_d = config.resources) === null || _d === void 0 ? void 0 : _d.memoryLimit) {
                 args.push('--memory', config.resources.memoryLimit);
             }
-            await this.exec(args, config.timeoutMs ?? 60_000);
+            await this.exec(args, (_e = config.timeoutMs) !== null && _e !== void 0 ? _e : 60000);
             instance.status = 'ready';
             this.audit(instance.id, config.tenantId, 'create', { image: instance.image, gpu: instance.gpu });
             this.resetIdleTimer(instance.id);
@@ -80,6 +76,7 @@ export class SandboxManager {
      * Used for running tool handlers in isolation.
      */
     async execute(sandboxId, command, stdin) {
+        var _a;
         const instance = this.instances.get(sandboxId);
         if (!instance)
             throw new Error(`Sandbox ${sandboxId} not found`);
@@ -92,12 +89,12 @@ export class SandboxManager {
         const start = Date.now();
         try {
             const args = ['sandbox', 'exec', instance.name, '--', 'sh', '-c', command];
-            const { stdout, stderr } = await this.exec(args, instance.resources?.cpuLimit ? 30_000 : 15_000, stdin);
+            const { stdout, stderr } = await this.exec(args, ((_a = instance.resources) === null || _a === void 0 ? void 0 : _a.cpuLimit) ? 30000 : 15000, stdin);
             instance.status = 'ready';
             const result = {
                 success: true,
                 output: stdout.trim(),
-                stderr: stderr?.trim() || undefined,
+                stderr: (stderr === null || stderr === void 0 ? void 0 : stderr.trim()) || undefined,
                 exitCode: 0,
                 durationMs: Date.now() - start,
             };
@@ -154,7 +151,7 @@ export class SandboxManager {
         try {
             await this.exec(['sandbox', 'delete', instance.name, '--force']);
         }
-        catch {
+        catch (_a) {
             // Best-effort cleanup
         }
         instance.status = 'stopped';
@@ -200,26 +197,19 @@ export class SandboxManager {
      */
     async bootstrapGateway() {
         try {
-            await this.exec(['gateway', 'status'], 10_000);
+            await this.exec(['gateway', 'status'], 10000);
         }
-        catch {
+        catch (_a) {
             // Gateway not running — bootstrap it
-            await this.exec(['gateway', 'create'], 120_000);
+            await this.exec(['gateway', 'create'], 120000);
         }
     }
     // ─── Internal ───────────────────────────────────────────
-    async exec(args, timeoutMs = 30_000, stdin) {
+    async exec(args, timeoutMs = 30000, stdin) {
+        var _a, _b;
         try {
-            const result = await execFileAsync(this.binary, args, {
-                timeout: timeoutMs,
-                maxBuffer: 10 * 1024 * 1024,
-                env: {
-                    ...process.env,
-                    ...(this.gatewayUrl ? { OPENSHELL_GATEWAY_URL: this.gatewayUrl } : {}),
-                },
-                ...(stdin ? {} : {}),
-            });
-            return { stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+            const result = await execFileAsync(this.binary, args, Object.assign({ timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024, env: Object.assign(Object.assign({}, process.env), (this.gatewayUrl ? { OPENSHELL_GATEWAY_URL: this.gatewayUrl } : {})) }, (stdin ? {} : {})));
+            return { stdout: (_a = result.stdout) !== null && _a !== void 0 ? _a : '', stderr: (_b = result.stderr) !== null && _b !== void 0 ? _b : '' };
         }
         catch (err) {
             const execErr = err;
@@ -230,7 +220,8 @@ export class SandboxManager {
         }
     }
     audit(sandboxId, tenantId, action, details) {
-        this.onAudit?.({
+        var _a;
+        (_a = this.onAudit) === null || _a === void 0 ? void 0 : _a.call(this, {
             sandboxId,
             tenantId,
             action,
@@ -268,4 +259,3 @@ export class SandboxManager {
         }
     }
 }
-//# sourceMappingURL=sandbox-manager.js.map

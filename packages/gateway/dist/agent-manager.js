@@ -5,10 +5,9 @@ import { agentConfigsCollection } from '@hitechclaw/db';
  * Shares LLM adapters across all agents. Falls back to the default global agent.
  */
 export class AgentManager {
-    agents = new Map();
-    adapters = [];
-    defaultAgent;
     constructor(defaultAgent) {
+        this.agents = new Map();
+        this.adapters = [];
         this.defaultAgent = defaultAgent;
         this.agents.set('default-agent', defaultAgent);
     }
@@ -22,6 +21,7 @@ export class AgentManager {
     }
     /** Get an agent by config ID, loading from MongoDB if needed */
     async getAgent(configId, tenantId = 'default') {
+        var _a;
         if (!configId || configId === 'default-agent') {
             return this.defaultAgent;
         }
@@ -32,7 +32,7 @@ export class AgentManager {
             const configs = agentConfigsCollection();
             const mongoConfig = await configs.findOne({ _id: configId, tenantId });
             if (mongoConfig) {
-                const dbModel = mongoConfig.llmConfig?.model || '';
+                const dbModel = ((_a = mongoConfig.llmConfig) === null || _a === void 0 ? void 0 : _a.model) || '';
                 if (dbModel && dbModel !== cached.config.llm.model) {
                     this.agents.delete(configId);
                     return this.createAgentFromConfig(mongoConfig);
@@ -50,6 +50,7 @@ export class AgentManager {
     }
     /** Get the default agent for a tenant */
     async getDefaultForTenant(tenantId) {
+        var _a;
         const configs = agentConfigsCollection();
         const mongoConfig = await configs.findOne({ tenantId, isDefault: true });
         if (!mongoConfig) {
@@ -57,7 +58,7 @@ export class AgentManager {
         }
         const cached = this.agents.get(mongoConfig._id);
         if (cached) {
-            const dbModel = mongoConfig.llmConfig?.model || '';
+            const dbModel = ((_a = mongoConfig.llmConfig) === null || _a === void 0 ? void 0 : _a.model) || '';
             if (dbModel && dbModel !== cached.config.llm.model) {
                 this.agents.delete(mongoConfig._id);
                 return this.createAgentFromConfig(mongoConfig);
@@ -74,6 +75,7 @@ export class AgentManager {
     }
     /** Convert MongoAgentConfig → AgentConfig */
     toRuntimeConfig(mongo) {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         const llm = mongo.llmConfig || {};
         return {
             id: mongo._id,
@@ -91,16 +93,16 @@ export class AgentManager {
             },
             enabledSkills: mongo.enabledSkills || [],
             memory: {
-                enabled: mongo.memoryConfig?.enabled ?? true,
-                maxEntries: mongo.memoryConfig?.maxEntries ?? 1000,
+                enabled: (_b = (_a = mongo.memoryConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== null && _b !== void 0 ? _b : true,
+                maxEntries: (_d = (_c = mongo.memoryConfig) === null || _c === void 0 ? void 0 : _c.maxEntries) !== null && _d !== void 0 ? _d : 1000,
             },
             security: {
-                requireApprovalForShell: mongo.securityConfig?.requireApprovalForShell ?? true,
-                requireApprovalForNetwork: mongo.securityConfig?.requireApprovalForNetwork ?? false,
-                blockedCommands: mongo.securityConfig?.blockedCommands,
+                requireApprovalForShell: (_f = (_e = mongo.securityConfig) === null || _e === void 0 ? void 0 : _e.requireApprovalForShell) !== null && _f !== void 0 ? _f : true,
+                requireApprovalForNetwork: (_h = (_g = mongo.securityConfig) === null || _g === void 0 ? void 0 : _g.requireApprovalForNetwork) !== null && _h !== void 0 ? _h : false,
+                blockedCommands: (_j = mongo.securityConfig) === null || _j === void 0 ? void 0 : _j.blockedCommands,
             },
-            maxToolIterations: mongo.maxToolIterations ?? 10,
-            toolTimeout: mongo.toolTimeout ?? 30000,
+            maxToolIterations: (_k = mongo.maxToolIterations) !== null && _k !== void 0 ? _k : 10,
+            toolTimeout: (_l = mongo.toolTimeout) !== null && _l !== void 0 ? _l : 30000,
             isDefault: mongo.isDefault,
         };
     }
@@ -163,13 +165,14 @@ export class AgentManager {
             case 'mistral': return new MistralAdapter(opts);
             case 'google': return new GeminiAdapter(opts);
             case 'huggingface': return new HuggingFaceAdapter(opts);
-            case 'custom': return new OpenAIAdapter({ ...opts, baseUrl: llm.baseUrl });
+            case 'custom': return new OpenAIAdapter(Object.assign(Object.assign({}, opts), { baseUrl: llm.baseUrl }));
             default: return null;
         }
     }
     /** Extract model name from an adapter (best-effort) */
     getAdapterModel(adapter) {
-        return adapter.model ?? '';
+        var _a;
+        return (_a = adapter.model) !== null && _a !== void 0 ? _a : '';
     }
     /**
      * Create a CoordinatorAgent that wraps the given base agent config.
@@ -188,4 +191,3 @@ export class AgentManager {
         return { coordinator, taskManager };
     }
 }
-//# sourceMappingURL=agent-manager.js.map

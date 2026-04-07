@@ -12,6 +12,7 @@ export function createSettingsRoutes() {
     const app = new Hono();
     // GET /settings — Get current tenant's settings
     app.get('/', async (c) => {
+        var _a;
         const tenantId = c.get('tenantId');
         const settings = c.get('tenantSettings');
         return c.json({
@@ -26,18 +27,20 @@ export function createSettingsRoutes() {
                 provider: settings.llmProvider,
                 model: settings.llmModel,
                 temperature: settings.llmTemperature != null ? settings.llmTemperature / 100 : 0.7,
-                maxTokens: settings.llmMaxTokens ?? 2048,
+                maxTokens: (_a = settings.llmMaxTokens) !== null && _a !== void 0 ? _a : 2048,
             },
         });
     });
     // GET /settings/setup/status — Check if tenant setup wizard is completed
     app.get('/setup/status', async (c) => {
+        var _a;
         const settings = c.get('tenantSettings');
-        const branding = (settings.branding ?? {});
+        const branding = ((_a = settings.branding) !== null && _a !== void 0 ? _a : {});
         return c.json({ completed: branding.setupCompleted === true });
     });
     // POST /settings/setup/complete — Save initial setup config and mark completed
     app.post('/setup/complete', async (c) => {
+        var _a;
         const tenantId = c.get('tenantId');
         const user = c.get('user');
         if (!user.isSuperAdmin && user.role !== 'admin' && user.role !== 'owner') {
@@ -67,8 +70,8 @@ export function createSettingsRoutes() {
             update.enabledDomains = body.enabledDomains;
         // Merge setupCompleted into branding
         const currentSettings = c.get('tenantSettings');
-        const currentBranding = (currentSettings.branding ?? {});
-        update.branding = { ...currentBranding, setupCompleted: true };
+        const currentBranding = ((_a = currentSettings.branding) !== null && _a !== void 0 ? _a : {});
+        update.branding = Object.assign(Object.assign({}, currentBranding), { setupCompleted: true });
         await TenantService.updateSettings(tenantId, update);
         return c.json({ ok: true });
     });
@@ -106,4 +109,3 @@ export function createSettingsRoutes() {
     });
     return app;
 }
-//# sourceMappingURL=settings.js.map
