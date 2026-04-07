@@ -482,6 +482,303 @@ const packageMenuSections: Array<{
   },
 ];
 
+const packageWorkspaceItems: Array<{
+  id: "chat" | "docs" | "domains" | "integrations" | "skills" | "ml" | "mcp";
+  href: string;
+  label: string;
+  description: string;
+  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
+}> = [
+  {
+    id: "chat",
+    href: "/client/chat",
+    label: "AI Chat",
+    description: "Chat workspace from the packaged client SDK.",
+    tone: "green",
+  },
+  {
+    id: "docs",
+    href: "/tools/docs",
+    label: "Docs Library",
+    description: "Repository and package knowledge base.",
+    tone: "cyan",
+  },
+  {
+    id: "domains",
+    href: "/tools/domains",
+    label: "Domain Packs",
+    description: "Industry presets, personas, and packaged skills.",
+    tone: "purple",
+  },
+  {
+    id: "integrations",
+    href: "/tools/integrations",
+    label: "Integrations",
+    description: "Connector catalog, auth models, and actions.",
+    tone: "green",
+  },
+  {
+    id: "skills",
+    href: "/tools/skills",
+    label: "Skill Registry",
+    description: "Marketplace-style view of packaged skills.",
+    tone: "cyan",
+  },
+  {
+    id: "ml",
+    href: "/tools/ml",
+    label: "ML Catalog",
+    description: "Algorithms, tasks, and hyperparameter guidance.",
+    tone: "amber",
+  },
+  {
+    id: "mcp",
+    href: "/tools/mcp",
+    label: "MCP Inventory",
+    description: "Provider registry, imports, and execution gateways.",
+    tone: "slate",
+  },
+];
+
+const packageOverviewGroups: Array<{
+  title: string;
+  note: string;
+  items: Array<{ label: string; href: string; description: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
+}> = [
+  {
+    title: "Discover",
+    note: "Browse package knowledge and reusable building blocks.",
+    items: [
+      {
+        label: "Domain Packs",
+        href: "/tools/domains",
+        description: "Industry presets, personas, and rollout guidance.",
+        tone: "purple",
+      },
+      {
+        label: "Skill Registry",
+        href: "/tools/skills",
+        description: "Marketplace-style view of packaged skills and tools.",
+        tone: "cyan",
+      },
+      {
+        label: "ML Catalog",
+        href: "/tools/ml",
+        description: "Algorithms, tasks, and hyperparameter references.",
+        tone: "amber",
+      },
+    ],
+  },
+  {
+    title: "Connect",
+    note: "Move from packaged definitions into usable workflows.",
+    items: [
+      {
+        label: "Integrations",
+        href: "/tools/integrations",
+        description: "Connector inventory with auth, triggers, and actions.",
+        tone: "green",
+      },
+      {
+        label: "Docs Library",
+        href: "/tools/docs",
+        description: "Workspace and package-backed documentation search.",
+        tone: "cyan",
+      },
+      {
+        label: "AI Chat",
+        href: "/client/chat",
+        description: "Client-facing conversation workspace backed by the chat SDK.",
+        tone: "green",
+      },
+    ],
+  },
+  {
+    title: "Operate",
+    note: "Keep execution and provider control aligned with current flows.",
+    items: [
+      {
+        label: "MCP Inventory",
+        href: "/tools/mcp",
+        description: "Manage providers, imports, and execution gateways.",
+        tone: "slate",
+      },
+      {
+        label: "Approvals Queue",
+        href: "/tools/approvals",
+        description: "Preserve approval gates for risky or moderated actions.",
+        tone: "green",
+      },
+      {
+        label: "Workflows",
+        href: "/workflows",
+        description: "Bridge package capabilities into repeatable operations.",
+        tone: "amber",
+      },
+    ],
+  },
+];
+
+function PackageOverviewDashboard() {
+  const skillEntries = useMemo(() => buildSkillRegistryEntries(), []);
+  const totalDomainTools = useMemo(
+    () => allDomainPacks.reduce((sum, pack) => sum + countDomainTools(pack), 0),
+    []
+  );
+  const packageStats = [
+    {
+      label: "Package modules",
+      value: packageWorkspaceItems.length.toString(),
+      accent: "text-cyan",
+      sublabel: "Unified package-driven destinations now surfaced in UI",
+    },
+    {
+      label: "Domain skills",
+      value: allDomainPacks.reduce((sum, pack) => sum + pack.skills.length, 0).toString(),
+      accent: "text-purple",
+      sublabel: "Reusable skills sourced from local domain packs",
+    },
+    {
+      label: "Registry entries",
+      value: skillEntries.length.toString(),
+      accent: "text-green",
+      sublabel: "Generated skill registry items ready for discovery",
+    },
+    {
+      label: "ML algorithms",
+      value: algorithms.length.toString(),
+      accent: "text-amber",
+      sublabel: "Catalogued algorithms available for future ML workflows",
+    },
+  ] as const;
+
+  return (
+    <Card>
+      <SectionTitle title="Package Overview" note="Shared dashboard for all integrated package capabilities" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {packageStats.map((stat) => (
+          <StatCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            accent={stat.accent}
+            sublabel={stat.sublabel}
+          />
+        ))}
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="space-y-4">
+          {packageOverviewGroups.map((group) => (
+            <Card key={group.title} className="space-y-3 border-border/70 bg-bg-deep/40">
+              <SectionTitle title={group.title} note={group.note} />
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {group.items.map((item) => (
+                  <Link
+                    key={`${group.title}-${item.href}`}
+                    href={item.href}
+                    className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <Badge tone={item.tone}>{item.label}</Badge>
+                      <span className="text-xs text-text-dim">Open</span>
+                    </div>
+                    <p className="text-sm leading-6 text-text-dim">{item.description}</p>
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+            <SectionTitle title="Coverage" note="Current package surface area" />
+            <ul className="space-y-2 text-sm leading-6 text-text-dim">
+              <li>• {allDomainPacks.length} domain packs with {totalDomainTools} packaged helper tools.</li>
+              <li>• {allIntegrations.length} integration definitions with additive rollout guidance.</li>
+              <li>• {skillEntries.length} skill registry entries linked back to domains and integrations.</li>
+              <li>• {algorithms.length} ML algorithms exposed as a browse-only catalog.</li>
+            </ul>
+          </Card>
+
+          <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+            <SectionTitle title="Recommended flow" note="Use packages without replacing existing features" />
+            <ul className="space-y-2 text-sm leading-6 text-text-dim">
+              <li>• Discover reusable patterns in `Domains`, `Skills`, and `ML` first.</li>
+              <li>• Validate connector assumptions in `Integrations` and `Docs` before rollout.</li>
+              <li>• Execute through `AI Chat`, `MCP`, approvals, and existing workflows.</li>
+            </ul>
+          </Card>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PackageWorkspaceNav({
+  current,
+  title = "Package Workspace",
+  note = "Unified navigation for package-driven functions.",
+}: {
+  current: (typeof packageWorkspaceItems)[number]["id"];
+  title?: string;
+  note?: string;
+}) {
+  return (
+    <Card>
+      <SectionTitle title={title} note={note} />
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        {packageWorkspaceItems.map((item) => {
+          const active = item.id === current;
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              className={`rounded-[22px] border p-4 transition ${
+                active
+                  ? "border-cyan/40 bg-cyan/5"
+                  : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] hover:border-cyan/30"
+              }`}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <Badge tone={item.tone}>{item.label}</Badge>
+                <span className="text-xs text-text-dim">{active ? "Active" : "Open"}</span>
+              </div>
+              <p className="text-sm leading-6 text-text-dim">{item.description}</p>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function PackageActionBar({
+  title = "Action bar",
+  note = "Move across related package functions.",
+  items,
+}: {
+  title?: string;
+  note?: string;
+  items: Array<{ href: string; label: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
+}) {
+  if (!items.length) return null;
+
+  return (
+    <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+      <SectionTitle title={title} note={note} />
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <Link key={`${item.href}-${item.label}`} href={item.href}>
+            <Badge tone={item.tone}>{item.label}</Badge>
+          </Link>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export function ToolsHubScreen() {
   return (
     <div className="space-y-5">
@@ -489,6 +786,8 @@ export function ToolsHubScreen() {
         title="Tools"
         subtitle="Operational cockpit for approvals, documents, tasks, schedules, sub-agents, and quick command dispatch."
       />
+
+      <PackageOverviewDashboard />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Custom Tools" value="10" accent="text-cyan" sublabel="Interactive operational surfaces" />
@@ -934,6 +1233,8 @@ export function DocsToolScreen() {
         subtitle="Sticky search, category pills, and a full-screen markdown viewer for plans, logs, briefs, and reports."
       />
 
+      <PackageWorkspaceNav current="docs" note="Switch across package catalogs, docs, MCP, and chat without leaving the tools workspace." />
+
       <div className="sticky top-0 z-20 -mx-4 border-b border-border bg-bg-deep/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <input
           value={search}
@@ -1147,37 +1448,61 @@ function countDomainTools(pack: DomainPack) {
   return pack.skills.reduce((total, skill) => total + skill.tools.length, 0);
 }
 
+function buildUpdatedQueryString(
+  searchParams: { toString(): string },
+  updates: Record<string, string | null | undefined>
+) {
+  const params = new URLSearchParams(searchParams.toString());
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === null || value === undefined || value === "") {
+      params.delete(key);
+      continue;
+    }
+
+    params.set(key, value);
+  }
+
+  return params.toString();
+}
+
 export function DomainsToolScreen() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [selectedPackId, setSelectedPackId] = useState<string>(searchParams.get("pack") ?? allDomainPacks[0]?.id ?? "general");
+  const packParam = searchParams.get("pack");
+  const searchParam = searchParams.get("search") ?? "";
+  const [search, setSearch] = useState(searchParam);
+  const [selectedPackId, setSelectedPackId] = useState<string>(packParam ?? allDomainPacks[0]?.id ?? "general");
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
+  const indexedPacks = useMemo(
+    () =>
+      allDomainPacks.map((pack) => ({
+        pack,
+        searchText: [
+          pack.name,
+          pack.description,
+          pack.id,
+          pack.agentPersona,
+          pack.recommendedIntegrations.join(" "),
+          pack.skills.map((skill) => `${skill.name} ${skill.description} ${skill.category}`).join(" "),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    []
+  );
 
   useEffect(() => {
-    const pack = searchParams.get("pack");
-    const nextSearch = searchParams.get("search") ?? "";
-    if (pack && pack !== selectedPackId) setSelectedPackId(pack);
-    if (nextSearch !== search) setSearch(nextSearch);
-  }, [search, searchParams, selectedPackId]);
+    if (packParam && packParam !== selectedPackId) setSelectedPackId(packParam);
+    if (searchParam !== search) setSearch(searchParam);
+  }, [packParam, searchParam]);
 
   const filteredPacks = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return allDomainPacks;
+    if (!deferredSearch) return allDomainPacks;
 
-    return allDomainPacks.filter((pack) => {
-      const haystack = [
-        pack.name,
-        pack.description,
-        pack.id,
-        pack.agentPersona,
-        pack.recommendedIntegrations.join(" "),
-        pack.skills.map((skill) => `${skill.name} ${skill.description} ${skill.category}`).join(" "),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [search]);
+    return indexedPacks.filter(({ searchText }) => searchText.includes(deferredSearch)).map(({ pack }) => pack);
+  }, [deferredSearch, indexedPacks]);
 
   const selectedPack = filteredPacks.find((pack) => pack.id === selectedPackId) ?? filteredPacks[0] ?? null;
 
@@ -1185,6 +1510,16 @@ export function DomainsToolScreen() {
     if (!selectedPack) return;
     if (selectedPack.id !== selectedPackId) setSelectedPackId(selectedPack.id);
   }, [selectedPack, selectedPackId]);
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      pack: selectedPackId === (allDomainPacks[0]?.id ?? "general") && !packParam ? null : selectedPackId,
+      search: deferredSearchText || null,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/domains?${nextQuery}` : "/tools/domains", { scroll: false });
+  }, [deferredSearchText, packParam, router, searchParams, selectedPackId]);
 
   return (
     <div className="space-y-5 pb-24">
@@ -1197,6 +1532,8 @@ export function DomainsToolScreen() {
       <SectionDescription id="domain-packs">
         Browse reusable domain presets for developer, finance, healthcare, sales, DevOps, research, and more. Each pack includes a persona, built-in skills, and recommended integrations that can guide future agent templates.
       </SectionDescription>
+
+      <PackageWorkspaceNav current="domains" note="Jump from domain presets into the related package catalogs and client tools." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Domain packs" value={allDomainPacks.length.toString()} accent="text-purple" sublabel="Local additive presets ready for HiTechClaw" />
@@ -1271,6 +1608,24 @@ export function DomainsToolScreen() {
               </div>
 
               <div className="space-y-4">
+                <PackageActionBar
+                  title="Package actions"
+                  note="Open related package screens for this domain pack."
+                  items={[
+                    { href: `/tools/skills?domain=${encodeURIComponent(selectedPack.id)}`, label: "Open skills", tone: "cyan" },
+                    ...selectedPack.recommendedIntegrations.map((integrationId) => ({
+                      href: `/tools/integrations?integration=${encodeURIComponent(integrationId)}`,
+                      label: `Integration: ${integrationId}`,
+                      tone: "green" as const,
+                    })),
+                    ...(selectedPack.id === "ml"
+                      ? [{ href: "/tools/ml?taskType=classification", label: "Open ML catalog", tone: "amber" as const }]
+                      : []),
+                    { href: "/client/chat", label: "Open AI chat", tone: "green" },
+                    { href: "/tools/mcp", label: "Open MCP", tone: "slate" },
+                  ]}
+                />
+
                 <Card className="space-y-3 border-border/70 bg-bg-deep/40">
                   <SectionTitle title="Recommended integrations" note="Safe additive guidance only" />
                   {selectedPack.recommendedIntegrations.length ? (
@@ -1344,19 +1699,40 @@ function getIntegrationSummary(integration: IntegrationDefinition) {
 }
 
 export function IntegrationsToolScreen() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [category, setCategory] = useState<string>(searchParams.get("category") ?? "all");
-  const [selectedId, setSelectedId] = useState<string>(searchParams.get("integration") ?? allIntegrations[0]?.id ?? "github");
+  const searchParam = searchParams.get("search") ?? "";
+  const categoryParam = searchParams.get("category") ?? "all";
+  const integrationParam = searchParams.get("integration");
+  const [search, setSearch] = useState(searchParam);
+  const [category, setCategory] = useState<string>(categoryParam);
+  const [selectedId, setSelectedId] = useState<string>(integrationParam ?? allIntegrations[0]?.id ?? "github");
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
+  const indexedIntegrations = useMemo(
+    () =>
+      allIntegrations.map((integration) => ({
+        integration,
+        searchText: [
+          integration.name,
+          integration.id,
+          integration.description,
+          integration.category,
+          getIntegrationAuthLabel(integration),
+          integration.actions.map((action) => `${action.name} ${action.description}`).join(" "),
+          integration.triggers?.map((trigger) => `${trigger.name} ${trigger.description}`).join(" ") ?? "",
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    []
+  );
 
   useEffect(() => {
-    const nextSearch = searchParams.get("search") ?? "";
-    const nextCategory = searchParams.get("category") ?? "all";
-    const nextSelected = searchParams.get("integration");
-    if (nextSearch !== search) setSearch(nextSearch);
-    if (nextCategory !== category) setCategory(nextCategory);
-    if (nextSelected && nextSelected !== selectedId) setSelectedId(nextSelected);
-  }, [category, search, searchParams, selectedId]);
+    if (searchParam !== search) setSearch(searchParam);
+    if (categoryParam !== category) setCategory(categoryParam);
+    if (integrationParam && integrationParam !== selectedId) setSelectedId(integrationParam);
+  }, [categoryParam, integrationParam, searchParam]);
 
   const categories = useMemo(
     () => ["all", ...Array.from(new Set(allIntegrations.map((integration) => integration.category))).sort()],
@@ -1364,27 +1740,12 @@ export function IntegrationsToolScreen() {
   );
 
   const filteredIntegrations = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return allIntegrations.filter((integration) => {
+    return indexedIntegrations.filter(({ integration, searchText }) => {
       if (category !== "all" && integration.category !== category) return false;
-      if (!query) return true;
-
-      const haystack = [
-        integration.name,
-        integration.id,
-        integration.description,
-        integration.category,
-        getIntegrationAuthLabel(integration),
-        integration.actions.map((action) => `${action.name} ${action.description}`).join(" "),
-        integration.triggers?.map((trigger) => `${trigger.name} ${trigger.description}`).join(" ") ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [category, search]);
+      if (!deferredSearch) return true;
+      return searchText.includes(deferredSearch);
+    }).map(({ integration }) => integration);
+  }, [category, deferredSearch, indexedIntegrations]);
 
   const selected = filteredIntegrations.find((integration) => integration.id === selectedId) ?? filteredIntegrations[0] ?? null;
   const relatedPacks = selected
@@ -1395,6 +1756,17 @@ export function IntegrationsToolScreen() {
     if (!selected) return;
     if (selected.id !== selectedId) setSelectedId(selected.id);
   }, [selected, selectedId]);
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      search: deferredSearchText || null,
+      category: category === "all" ? null : category,
+      integration: selectedId === (allIntegrations[0]?.id ?? "github") && !integrationParam ? null : selectedId,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/integrations?${nextQuery}` : "/tools/integrations", { scroll: false });
+  }, [category, deferredSearchText, integrationParam, router, searchParams, selectedId]);
 
   return (
     <div className="space-y-5 pb-24">
@@ -1407,6 +1779,8 @@ export function IntegrationsToolScreen() {
       <SectionDescription id="integrations-catalog">
         Review built-in connectors for email, messaging, GitHub, search, calendars, and AI services. This screen is additive and read-only: it documents auth patterns, available actions, triggers, and approval risk before deeper integration.
       </SectionDescription>
+
+      <PackageWorkspaceNav current="integrations" note="Use the shared package workspace to move between connectors, skills, ML, docs, and MCP." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Connectors" value={allIntegrations.length.toString()} accent="text-green" sublabel="Package-backed integration definitions" />
@@ -1511,6 +1885,22 @@ export function IntegrationsToolScreen() {
             </div>
 
             <div className="space-y-4">
+              <PackageActionBar
+                title="Package actions"
+                note="Jump directly from this connector into related package screens."
+                items={[
+                  { href: `/tools/skills?integration=${encodeURIComponent(selected.id)}`, label: "Find matching skills", tone: "cyan" },
+                  ...relatedPacks.map((pack) => ({
+                    href: `/tools/domains?pack=${encodeURIComponent(pack.id)}`,
+                    label: `${pack.icon} ${pack.name}`,
+                    tone: "purple" as const,
+                  })),
+                  { href: "/tools/docs", label: "Open docs", tone: "cyan" },
+                  { href: "/client/chat", label: "Open AI chat", tone: "green" },
+                  { href: "/tools/mcp", label: "Open MCP", tone: "slate" },
+                ]}
+              />
+
               <Card className="space-y-3 border-border/70 bg-bg-deep/40">
                 <SectionTitle title="Authentication" note="Connector onboarding guidance" />
                 <div className="flex flex-wrap gap-2">
@@ -1574,12 +1964,36 @@ function countSkillParameters(entry: SkillRegistryEntry) {
 }
 
 export function SkillsToolScreen() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [domainFilter, setDomainFilter] = useState<string>(searchParams.get("domain") ?? "all");
-  const [integrationFilter, setIntegrationFilter] = useState<string>(searchParams.get("integration") ?? "all");
+  const searchParam = searchParams.get("search") ?? "";
+  const domainParam = searchParams.get("domain") ?? "all";
+  const integrationParam = searchParams.get("integration") ?? "all";
+  const [search, setSearch] = useState(searchParam);
+  const [domainFilter, setDomainFilter] = useState<string>(domainParam);
+  const [integrationFilter, setIntegrationFilter] = useState<string>(integrationParam);
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
 
   const skillEntries = useMemo(() => buildSkillRegistryEntries(), []);
+  const indexedSkillEntries = useMemo(
+    () =>
+      skillEntries.map((entry) => ({
+        entry,
+        searchText: [
+          entry.id,
+          entry.name,
+          entry.description,
+          entry.domainId,
+          entry.tags?.join(" ") ?? "",
+          entry.tools.map((tool) => `${tool.name} ${tool.description}`).join(" "),
+          describeSkill(entry),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    [skillEntries]
+  );
   const domains = useMemo(
     () => ["all", ...Array.from(new Set(skillEntries.map((entry) => entry.domainId))).sort()],
     [skillEntries]
@@ -1597,42 +2011,35 @@ export function SkillsToolScreen() {
   );
 
   useEffect(() => {
-    const nextSearch = searchParams.get("search") ?? "";
-    const nextDomain = searchParams.get("domain") ?? "all";
-    const nextIntegration = searchParams.get("integration") ?? "all";
-    if (nextSearch !== search) setSearch(nextSearch);
-    if (nextDomain !== domainFilter) setDomainFilter(nextDomain);
-    if (nextIntegration !== integrationFilter) setIntegrationFilter(nextIntegration);
-  }, [domainFilter, integrationFilter, search, searchParams]);
+    if (searchParam !== search) setSearch(searchParam);
+    if (domainParam !== domainFilter) setDomainFilter(domainParam);
+    if (integrationParam !== integrationFilter) setIntegrationFilter(integrationParam);
+  }, [domainParam, integrationParam, searchParam]);
 
   const filteredEntries = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return skillEntries.filter((entry) => {
+    return indexedSkillEntries.filter(({ entry, searchText }) => {
       if (domainFilter !== "all" && entry.domainId !== domainFilter) return false;
       if (integrationFilter !== "all" && !(entry.tags ?? []).includes(integrationFilter)) return false;
-      if (!query) return true;
-
-      const haystack = [
-        entry.id,
-        entry.name,
-        entry.description,
-        entry.domainId,
-        entry.tags?.join(" ") ?? "",
-        entry.tools.map((tool) => `${tool.name} ${tool.description}`).join(" "),
-        describeSkill(entry),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [domainFilter, integrationFilter, search, skillEntries]);
+      if (!deferredSearch) return true;
+      return searchText.includes(deferredSearch);
+    }).map(({ entry }) => entry);
+  }, [deferredSearch, domainFilter, indexedSkillEntries, integrationFilter]);
 
   const sandboxed = useMemo(
     () => skillEntries.filter((entry) => entry.sandboxRequired || entry.trustLevel === "community" || entry.trustLevel === "untrusted"),
     [skillEntries]
   );
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      search: deferredSearchText || null,
+      domain: domainFilter === "all" ? null : domainFilter,
+      integration: integrationFilter === "all" ? null : integrationFilter,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/skills?${nextQuery}` : "/tools/skills", { scroll: false });
+  }, [deferredSearchText, domainFilter, integrationFilter, router, searchParams]);
 
   return (
     <div className="space-y-5 pb-24">
@@ -1645,6 +2052,8 @@ export function SkillsToolScreen() {
       <SectionDescription id="skill-registry">
         Browse built-in skill entries derived from local domain packs. This gives HiTechClaw a safe marketplace-style registry view without replacing current tools, workflows, or agent setup flows.
       </SectionDescription>
+
+      <PackageWorkspaceNav current="skills" note="Navigate packaged skills together with domains, integrations, ML, docs, MCP, and chat." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Registry entries" value={skillEntries.length.toString()} accent="text-cyan" sublabel="Generated through @hitechclaw/skill-hub" />
@@ -1710,6 +2119,25 @@ export function SkillsToolScreen() {
                   </Link>
                 ) : null}
               </div>
+              <PackageActionBar
+                title="Quick actions"
+                note="Cross-link this skill with related package screens."
+                items={[
+                  { href: `/tools/domains?pack=${encodeURIComponent(entry.domainId)}`, label: "Open domain", tone: "purple" },
+                  ...((entry.tags ?? [])
+                    .filter((tag) => integrationIds.has(tag))
+                    .slice(0, 3)
+                    .map((tag) => ({
+                      href: `/tools/integrations?integration=${encodeURIComponent(tag)}`,
+                      label: `Integration: ${tag}`,
+                      tone: "green" as const,
+                    }))),
+                  ...(entry.domainId === "ml"
+                    ? [{ href: "/tools/ml?taskType=classification", label: "Open ML catalog", tone: "amber" as const }]
+                    : []),
+                  { href: "/client/chat", label: "Open AI chat", tone: "green" },
+                ]}
+              />
               <div className="space-y-2">
                 {entry.tools.map((tool) => (
                   <div key={`${entry.id}-${tool.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-3">
@@ -1754,11 +2182,35 @@ function getAlgorithmRiskNote(algorithm: MLAlgorithm) {
 }
 
 export function MLCatalogToolScreen() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [taskFilter, setTaskFilter] = useState<string>(searchParams.get("taskType") ?? "all");
-  const [familyFilter, setFamilyFilter] = useState<string>(searchParams.get("family") ?? "all");
-  const [selectedId, setSelectedId] = useState<string>(searchParams.get("algorithm") ?? algorithms[0]?.id ?? "linear-regression");
+  const searchParam = searchParams.get("search") ?? "";
+  const taskParam = searchParams.get("taskType") ?? "all";
+  const familyParam = searchParams.get("family") ?? "all";
+  const algorithmParam = searchParams.get("algorithm");
+  const [search, setSearch] = useState(searchParam);
+  const [taskFilter, setTaskFilter] = useState<string>(taskParam);
+  const [familyFilter, setFamilyFilter] = useState<string>(familyParam);
+  const [selectedId, setSelectedId] = useState<string>(algorithmParam ?? algorithms[0]?.id ?? "linear-regression");
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
+  const indexedAlgorithms = useMemo(
+    () =>
+      algorithms.map((algorithm) => ({
+        algorithm,
+        searchText: [
+          algorithm.id,
+          algorithm.name,
+          algorithm.family,
+          algorithm.description,
+          algorithm.supportedTasks.join(" "),
+          algorithm.hyperparameters.map((parameter) => `${parameter.name} ${parameter.description}`).join(" "),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    []
+  );
 
   const taskTypes = useMemo(
     () => ["all", ...Array.from(new Set(algorithms.flatMap((algorithm) => algorithm.supportedTasks))).sort()],
@@ -1770,39 +2222,22 @@ export function MLCatalogToolScreen() {
   );
 
   useEffect(() => {
-    const nextSearch = searchParams.get("search") ?? "";
-    const nextTask = searchParams.get("taskType") ?? "all";
-    const nextFamily = searchParams.get("family") ?? "all";
-    const nextAlgorithm = searchParams.get("algorithm");
-    if (nextSearch !== search) setSearch(nextSearch);
-    if (nextTask !== taskFilter) setTaskFilter(nextTask);
-    if (nextFamily !== familyFilter) setFamilyFilter(nextFamily);
-    if (nextAlgorithm && nextAlgorithm !== selectedId) setSelectedId(nextAlgorithm);
-  }, [familyFilter, search, searchParams, selectedId, taskFilter]);
+    if (searchParam !== search) setSearch(searchParam);
+    if (taskParam !== taskFilter) setTaskFilter(taskParam);
+    if (familyParam !== familyFilter) setFamilyFilter(familyParam);
+    if (algorithmParam && algorithmParam !== selectedId) setSelectedId(algorithmParam);
+  }, [algorithmParam, familyParam, searchParam, taskParam]);
 
   const filteredAlgorithms = useMemo(() => {
-    const query = search.trim().toLowerCase();
     const activeTaskFilter = taskFilter === "all" ? null : (taskFilter as MLAlgorithm["supportedTasks"][number]);
 
-    return algorithms.filter((algorithm) => {
+    return indexedAlgorithms.filter(({ algorithm, searchText }) => {
       if (activeTaskFilter && !algorithm.supportedTasks.includes(activeTaskFilter)) return false;
       if (familyFilter !== "all" && algorithm.family !== familyFilter) return false;
-      if (!query) return true;
-
-      const haystack = [
-        algorithm.id,
-        algorithm.name,
-        algorithm.family,
-        algorithm.description,
-        algorithm.supportedTasks.join(" "),
-        algorithm.hyperparameters.map((parameter) => `${parameter.name} ${parameter.description}`).join(" "),
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [familyFilter, search, taskFilter]);
+      if (!deferredSearch) return true;
+      return searchText.includes(deferredSearch);
+    }).map(({ algorithm }) => algorithm);
+  }, [deferredSearch, familyFilter, indexedAlgorithms, taskFilter]);
 
   const selected = filteredAlgorithms.find((algorithm) => algorithm.id === selectedId) ?? filteredAlgorithms[0] ?? null;
   const mlPack = allDomainPacks.find((pack) => pack.id === "ml") ?? null;
@@ -1811,6 +2246,18 @@ export function MLCatalogToolScreen() {
     if (!selected) return;
     if (selected.id !== selectedId) setSelectedId(selected.id);
   }, [selected, selectedId]);
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      search: deferredSearchText || null,
+      taskType: taskFilter === "all" ? null : taskFilter,
+      family: familyFilter === "all" ? null : familyFilter,
+      algorithm: selectedId === (algorithms[0]?.id ?? "linear-regression") && !algorithmParam ? null : selectedId,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/ml?${nextQuery}` : "/tools/ml", { scroll: false });
+  }, [algorithmParam, deferredSearchText, familyFilter, router, searchParams, selectedId, taskFilter]);
 
   return (
     <div className="space-y-5 pb-24">
@@ -1823,6 +2270,8 @@ export function MLCatalogToolScreen() {
       <SectionDescription id="ml-catalog">
         Review supported algorithms, task coverage, hyperparameters, and AutoML-ready capabilities before wiring live training flows. This is an additive catalog only and does not replace any current HiTechClaw screens.
       </SectionDescription>
+
+      <PackageWorkspaceNav current="ml" note="Shared package workspace for ML, domains, skills, integrations, docs, MCP, and chat." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Algorithms" value={algorithms.length.toString()} accent="text-amber" sublabel="Built-in catalog from @hitechclaw/ml" />
@@ -1924,6 +2373,18 @@ export function MLCatalogToolScreen() {
             </div>
 
             <div className="space-y-4">
+              <PackageActionBar
+                title="Package actions"
+                note="Move from this algorithm into related package screens."
+                items={[
+                  ...(mlPack ? [{ href: "/tools/domains?pack=ml", label: `${mlPack.icon} ML domain`, tone: "purple" as const }] : []),
+                  { href: `/tools/skills?domain=ml&search=${encodeURIComponent(selected.name)}`, label: "Find related skills", tone: "cyan" },
+                  { href: "/tools/integrations?category=ai", label: "Open AI integrations", tone: "green" },
+                  { href: "/client/chat", label: "Open AI chat", tone: "green" },
+                  { href: "/tools/docs", label: "Open docs", tone: "cyan" },
+                ]}
+              />
+
               <Card className="space-y-3 border-border/70 bg-bg-deep/40">
                 <SectionTitle title="Cross-links" note="Domains and skills" />
                 <div className="flex flex-wrap gap-2">
