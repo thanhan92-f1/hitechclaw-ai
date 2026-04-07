@@ -300,8 +300,8 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     definition: {
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 8:00", cron_expression: "0 8 * * *" } },
-        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Security Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=24h", headers: {}, timeout: 10000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Findings Present?", field: "body", operator: "contains", value: "critical" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Critical Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=24h&severity=critical", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Findings Present?", field: "body.events.length", operator: "gt", value: "0" } },
         { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Critical Brief", channel: "telegram", message: "Critical findings detected in the last 24 hours. Review the security overview and validate containment or sandbox policy changes immediately." } },
       ],
       edges: [
@@ -369,6 +369,178 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       { href: "/tools/docs", label: "Docs Tools" },
       { href: "/tools/builtin-skills", label: "Built-in Skills" },
       { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
+  },
+  {
+    id: "infra-node-watch",
+    name: "Infra Node Watch",
+    description: "Review registered infrastructure nodes on a schedule and escalate when any node reports degraded health.",
+    icon: HeartPulse,
+    color: "#10b981",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "*/15 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 15 Minutes", cron_expression: "*/15 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Infra Nodes", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/nodes", headers: {}, timeout: 12000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Degraded Nodes?", field: "body.nodes.0.status", operator: "eq", value: "degraded" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Node Health", channel: "telegram", message: "Infrastructure review detected a degraded lead node. Inspect /api/infra/nodes and infrastructure dashboards for the latest metrics. Snapshot: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Refine this to specific nodes by extending the API or adding a scoped route", "Use the topology view alongside node metrics before deciding on failover actions", "Keep the alert copy focused on the node roles your operators recognize"],
+    packageResources: [
+      { href: "/infrastructure", label: "Infrastructure" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
+  },
+  {
+    id: "mesh-topology-review",
+    name: "Mesh Topology Review",
+    description: "Run a scheduled topology review and alert when the generated network mesh has no active edges.",
+    icon: Activity,
+    color: "#06b6d4",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "0 */6 * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 6 Hours", cron_expression: "0 */6 * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Topology Mesh", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/topology", headers: {}, timeout: 12000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "No Mesh Edges?", field: "body.edges.length", operator: "eq", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Mesh Gap", channel: "telegram", message: "Topology review found no active mesh edges. Validate node registration, connectivity, and topology metadata before rollout changes." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Switch this to a manual review if topology data changes only during planned maintenance", "Use the mesh review together with sandbox and ML rollout plans when capacity depends on node connectivity", "Tune the cadence if your infra graph is expensive to inspect frequently"],
+    packageResources: [
+      { href: "/infrastructure", label: "Infrastructure" },
+      { href: "/tools/ml", label: "ML Catalog" },
+    ],
+  },
+  {
+    id: "ops-dashboard-review",
+    name: "Ops Dashboard Review",
+    description: "Summarize daily operational activity and escalate when any agent shows recent threat volume.",
+    icon: BarChart3,
+    color: "#6366f1",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "15 7 * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 7:15", cron_expression: "15 7 * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Dashboard Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/dashboard/overview", headers: {}, timeout: 12000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Recent Threat Volume?", field: "body.agents.0.threats_30d", operator: "gt", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Publish Ops Review", channel: "telegram", message: "Daily ops review found at least one agent with recent threat activity. Review dashboard overview, tenant mix, and recent agent metrics before enabling new automation." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Use tenant-specific dashboard routes later if you want cleaner customer segmentation", "Pair this daily review with Docs Library Digest when rollout decisions depend on both ops and documentation readiness", "Tune the condition to a higher threat count if your baseline noise is non-zero"],
+    packageResources: [
+      { href: "/analytics", label: "Analytics" },
+      { href: "/tools/docs", label: "Docs Tools" },
+    ],
+  },
+  {
+    id: "incident-backlog-watch",
+    name: "Incident Backlog Watch",
+    description: "Check the incident queue on a schedule and escalate when open critical incidents remain unresolved.",
+    icon: ShieldAlert,
+    color: "#e11d48",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "*/20 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 20 Minutes", cron_expression: "*/20 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Open Incidents", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents?status=all&limit=25", headers: {}, timeout: 12000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Incidents Open?", field: "body.stats.critical_count", operator: "gt", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Incident Queue", channel: "telegram", message: "Incident backlog review found open P1/P2 incidents. Review SLA exposure, assignment state, and unresolved updates in the incidents console." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Add severity=P1 if you want a narrower paging rule", "Tune the cadence to match your incident response coverage window", "Pair this with notification backlog monitoring so operators can clear unread alerts before escalation"],
+    packageResources: [
+      { href: "/incidents", label: "Incidents" },
+      { href: "/tools/tasks", label: "Tasks" },
+    ],
+  },
+  {
+    id: "notification-backlog-watch",
+    name: "Notification Backlog Watch",
+    description: "Review unread notifications and escalate when the operator queue starts to accumulate pending alerts.",
+    icon: Bell,
+    color: "#f59e0b",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "*/15 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 15 Minutes", cron_expression: "*/15 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Unread Notifications", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/notifications?unread_only=true&limit=20", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Unread Queue Growing?", field: "body.unread_count", operator: "gt", value: "10" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Notification Queue", channel: "telegram", message: "Unread notification backlog exceeded the review threshold. Clear or route pending alerts before operators miss critical incidents." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Raise or lower the unread threshold to match your on-call staffing", "Route the escalation to chat during business hours and log-only after hours if needed", "Use this with Incident Backlog Watch to separate operator load from true incident severity"],
+    packageResources: [
+      { href: "/settings/notifications", label: "Notification Settings" },
+      { href: "/incidents", label: "Incidents" },
+    ],
+  },
+  {
+    id: "incident-intake-drill",
+    name: "Incident Intake Drill",
+    description: "Create a manual incident record for response drills so operators can validate intake, ownership, and follow-up workflows.",
+    icon: LayoutGrid,
+    color: "#8b5cf6",
+    trigger_type: "manual",
+    trigger_config: null,
+    definition: {
+      nodes: [
+        { id: "1", type: "manual-trigger", position: { x: 250, y: 30 }, data: { label: "Run Drill" } },
+        {
+          id: "2",
+          type: "http-request",
+          position: { x: 250, y: 180 },
+          data: {
+            label: "Create Incident",
+            method: "POST",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents",
+            headers: {},
+            timeout: 12000,
+            body: '{"title":"Workflow drill: operator validation","description":"Manual workflow drill created from Mission Control templates.","severity":"P2","assigned_to":"ops-oncall","source_type":"workflow","source_id":"incident-intake-drill","metadata":{"exercise":true,"origin":"mission-control"}}'
+          }
+        },
+        { id: "3", type: "notify", position: { x: 250, y: 340 }, data: { label: "Publish Drill Result", channel: "log", message: "Incident intake drill created a fresh incident record. Confirm ownership, update cadence, and resolution checklist in the incidents workspace. Response: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+      ],
+    },
+    customizationHints: ["Keep this manual so drills only run with operator awareness", "Swap the assigned owner to the real on-call alias used in your incident process", "Extend the drill with a follow-up update route after dynamic incident references are supported"],
+    packageResources: [
+      { href: "/incidents", label: "Incidents" },
+      { href: "/tools/docs", label: "Docs Tools" },
     ],
   },
 ];
