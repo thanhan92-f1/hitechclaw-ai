@@ -263,7 +263,7 @@ function NodeConfigPanel({
     "manual-trigger": "This node starts the workflow when you click Run Now. No configuration needed.",
     "cron-trigger": "Runs the workflow on a schedule using a cron expression. Common patterns: */5 for every 5 minutes, 0 6 for daily at 8am SAST.",
     "http-request": "Makes an HTTP request to any URL. Use template variables like {{status}} and {{body}} to pass data from previous steps.",
-    "condition": "Evaluates a condition on data from previous steps. Supports nested JSON paths such as body.status, array wildcards like body.nodes.*.status, and collection sizes like body.agent_anomalies.length.",
+    "condition": "Evaluates a condition on data from previous steps. Supports nested JSON paths such as body.status, array wildcards like body.nodes.*.status, collection sizes like body.agent_anomalies.length, and operators like exists or is_empty.",
     "set-context": "Stores a value from previous steps into a reusable workflow variable. Use nested paths like {{body.incident.id}} and later reference them in URLs, bodies, or notifications.",
     "notify": "Sends a notification message. Use template variables like {{status}} and {{body}} to include data from previous steps.",
   };
@@ -395,6 +395,7 @@ function NodeConfigPanel({
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-2 text-sm text-white focus:border-cyan focus:outline-none"
                 >
                   <option value="eq">equals</option>
+                  <option value="any_eq">any equals</option>
                   <option value="neq">not equals</option>
                   <option value="gt">greater than</option>
                   <option value="lt">less than</option>
@@ -402,6 +403,8 @@ function NodeConfigPanel({
                   <option value="lte">less or equal</option>
                   <option value="contains">contains</option>
                   <option value="not_contains">not contains</option>
+                  <option value="exists">exists</option>
+                  <option value="is_empty">is empty</option>
                 </select>
               </div>
               <div>
@@ -410,7 +413,7 @@ function NodeConfigPanel({
                   type="text"
                   value={String(d.value ?? "")}
                   onChange={(e) => updateField("value", e.target.value)}
-                  placeholder="200"
+                  placeholder="200 or true"
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-cyan focus:outline-none"
                 />
               </div>

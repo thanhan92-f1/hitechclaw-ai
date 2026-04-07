@@ -203,6 +203,8 @@ function evaluateCondition(data: Record<string, unknown>, context: Record<string
   const actualValues = Array.isArray(actualValue) ? actualValue : [actualValue];
   const stringValues = actualValues.map((value) => String(value ?? ""));
   const numberValues = actualValues.map((value) => Number(value));
+  const normalizedExpected = expected.trim().toLowerCase();
+  const truthyExpected = ["true", "1", "yes"].includes(normalizedExpected);
 
   switch (operator) {
     case "eq": return stringValues.some((actual) => actual === expected);
@@ -213,6 +215,18 @@ function evaluateCondition(data: Record<string, unknown>, context: Record<string
     case "lte": return numberValues.some((actual) => actual <= Number(expected));
     case "contains": return stringValues.some((actual) => actual.includes(expected));
     case "not_contains": return stringValues.every((actual) => !actual.includes(expected));
+    case "exists":
+      return truthyExpected
+        ? actualValues.some((value) => value !== undefined && value !== null && String(value) !== "")
+        : actualValues.every((value) => value === undefined || value === null || String(value) === "");
+    case "is_empty":
+      return actualValues.every((value) => {
+        if (value === undefined || value === null) return true;
+        if (Array.isArray(value) || typeof value === "string") return value.length === 0;
+        if (typeof value === "object") return Object.keys(value).length === 0;
+        return String(value) === "";
+      });
+    case "any_eq": return stringValues.some((actual) => actual === expected);
     default: return stringValues.some((actual) => actual === expected);
   }
 }
