@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { SearchScreen } from "@/components/mission-control/search-screen";
 
 export default function SearchPage() {
-  redirect("/tools/docs");
+  return <SearchScreen />;
 }

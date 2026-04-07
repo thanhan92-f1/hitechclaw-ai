@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { EvalScreen } from "@/components/mission-control/eval-screen";
 
 export default function EvalPage() {
-  redirect("/tools/ml");
+  return <EvalScreen />;
 }
