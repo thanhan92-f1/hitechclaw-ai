@@ -383,7 +383,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 15 Minutes", cron_expression: "*/15 * * * *" } },
         { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Infra Nodes", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/nodes", headers: {}, timeout: 12000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Degraded Nodes?", field: "body.nodes.*.status", operator: "eq", value: "degraded" } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Any Degraded Nodes?", field: "body.nodes.*.status", operator: "any_eq", value: "degraded" } },
         { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Node Health", channel: "telegram", message: "Infrastructure review detected a degraded lead node. Inspect /api/infra/nodes and infrastructure dashboards for the latest metrics. Snapshot: {{body}}" } },
       ],
       edges: [
@@ -410,7 +410,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       nodes: [
         { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 6 Hours", cron_expression: "0 */6 * * *" } },
         { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Topology Mesh", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/topology", headers: {}, timeout: 12000 } },
-        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "No Mesh Edges?", field: "body.edges.length", operator: "eq", value: "0" } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "No Mesh Edges?", field: "body.edges", operator: "is_empty", value: "true" } },
         { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Mesh Gap", channel: "telegram", message: "Topology review found no active mesh edges. Validate node registration, connectivity, and topology metadata before rollout changes." } },
       ],
       edges: [
@@ -577,10 +577,11 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
             context_value: "{{body.incident.id}}"
           }
         },
+        { id: "2c", type: "condition", position: { x: 260, y: 340 }, data: { label: "Incident ID Created?", field: "incident_id", operator: "exists", value: "true" } },
         {
           id: "3",
           type: "http-request",
-          position: { x: 260, y: 420 },
+          position: { x: 120, y: 500 },
           data: {
             label: "Move To Investigating",
             method: "PATCH",
@@ -593,7 +594,7 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         {
           id: "4",
           type: "http-request",
-          position: { x: 260, y: 580 },
+          position: { x: 120, y: 660 },
           data: {
             label: "Append Timeline Update",
             method: "POST",
@@ -603,12 +604,15 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
             body: '{"update_type":"comment","content":"Workflow escalation drill moved this incident into active investigation.","metadata":{"exercise":true,"workflow":"incident-escalation-followup"}}'
           }
         },
-        { id: "5", type: "notify", position: { x: 260, y: 740 }, data: { label: "Publish Escalation Summary", channel: "log", message: "Escalation follow-up drill updated incident {{incident_id}} and appended a timeline note. Review the incident workspace to confirm assignment, SLA state, and operator handoff." } },
+        { id: "5", type: "notify", position: { x: 120, y: 820 }, data: { label: "Publish Escalation Summary", channel: "log", message: "Escalation follow-up drill updated incident {{incident_id}} and appended a timeline note. Review the incident workspace to confirm assignment, SLA state, and operator handoff." } },
+        { id: "6", type: "notify", position: { x: 420, y: 500 }, data: { label: "Escalate Missing Incident ID", channel: "telegram", message: "Incident escalation drill could not extract an incident identifier from the create response. Review the incidents API response shape before re-running the workflow." } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
         { id: "e2-2b", source: "2", target: "2b" },
-        { id: "e2b-3", source: "2b", target: "3" },
+        { id: "e2b-2c", source: "2b", target: "2c" },
+        { id: "e2c-3", source: "2c", target: "3", sourceHandle: "true" },
+        { id: "e2c-6", source: "2c", target: "6", sourceHandle: "false" },
         { id: "e3-4", source: "3", target: "4" },
         { id: "e4-5", source: "4", target: "5" },
       ],
@@ -646,6 +650,60 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     packageResources: [
       { href: "/settings/notifications", label: "Notification Settings" },
       { href: "/incidents", label: "Incidents" },
+    ],
+  },
+  {
+    id: "docs-gap-watch",
+    name: "Docs Gap Watch",
+    description: "Review the indexed docs library and escalate when the returned collection is empty so rollout owners can restore documentation coverage.",
+    icon: Info,
+    color: "#8b5cf6",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "0 9 * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 9:00", cron_expression: "0 9 * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Docs Library", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/tools/docs/library?limit=12", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Docs Collection Empty?", field: "body.items", operator: "is_empty", value: "true" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Docs Gap", channel: "telegram", message: "Docs library review returned no indexed items. Restore documentation coverage before enabling new workflow or package rollouts." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Use this before release windows where documentation is a formal gate", "Switch the final channel to log-only during staging if empty results are expected", "Pair this with Package Readiness Review when rollout approval depends on docs completeness"],
+    packageResources: [
+      { href: "/tools/docs", label: "Docs Tools" },
+      { href: "/tools/builtin-skills", label: "Built-in Skills" },
+    ],
+  },
+  {
+    id: "uniform-node-health-check",
+    name: "Uniform Node Health Check",
+    description: "Inspect infrastructure nodes and confirm that all returned node statuses match the healthy baseline before automated operations proceed.",
+    icon: HeartPulse,
+    color: "#22c55e",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "*/30 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Every 30 Minutes", cron_expression: "*/30 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Node Health", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/nodes", headers: {}, timeout: 12000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "All Nodes Healthy?", field: "body.nodes.*.status", operator: "all_eq", value: "healthy" } },
+        { id: "4", type: "notify", position: { x: 420, y: 500 }, data: { label: "Escalate Mixed Health", channel: "telegram", message: "Infrastructure node review found non-uniform health states. Check degraded or stale nodes before triggering downstream automation." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "false" },
+      ],
+    },
+    customizationHints: ["Use this as a preflight gate ahead of cost-heavy or rollout workflows", "Change the healthy baseline if your node API reports a different nominal value", "Pair this with Mesh Topology Review for deeper infrastructure confidence checks"],
+    packageResources: [
+      { href: "/infrastructure", label: "Infrastructure" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
     ],
   },
 ];

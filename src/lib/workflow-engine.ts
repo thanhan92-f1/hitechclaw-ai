@@ -208,6 +208,8 @@ function evaluateCondition(data: Record<string, unknown>, context: Record<string
 
   switch (operator) {
     case "eq": return stringValues.some((actual) => actual === expected);
+    case "all_eq": return stringValues.length > 0 && stringValues.every((actual) => actual === expected);
+    case "any_gt": return numberValues.some((actual) => actual > Number(expected));
     case "neq": return stringValues.every((actual) => actual !== expected);
     case "gt": return numberValues.some((actual) => actual > Number(expected));
     case "lt": return numberValues.some((actual) => actual < Number(expected));

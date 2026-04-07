@@ -395,8 +395,10 @@ function NodeConfigPanel({
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-2 text-sm text-white focus:border-cyan focus:outline-none"
                 >
                   <option value="eq">equals</option>
+                  <option value="all_eq">all equal</option>
                   <option value="any_eq">any equals</option>
                   <option value="neq">not equals</option>
+                  <option value="any_gt">any greater than</option>
                   <option value="gt">greater than</option>
                   <option value="lt">less than</option>
                   <option value="gte">greater or equal</option>
