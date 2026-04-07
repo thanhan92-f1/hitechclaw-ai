@@ -54,6 +54,9 @@ interface NodeConfig {
   field?: string;
   operator?: string;
   value?: string;
+  // set-context
+  context_key?: string;
+  context_value?: string;
   // notify
   channel?: string;
   message?: string;
@@ -66,6 +69,7 @@ const NODE_STYLES: Record<string, { bg: string; border: string; icon: string; ac
   "cron-trigger":   { bg: "#1a1a2e", border: "#06b6d4", icon: "\u23F0", accent: "#06b6d4" },
   "http-request":   { bg: "#1a1a2e", border: "#3b82f6", icon: "\u21C5", accent: "#3b82f6" },
   "condition":      { bg: "#1a1a2e", border: "#f59e0b", icon: "\u2747", accent: "#f59e0b" },
+  "set-context":    { bg: "#1a1a2e", border: "#a855f7", icon: "\u2699", accent: "#a855f7" },
   "notify":         { bg: "#1a1a2e", border: "#00D47E", icon: "\u2709", accent: "#00D47E" },
 };
 
@@ -180,6 +184,34 @@ function ConditionNode({ data, selected }: NodeProps) {
   );
 }
 
+function SetContextNode({ data, selected }: NodeProps) {
+  const d = data as unknown as NodeConfig;
+  const s = NODE_STYLES["set-context"];
+  return (
+    <div
+      className="rounded-xl px-4 py-3 shadow-lg min-w-[200px] transition-shadow"
+      style={{
+        background: s.bg,
+        border: `2px solid ${selected ? "#fff" : s.border}`,
+        boxShadow: selected ? `0 0 20px ${s.border}40` : "0 4px 12px rgba(0,0,0,0.3)",
+      }}
+    >
+      <Handle type="target" position={Position.Top} className="!bg-[var(--warning)] !w-3 !h-3 !border-2 !border-[var(--border)]" />
+      <div className="flex items-center gap-2 mb-1">
+        <span style={{ color: s.accent }}>{s.icon}</span>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: s.accent }}>Context</span>
+      </div>
+      <div className="text-sm text-white font-medium">{d.label || "Set Context"}</div>
+      {d.context_key && (
+        <div className="text-[11px] text-[var(--text-secondary)] mt-1">
+          {d.context_key} = {d.context_value}
+        </div>
+      )}
+      <Handle type="source" position={Position.Bottom} className="!bg-[var(--warning)] !w-3 !h-3 !border-2 !border-[var(--border)]" />
+    </div>
+  );
+}
+
 function NotifyNode({ data, selected }: NodeProps) {
   const d = data as unknown as NodeConfig;
   const s = NODE_STYLES["notify"];
@@ -232,6 +264,7 @@ function NodeConfigPanel({
     "cron-trigger": "Runs the workflow on a schedule using a cron expression. Common patterns: */5 for every 5 minutes, 0 6 for daily at 8am SAST.",
     "http-request": "Makes an HTTP request to any URL. Use template variables like {{status}} and {{body}} to pass data from previous steps.",
     "condition": "Evaluates a condition on data from previous steps. Supports nested JSON paths such as body.status, array wildcards like body.nodes.*.status, and collection sizes like body.agent_anomalies.length.",
+    "set-context": "Stores a value from previous steps into a reusable workflow variable. Use nested paths like {{body.incident.id}} and later reference them in URLs, bodies, or notifications.",
     "notify": "Sends a notification message. Use template variables like {{status}} and {{body}} to include data from previous steps.",
   };
 
@@ -385,6 +418,31 @@ function NodeConfigPanel({
           </>
         )}
 
+        {nodeType === "set-context" && (
+          <>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] mb-1">Context Key</label>
+              <input
+                type="text"
+                value={String(d.context_key ?? "")}
+                onChange={(e) => updateField("context_key", e.target.value)}
+                placeholder="incident_id"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-cyan focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] mb-1">Context Value</label>
+              <input
+                type="text"
+                value={String(d.context_value ?? "")}
+                onChange={(e) => updateField("context_value", e.target.value)}
+                placeholder="{{body.incident.id}}"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-cyan focus:outline-none"
+              />
+            </div>
+          </>
+        )}
+
         {nodeType === "notify" && (
           <>
             <div>
@@ -424,6 +482,7 @@ const PALETTE_ITEMS = [
   { type: "cron-trigger", label: "Cron Trigger", icon: "\u23F0", color: "#06b6d4", description: "Run this workflow on a schedule (e.g. every 5 minutes)" },
   { type: "http-request", label: "HTTP Request", icon: "\u21C5", color: "#3b82f6", description: "Make an API call to any URL" },
   { type: "condition", label: "Condition", icon: "\u2747", color: "#f59e0b", description: "Branch the workflow based on a condition (if/else)" },
+  { type: "set-context", label: "Set Context", icon: "\u2699", color: "#a855f7", description: "Store a reusable workflow variable from a previous step" },
   { type: "notify", label: "Notify", icon: "\u2709", color: "#00D47E", description: "Send a notification via Telegram or log" },
 ];
 
@@ -466,6 +525,7 @@ const nodeTypes = {
   "cron-trigger": CronTriggerNode,
   "http-request": HttpRequestNode,
   "condition": ConditionNode,
+  "set-context": SetContextNode,
   "notify": NotifyNode,
 };
 
@@ -593,6 +653,7 @@ export function WorkflowBuilder({
         "cron-trigger": { label: "Cron Trigger", cron_expression: "*/5 * * * *" },
         "http-request": { label: "HTTP Request", method: "GET", url: "", headers: {}, timeout: 10000 },
         "condition": { label: "Condition", field: "status", operator: "eq", value: "200" },
+        "set-context": { label: "Set Context", context_key: "variable_name", context_value: "{{body}}" },
         "notify": { label: "Notify", channel: "telegram", message: "" },
       };
 

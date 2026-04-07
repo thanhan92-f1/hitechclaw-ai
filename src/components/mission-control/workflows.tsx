@@ -568,13 +568,23 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
           }
         },
         {
+          id: "2b",
+          type: "set-context",
+          position: { x: 260, y: 260 },
+          data: {
+            label: "Store Incident ID",
+            context_key: "incident_id",
+            context_value: "{{body.incident.id}}"
+          }
+        },
+        {
           id: "3",
           type: "http-request",
-          position: { x: 260, y: 340 },
+          position: { x: 260, y: 420 },
           data: {
             label: "Move To Investigating",
             method: "PATCH",
-            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{body.incident.id}}",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{incident_id}}",
             headers: {},
             timeout: 12000,
             body: '{"status":"investigating","metadata":{"exercise":true,"workflow":"incident-escalation-followup"}}'
@@ -583,21 +593,22 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
         {
           id: "4",
           type: "http-request",
-          position: { x: 260, y: 500 },
+          position: { x: 260, y: 580 },
           data: {
             label: "Append Timeline Update",
             method: "POST",
-            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{body.incident.id}}/updates",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/incidents/{{incident_id}}/updates",
             headers: {},
             timeout: 12000,
             body: '{"update_type":"comment","content":"Workflow escalation drill moved this incident into active investigation.","metadata":{"exercise":true,"workflow":"incident-escalation-followup"}}'
           }
         },
-        { id: "5", type: "notify", position: { x: 260, y: 660 }, data: { label: "Publish Escalation Summary", channel: "log", message: "Escalation follow-up drill updated incident {{body.update.incident_id}} and appended a timeline note. Review the incident workspace to confirm assignment, SLA state, and operator handoff." } },
+        { id: "5", type: "notify", position: { x: 260, y: 740 }, data: { label: "Publish Escalation Summary", channel: "log", message: "Escalation follow-up drill updated incident {{incident_id}} and appended a timeline note. Review the incident workspace to confirm assignment, SLA state, and operator handoff." } },
       ],
       edges: [
         { id: "e1-2", source: "1", target: "2" },
-        { id: "e2-3", source: "2", target: "3" },
+        { id: "e2-2b", source: "2", target: "2b" },
+        { id: "e2b-3", source: "2b", target: "3" },
         { id: "e3-4", source: "3", target: "4" },
         { id: "e4-5", source: "4", target: "5" },
       ],

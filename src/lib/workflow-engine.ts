@@ -260,6 +260,22 @@ async function executeNotify(data: Record<string, unknown>, context: Record<stri
   return { sent: true, channel: "log" };
 }
 
+function executeSetContext(data: Record<string, unknown>, context: Record<string, unknown>): { key: string; value: unknown } {
+  const key = String(data.context_key ?? "").trim();
+  if (!key) {
+    throw new Error("Context key is required");
+  }
+
+  const rawValue = String(data.context_value ?? "");
+  const directMatch = rawValue.match(/^\{\{\s*([^}]+?)\s*\}\}$/);
+  const value = directMatch
+    ? resolveConditionValue(directMatch[1].trim(), context)
+    : tryParseJson(interpolateTemplate(rawValue, context));
+
+  context[key] = value;
+  return { key, value };
+}
+
 // ── Agent Action executor (calls OpenClaw gateway tool) ─────────────────────
 
 async function executeAgentAction(
@@ -442,6 +458,20 @@ export async function executeWorkflow(definition: WorkflowDefinition): Promise<{
             nodeType: node.type,
             label: String(node.data?.label ?? "Notify"),
             status: result.sent ? "success" : "failed",
+            output: result,
+            durationMs: Date.now() - start,
+          };
+          queue.push(...getNextNodes(node.id));
+          break;
+        }
+
+        case "set-context": {
+          const result = executeSetContext(node.data, context);
+          stepResult = {
+            nodeId: node.id,
+            nodeType: node.type,
+            label: String(node.data?.label ?? "Set Context"),
+            status: "success",
             output: result,
             durationMs: Date.now() - start,
           };
