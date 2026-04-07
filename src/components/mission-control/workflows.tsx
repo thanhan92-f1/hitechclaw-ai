@@ -2,6 +2,7 @@
 // Phase 5 — Visual Workflow Builder page
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { CardEntranceWrapper, SkeletonCard, StatCountUp } from "./charts";
 import { ShellHeader } from "./dashboard";
@@ -36,6 +37,46 @@ interface WorkflowTemplate {
   definition: WorkflowDefinition;
   customizationHints: string[];
 }
+
+interface PackageWorkflowKit {
+  id: string;
+  title: string;
+  description: string;
+  packageHref: string;
+  packageLabel: string;
+  workflowHint: string;
+  tone: string;
+}
+
+const PACKAGE_WORKFLOW_KITS: PackageWorkflowKit[] = [
+  {
+    id: "builtin-skills",
+    title: "Built-in Skill Rollout",
+    description: "Review packaged runtime handlers, config keys, and rollout notes before activating project workflows.",
+    packageHref: "/tools/builtin-skills",
+    packageLabel: "Built-in Skills",
+    workflowHint: "Use packaged handler metadata to define safe workflow inputs, approvals, and docs.",
+    tone: "#06b6d4",
+  },
+  {
+    id: "sandbox",
+    title: "Sandbox Governance",
+    description: "Validate policy templates, host allow-lists, and GPU presets before connecting ML or connector execution.",
+    packageHref: "/tools/sandbox",
+    packageLabel: "Sandbox Lab",
+    workflowHint: "Pair workflow nodes with the least-permissive policy and documented integration mapping.",
+    tone: "#64748b",
+  },
+  {
+    id: "ml",
+    title: "ML Review Loop",
+    description: "Use the catalog and sandbox presets together to plan training, inference, and approval checkpoints.",
+    packageHref: "/tools/ml",
+    packageLabel: "ML Catalog",
+    workflowHint: "Start with browse-only evaluation, then layer approval and operational notifications.",
+    tone: "#f59e0b",
+  },
+];
 
 const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
@@ -496,6 +537,24 @@ export function WorkflowsScreen() {
           For example: automatically pause an agent when a critical threat is detected,
           send a daily cost report, or check server health every 5 minutes.
         </SectionDescription>
+
+        <div className="mb-6 grid gap-3 xl:grid-cols-3">
+          {PACKAGE_WORKFLOW_KITS.map((kit) => (
+            <div key={kit.id} className="rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider" style={{ background: `${kit.tone}20`, color: kit.tone }}>
+                  {kit.packageLabel}
+                </span>
+                <Link href={kit.packageHref} className="text-xs text-[var(--accent)] hover:underline">
+                  Open package
+                </Link>
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-white">{kit.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{kit.description}</p>
+              <p className="mt-3 text-xs leading-5 text-[var(--text-tertiary)]">{kit.workflowHint}</p>
+            </div>
+          ))}
+        </div>
 
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">

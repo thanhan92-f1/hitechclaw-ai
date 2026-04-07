@@ -188,6 +188,277 @@ type SkillRegistryEntry = {
   sandboxPolicy?: string;
 };
 
+type BuiltinSkillParameter = {
+  name: string;
+  type: string;
+  description?: string;
+  required?: boolean;
+};
+
+type BuiltinSkillTool = {
+  definition: {
+    name: string;
+    description: string;
+    category: string;
+    parameters: BuiltinSkillParameter[];
+  };
+};
+
+type BuiltinSkillConfigEntry = {
+  key: string;
+  label: string;
+  type: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+};
+
+type BuiltinSkillDefinition = {
+  manifest: {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    author: string;
+    category: string;
+    tags: string[];
+    config: BuiltinSkillConfigEntry[];
+  };
+  tools: BuiltinSkillTool[];
+};
+
+type AppSandboxFilesystemRule = {
+  path: string;
+  access: string;
+};
+
+type AppSandboxNetworkRule = {
+  host: string;
+  methods?: string[];
+  allow: boolean;
+};
+
+type AppSandboxPolicy = {
+  name: string;
+  version: string;
+  filesystem: {
+    rules: AppSandboxFilesystemRule[];
+    defaultAccess: string;
+  };
+  network: {
+    rules: AppSandboxNetworkRule[];
+    defaultAction: string;
+  };
+  process: {
+    allowPrivilegeEscalation: boolean;
+    maxProcesses: number;
+  };
+};
+
+type AppSandboxImage = {
+  name: string;
+  description: string;
+  image: string;
+  cudaVersion?: string;
+  packages: string[];
+  gpuRequired: boolean;
+};
+
+type SandboxPolicyRecord = [string, AppSandboxPolicy];
+
+const builtinSkillDefinitions: BuiltinSkillDefinition[] = [
+  {
+    manifest: {
+      id: "text-to-fhir",
+      name: "Text-to-FHIR Query",
+      version: "1.0.0",
+      description:
+        "Query hospital FHIR data via natural language. Provides tools to retrieve patients, encounters, prescriptions, allergies, medications, and aggregate statistics from the Hospital Information System.",
+      author: "HiTechClaw",
+      category: "healthcare",
+      tags: ["fhir", "his", "hospital", "text-to-sql", "query", "healthcare"],
+      config: [
+        {
+          key: "hisApiBaseUrl",
+          label: "HIS API Base URL",
+          type: "string",
+          description: "HIS API base URL",
+          required: false,
+          default: "http://localhost:4000",
+        },
+      ],
+    },
+    tools: [
+      { definition: { name: "his_get_stats", description: "Get aggregated hospital statistics and overview counts.", category: "healthcare", parameters: [] } },
+      { definition: { name: "his_list_patients", description: "List or search patients in the HIS.", category: "healthcare", parameters: [{ name: "query", type: "string", description: "Optional patient name or ID query", required: false }] } },
+      { definition: { name: "his_get_patient", description: "Get detailed information about a specific patient by ID.", category: "healthcare", parameters: [{ name: "patientId", type: "string", description: "Patient ID", required: true }] } },
+      { definition: { name: "his_get_patient_allergies", description: "Get allergy information for a specific patient.", category: "healthcare", parameters: [{ name: "patientId", type: "string", description: "Patient ID", required: true }] } },
+      { definition: { name: "his_list_encounters", description: "List clinical encounters and SOAP notes.", category: "healthcare", parameters: [{ name: "patientId", type: "string", description: "Optional patient ID filter", required: false }] } },
+      { definition: { name: "his_list_prescriptions", description: "List medication prescriptions and orders.", category: "healthcare", parameters: [{ name: "patientId", type: "string", description: "Optional patient ID filter", required: false }] } },
+      { definition: { name: "his_list_medications", description: "List medications available in the hospital formulary.", category: "healthcare", parameters: [{ name: "query", type: "string", description: "Optional medication search query", required: false }] } },
+      { definition: { name: "his_list_alerts", description: "List clinical safety alerts and warnings.", category: "healthcare", parameters: [{ name: "patientId", type: "string", description: "Optional patient ID filter", required: false }] } },
+    ],
+  },
+  {
+    manifest: {
+      id: "report-gen",
+      name: "Report & Chart Generator",
+      version: "1.0.0",
+      description:
+        "Generate Excel spreadsheets, SVG charts, and AI-powered business reports from natural language. Supports invoice/table generation, visualisation, and full report packages with summary + Excel + chart.",
+      author: "HiTechClaw",
+      category: "productivity",
+      tags: ["excel", "xlsx", "chart", "report", "invoice", "visualisation", "business"],
+      config: [
+        {
+          key: "gatewayInternalUrl",
+          label: "Gateway Internal URL",
+          type: "string",
+          description: "Base URL of the gateway service (internal)",
+          required: false,
+          default: "http://localhost:3000",
+        },
+      ],
+    },
+    tools: [
+      { definition: { name: "generate_excel_report", description: "Generate an Excel spreadsheet from natural language or explicit data.", category: "productivity", parameters: [{ name: "prompt", type: "string", description: "Report prompt", required: false }, { name: "data", type: "array", description: "Explicit report rows", required: false }, { name: "headers", type: "array", description: "Column headers", required: false }, { name: "sheetName", type: "string", description: "Excel sheet name", required: false }, { name: "title", type: "string", description: "Report title", required: false }, { name: "fileName", type: "string", description: "Output file name", required: false }] } },
+      { definition: { name: "generate_chart", description: "Generate a bar, line, or pie chart as inline SVG.", category: "productivity", parameters: [{ name: "prompt", type: "string", description: "Chart prompt", required: false }, { name: "type", type: "string", description: "Chart type", required: false }, { name: "labels", type: "array", description: "Chart labels", required: false }, { name: "datasets", type: "array", description: "Chart datasets", required: false }, { name: "values", type: "array", description: "Pie chart values", required: false }, { name: "title", type: "string", description: "Chart title", required: false }] } },
+      { definition: { name: "generate_full_report", description: "Generate a summary, Excel file, and chart in one report workflow.", category: "productivity", parameters: [{ name: "prompt", type: "string", description: "Business report prompt", required: true }, { name: "includeExcel", type: "boolean", description: "Include Excel output", required: false }, { name: "includeChart", type: "boolean", description: "Include chart output", required: false }, { name: "chartType", type: "string", description: "Preferred chart type", required: false }, { name: "fileName", type: "string", description: "File name prefix", required: false }] } },
+    ],
+  },
+];
+
+const builtinSkills = builtinSkillDefinitions.map((skill) => skill.manifest.id);
+
+const BUILTIN_POLICIES: Record<string, AppSandboxPolicy> = {
+  strict: {
+    name: "strict",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }], defaultAccess: "none" },
+    network: { rules: [], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 10 },
+  },
+  default: {
+    name: "default",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  permissive: {
+    name: "permissive",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }, { path: "/data", access: "read" }], defaultAccess: "read" },
+    network: { rules: [], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 50 },
+  },
+  gmail: {
+    name: "gmail",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "*.googleapis.com", methods: ["GET", "POST"], allow: true }, { host: "oauth2.googleapis.com", methods: ["POST"], allow: true }, { host: "accounts.google.com", methods: ["GET", "POST"], allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  github: {
+    name: "github",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "api.github.com", allow: true }, { host: "github.com", methods: ["GET"], allow: true }, { host: "raw.githubusercontent.com", methods: ["GET"], allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  slack: {
+    name: "slack",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "slack.com", allow: true }, { host: "*.slack.com", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  notion: {
+    name: "notion",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "api.notion.com", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  "web-search": {
+    name: "web-search",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "api.tavily.com", allow: true }, { host: "api.search.brave.com", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  telegram: {
+    name: "telegram",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "api.telegram.org", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  discord: {
+    name: "discord",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "discord.com", allow: true }, { host: "*.discord.com", allow: true }, { host: "gateway.discord.gg", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  zalo: {
+    name: "zalo",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "openapi.zalo.me", allow: true }, { host: "oauth.zaloapp.com", allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 20 },
+  },
+  ml: {
+    name: "ml",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }, { path: "/data", access: "read" }], defaultAccess: "read" },
+    network: { rules: [{ host: "huggingface.co", allow: true }, { host: "*.huggingface.co", allow: true }, { host: "cdn-lfs.huggingface.co", allow: true }, { host: "pypi.org", methods: ["GET"], allow: true }, { host: "files.pythonhosted.org", methods: ["GET"], allow: true }], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 100 },
+  },
+  inference: {
+    name: "inference",
+    version: "1.0.0",
+    filesystem: { rules: [{ path: "/tmp", access: "read-write" }, { path: "/home/sandbox", access: "read-write" }, { path: "/usr", access: "read" }, { path: "/lib", access: "read" }, { path: "/data", access: "read" }], defaultAccess: "read" },
+    network: { rules: [], defaultAction: "deny" },
+    process: { allowPrivilegeEscalation: false, maxProcesses: 30 },
+  },
+};
+
+const INTEGRATION_POLICIES: Record<string, AppSandboxPolicy> = {
+  gmail: BUILTIN_POLICIES.gmail,
+  "google-calendar": BUILTIN_POLICIES.gmail,
+  github: BUILTIN_POLICIES.github,
+  slack: BUILTIN_POLICIES.slack,
+  "slack-api": BUILTIN_POLICIES.slack,
+  notion: BUILTIN_POLICIES.notion,
+  tavily: BUILTIN_POLICIES["web-search"],
+  brave: BUILTIN_POLICIES["web-search"],
+  telegram: BUILTIN_POLICIES.telegram,
+  discord: BUILTIN_POLICIES.discord,
+  zalo: BUILTIN_POLICIES.zalo,
+};
+
+const GPU_SANDBOX_IMAGES: AppSandboxImage[] = [
+  { name: "ml-pytorch", description: "PyTorch + CUDA for deep learning", image: "hitechclaw/sandbox-pytorch:latest", cudaVersion: "12.4", packages: ["torch", "torchvision", "numpy", "pandas", "scikit-learn"], gpuRequired: true },
+  { name: "ml-tensorflow", description: "TensorFlow + CUDA for deep learning", image: "hitechclaw/sandbox-tensorflow:latest", cudaVersion: "12.4", packages: ["tensorflow", "numpy", "pandas", "scikit-learn"], gpuRequired: true },
+  { name: "ml-sklearn", description: "Scikit-learn for classical ML (CPU only)", image: "hitechclaw/sandbox-sklearn:latest", packages: ["scikit-learn", "numpy", "pandas", "xgboost", "lightgbm"], gpuRequired: false },
+  { name: "ml-huggingface", description: "Hugging Face Transformers + CUDA", image: "hitechclaw/sandbox-hf:latest", cudaVersion: "12.4", packages: ["transformers", "torch", "tokenizers", "accelerate", "datasets"], gpuRequired: true },
+  { name: "inference-onnx", description: "ONNX Runtime for optimized inference", image: "hitechclaw/sandbox-onnx:latest", packages: ["onnxruntime", "numpy"], gpuRequired: false },
+];
+
+const builtinSkillDeepLinks: Record<string, Array<{ href: string; label: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>> = {
+  "text-to-fhir": [
+    { href: "/tools/domains?pack=healthcare", label: "Open healthcare domain", tone: "purple" },
+    { href: "/tools/skills?search=text-to-fhir", label: "Open registry entry", tone: "cyan" },
+    { href: "/workflows", label: "Open workflows", tone: "amber" },
+  ],
+  "report-gen": [
+    { href: "/tools/domains?search=report", label: "Open reporting domains", tone: "purple" },
+    { href: "/tools/docs?search=report", label: "Open docs", tone: "cyan" },
+    { href: "/workflows", label: "Open workflows", tone: "amber" },
+  ],
+};
+
 const integrationIds = new Set(allIntegrations.map((integration) => integration.id));
 
 function buildSkillRegistryEntries(): SkillRegistryEntry[] {
@@ -448,10 +719,12 @@ function EmptyState({ label }: { label: string }) {
 
 const toolLinks = [
   { href: "/tools/approvals", title: "Approvals Queue", note: "Review drafted content and approve or reject from the phone.", tone: "green" as const },
+  { href: "/tools/builtin-skills", title: "Built-in Skills", note: "Inspect packaged runtime skills, configs, tool handlers, and workflow rollout hints.", tone: "cyan" as const },
   { href: "/tools/docs", title: "Docs Viewer", note: "Searchable archive of specs, reports, logs, and plans.", tone: "cyan" as const },
   { href: "/tools/domains", title: "Domain Packs", note: "Additive industry presets for agents, skills, and recommended integrations.", tone: "purple" as const },
   { href: "/tools/integrations", title: "Integrations Catalog", note: "Connector inventory with auth, actions, triggers, and risk guidance.", tone: "green" as const },
   { href: "/tools/ml", title: "ML Catalog", note: "Algorithm, task, and AutoML catalog sourced from the local ML engine package.", tone: "amber" as const },
+  { href: "/tools/sandbox", title: "Sandbox Lab", note: "Review package policies, GPU images, and isolation guidance before live execution.", tone: "slate" as const },
   { href: "/tools/skills", title: "Skill Registry", note: "Browse built-in skill entries derived from domain packs via the local skill hub SDK.", tone: "cyan" as const },
   { href: "/tools/tasks", title: "Task Board", note: "Kanban board for task and agent priorities.", tone: "amber" as const },
   { href: "/tools/calendar", title: "Content Calendar", note: "Week-first content schedule with day drill-down.", tone: "purple" as const },
@@ -472,10 +745,12 @@ const packageMenuSections: Array<{
     note: "Function nào menu đó — each integrated package now has a direct menu destination.",
     items: [
       { href: "/client/chat", label: "AI Chat", description: "Open the packaged chat workspace for conversations, summaries, and assistant flows.", tone: "green" },
+      { href: "/tools/builtin-skills", label: "Built-in Skills", description: "Inspect packaged runtime skills from @hitechclaw/skills and their workflow-fit metadata.", tone: "cyan" },
       { href: "/tools/domains", label: "Domain Packs", description: "Browse domain presets, recommended integrations, and packaged operating patterns.", tone: "purple" },
       { href: "/tools/integrations", label: "Integrations Catalog", description: "Inspect connectors, auth models, triggers, and supported actions from the integrations package.", tone: "green" },
       { href: "/tools/skills", label: "Skill Registry", description: "Review packaged skill entries, tools, and domain-linked execution capabilities.", tone: "cyan" },
       { href: "/tools/ml", label: "ML Catalog", description: "Explore algorithms, supported tasks, and local ML engine references.", tone: "amber" },
+      { href: "/tools/sandbox", label: "Sandbox Lab", description: "Review isolation policies, GPU-ready images, and integration allow-lists from the sandbox package.", tone: "slate" },
       { href: "/tools/docs", label: "Docs Library", description: "Read indexed docs and package guidance from the documentation module.", tone: "cyan" },
       { href: "/tools/mcp", label: "MCP Inventory", description: "Manage MCP servers, imports, and execution gateways from the tooling layer.", tone: "slate" },
     ],
@@ -483,7 +758,7 @@ const packageMenuSections: Array<{
 ];
 
 const packageWorkspaceItems: Array<{
-  id: "chat" | "docs" | "domains" | "integrations" | "skills" | "ml" | "mcp";
+  id: "chat" | "docs" | "domains" | "integrations" | "skills" | "builtin-skills" | "ml" | "sandbox" | "mcp";
   href: string;
   label: string;
   description: string;
@@ -518,6 +793,13 @@ const packageWorkspaceItems: Array<{
     tone: "green",
   },
   {
+    id: "builtin-skills",
+    href: "/tools/builtin-skills",
+    label: "Built-in Skills",
+    description: "Runtime-ready packaged skills and their handlers.",
+    tone: "cyan",
+  },
+  {
     id: "skills",
     href: "/tools/skills",
     label: "Skill Registry",
@@ -530,6 +812,13 @@ const packageWorkspaceItems: Array<{
     label: "ML Catalog",
     description: "Algorithms, tasks, and hyperparameter guidance.",
     tone: "amber",
+  },
+  {
+    id: "sandbox",
+    href: "/tools/sandbox",
+    label: "Sandbox Lab",
+    description: "Isolation policies, GPU images, and safe execution baselines.",
+    tone: "slate",
   },
   {
     id: "mcp",
@@ -559,6 +848,12 @@ const packageOverviewGroups: Array<{
         label: "Skill Registry",
         href: "/tools/skills",
         description: "Marketplace-style view of packaged skills and tools.",
+        tone: "cyan",
+      },
+      {
+        label: "Built-in Skills",
+        href: "/tools/builtin-skills",
+        description: "Runtime-ready skill package manifests, configs, and handlers.",
         tone: "cyan",
       },
       {
@@ -604,6 +899,12 @@ const packageOverviewGroups: Array<{
         tone: "slate",
       },
       {
+        label: "Sandbox Lab",
+        href: "/tools/sandbox",
+        description: "Review packaged sandbox policies before connecting live execution.",
+        tone: "slate",
+      },
+      {
         label: "Approvals Queue",
         href: "/tools/approvals",
         description: "Preserve approval gates for risky or moderated actions.",
@@ -621,6 +922,8 @@ const packageOverviewGroups: Array<{
 
 function PackageOverviewDashboard() {
   const skillEntries = useMemo(() => buildSkillRegistryEntries(), []);
+  const builtinSkillCount = builtinSkills.length;
+  const sandboxPolicyCount = Object.keys(BUILTIN_POLICIES).length;
   const totalDomainTools = useMemo(
     () => allDomainPacks.reduce((sum, pack) => sum + countDomainTools(pack), 0),
     []
@@ -650,12 +953,24 @@ function PackageOverviewDashboard() {
       accent: "text-amber",
       sublabel: "Catalogued algorithms available for future ML workflows",
     },
+    {
+      label: "Built-in skills",
+      value: builtinSkillCount.toString(),
+      accent: "text-cyan",
+      sublabel: "Packaged runtime skills ready for guided rollout",
+    },
+    {
+      label: "Sandbox policies",
+      value: sandboxPolicyCount.toString(),
+      accent: "text-slate",
+      sublabel: "Isolation baselines for sensitive tools and ML jobs",
+    },
   ] as const;
 
   return (
     <Card>
       <SectionTitle title="Package Overview" note="Shared dashboard for all integrated package capabilities" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {packageStats.map((stat) => (
           <StatCard
             key={stat.label}
@@ -699,6 +1014,8 @@ function PackageOverviewDashboard() {
               <li>• {allIntegrations.length} integration definitions with additive rollout guidance.</li>
               <li>• {skillEntries.length} skill registry entries linked back to domains and integrations.</li>
               <li>• {algorithms.length} ML algorithms exposed as a browse-only catalog.</li>
+              <li>• {builtinSkillCount} packaged runtime skills exposed without wiring risky live execution.</li>
+              <li>• {sandboxPolicyCount} sandbox policies and {GPU_SANDBOX_IMAGES.length} GPU image presets documented for safe rollout.</li>
             </ul>
           </Card>
 
@@ -790,7 +1107,7 @@ export function ToolsHubScreen() {
       <PackageOverviewDashboard />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Custom Tools" value="10" accent="text-cyan" sublabel="Interactive operational surfaces" />
+        <StatCard label="Custom Tools" value={toolLinks.length.toString()} accent="text-cyan" sublabel="Interactive operational surfaces" />
         <StatCard label="Mobile First" value="44px+" accent="text-purple" sublabel="Touch targets and sticky controls" />
         <StatCard label="Live Ops" value="5s" accent="text-amber" sublabel="Polling cadence for active runs" />
         <StatCard label="Theme" value="PWA" accent="text-green" sublabel="HiTechClaw AI dark shell reused" />
@@ -2217,6 +2534,397 @@ export function SkillsToolScreen() {
           <li>• Keep skill installation and execution behind current agent, MCP, and approval flows.</li>
           <li>• Promote high-value builtin skills into future onboarding templates instead of replacing existing dashboards.</li>
         </ul>
+      </Card>
+    </div>
+  );
+}
+
+function summarizeBuiltinSkillTools(skill: BuiltinSkillDefinition) {
+  return skill.tools.reduce((total: number, tool: BuiltinSkillTool) => total + (tool.definition.parameters?.length ?? 0), 0);
+}
+
+function getBuiltinSkillTone(category: string) {
+  if (category === "healthcare") return "purple" as const;
+  if (category === "productivity") return "green" as const;
+  return "cyan" as const;
+}
+
+export function BuiltinSkillsToolScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParam = searchParams.get("search") ?? "";
+  const categoryParam = searchParams.get("category") ?? "all";
+  const [search, setSearch] = useState(searchParam);
+  const [categoryFilter, setCategoryFilter] = useState(categoryParam);
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
+
+  const categories = useMemo(
+    () => ["all", ...Array.from(new Set(builtinSkillDefinitions.map((skill) => skill.manifest.category))).sort()],
+    []
+  );
+
+  const indexedBuiltinSkills = useMemo(
+    () =>
+      builtinSkillDefinitions.map((skill) => ({
+        skill,
+        searchText: [
+          skill.manifest.id,
+          skill.manifest.name,
+          skill.manifest.description,
+          skill.manifest.category,
+          skill.manifest.tags.join(" "),
+          skill.manifest.config.map((entry: BuiltinSkillConfigEntry) => `${entry.key} ${entry.label} ${entry.description ?? ""}`).join(" "),
+          skill.tools.map((tool: BuiltinSkillTool) => `${tool.definition.name} ${tool.definition.description}`).join(" "),
+        ]
+          .join(" ")
+          .toLowerCase(),
+      })),
+    []
+  );
+
+  useEffect(() => {
+    if (searchParam !== search) setSearch(searchParam);
+    if (categoryParam !== categoryFilter) setCategoryFilter(categoryParam);
+  }, [categoryFilter, categoryParam, search, searchParam]);
+
+  const filteredBuiltinSkills = useMemo(() => {
+    return indexedBuiltinSkills
+      .filter(({ skill, searchText }) => {
+        if (categoryFilter !== "all" && skill.manifest.category !== categoryFilter) return false;
+        if (!deferredSearch) return true;
+        return searchText.includes(deferredSearch);
+      })
+      .map(({ skill }) => skill);
+  }, [categoryFilter, deferredSearch, indexedBuiltinSkills]);
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      search: deferredSearchText || null,
+      category: categoryFilter === "all" ? null : categoryFilter,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/builtin-skills?${nextQuery}` : "/tools/builtin-skills", { scroll: false });
+  }, [categoryFilter, deferredSearchText, router, searchParams]);
+
+  const isBuiltinResetDisabled = !search && categoryFilter === "all";
+
+  const resetBuiltinFilters = () => {
+    setSearch("");
+    setCategoryFilter("all");
+  };
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="Built-in Skills"
+        subtitle="Package-native runtime skills from @hitechclaw/skills, surfaced without replacing current agent, MCP, or approval flows."
+        action={<Badge tone="cyan">{builtinSkills.length} packaged skills</Badge>}
+      />
+
+      <SectionDescription id="builtin-skills">
+        Review the packaged runtime skills that sit behind HiTechClaw capabilities. This screen exposes manifests, handler tools, configuration keys, and workflow-fit guidance before any live rollout.
+      </SectionDescription>
+
+      <PackageWorkspaceNav current="builtin-skills" note="Open packaged runtime skills together with domains, registry, sandbox, workflows, docs, and chat." />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Packaged skills" value={builtinSkills.length.toString()} accent="text-cyan" sublabel="Directly sourced from @hitechclaw/skills" />
+        <StatCard label="Runtime tools" value={builtinSkillDefinitions.reduce((sum, skill) => sum + skill.tools.length, 0).toString()} accent="text-green" sublabel="Handlers attached to skill execution" />
+        <StatCard label="Config entries" value={builtinSkillDefinitions.reduce((sum, skill) => sum + skill.manifest.config.length, 0).toString()} accent="text-amber" sublabel="Environment and runtime settings declared by the package" />
+        <StatCard label="Workflow ready" value={builtinSkillDefinitions.length.toString()} accent="text-purple" sublabel="Candidates for project-level workflow starters" />
+      </div>
+
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Packaged runtime catalog" note="Sourced from @hitechclaw/skills" />
+          <FilterResetButton onClick={resetBuiltinFilters} disabled={isBuiltinResetDisabled} />
+        </div>
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search packaged skills, tool handlers, config keys, or tags"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {categories.map((entry) => (
+            <Pill key={entry} active={categoryFilter === entry} onClick={() => setCategoryFilter(entry)}>
+              {entry === "all" ? "All categories" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {filteredBuiltinSkills.map((skill) => (
+            <Card key={skill.manifest.id} className="space-y-4 border-border/70 bg-bg-deep/40">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={getBuiltinSkillTone(skill.manifest.category)}>{skill.manifest.category}</Badge>
+                <Badge tone="cyan">{skill.manifest.version}</Badge>
+                <Badge tone="green">{skill.tools.length} tools</Badge>
+                <Badge tone="amber">{summarizeBuiltinSkillTools(skill)} params</Badge>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-semibold text-text">{skill.manifest.name}</h2>
+                <p className="mt-2 text-sm leading-6 text-text-dim">{skill.manifest.description}</p>
+              </div>
+
+              <PackageActionBar
+                title="Package actions"
+                note="Use safe deep-links before enabling runtime execution."
+                items={[
+                  ...(builtinSkillDeepLinks[skill.manifest.id] ?? []),
+                  { href: "/client/chat", label: "Open AI chat", tone: "green" },
+                  { href: "/tools/docs", label: "Open docs", tone: "cyan" },
+                ]}
+              />
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(220px,0.9fr)]">
+                <div className="space-y-3">
+                  <SectionTitle title="Tool handlers" note="Declared by the package runtime" />
+                  {skill.tools.map((tool: BuiltinSkillTool) => (
+                    <div key={`${skill.manifest.id}-${tool.definition.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-4">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone="cyan">{tool.definition.name}</Badge>
+                        <Badge tone="green">{tool.definition.category}</Badge>
+                        <Badge tone="amber">{tool.definition.parameters?.length ?? 0} params</Badge>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-text-dim">{tool.definition.description}</p>
+                      {tool.definition.parameters?.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {tool.definition.parameters.map((parameter: BuiltinSkillParameter) => (
+                            <Badge key={`${tool.definition.name}-${parameter.name}`} tone="slate">
+                              {parameter.name}{parameter.required ? " *" : ""}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3">
+                  <Card className="space-y-3 border-border/70 bg-bg-card/50">
+                    <SectionTitle title="Config keys" note="Runtime expectations" />
+                    <div className="space-y-2">
+                      {skill.manifest.config.map((entry: BuiltinSkillConfigEntry) => (
+                        <div key={`${skill.manifest.id}-${entry.key}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge tone="purple">{entry.key}</Badge>
+                            <Badge tone="green">{entry.type}</Badge>
+                            {entry.required ? <Badge tone="red">required</Badge> : <Badge tone="slate">optional</Badge>}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-text-dim">{entry.description ?? entry.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  <Card className="space-y-3 border-border/70 bg-bg-card/50">
+                    <SectionTitle title="Workflow fit" note="Project workflow starter guidance" />
+                    <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                      <li>• Start from `Workflows` for repeatable execution instead of wiring handlers directly into the UI.</li>
+                      <li>• Keep risky or external calls behind approvals, sandbox review, and existing operational guardrails.</li>
+                      <li>• Reuse `Docs`, `Registry`, and `AI Chat` to document and validate rollout assumptions before activation.</li>
+                    </ul>
+                  </Card>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {skill.manifest.tags.map((tag: string) => (
+                  <Badge key={`${skill.manifest.id}-${tag}`} tone="slate">{tag}</Badge>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+        {!filteredBuiltinSkills.length ? <EmptyState label="No built-in skills matched this filter." /> : null}
+      </Card>
+    </div>
+  );
+}
+
+function countNetworkAllowRules(policy: AppSandboxPolicy) {
+  return policy.network.rules.filter((rule: AppSandboxNetworkRule) => rule.allow).length;
+}
+
+function getPolicyTone(policyName: string) {
+  if (["strict", "default"].includes(policyName)) return "slate" as const;
+  if (["ml", "inference"].includes(policyName)) return "amber" as const;
+  if (["github", "gmail", "slack", "notion"].includes(policyName)) return "green" as const;
+  return "cyan" as const;
+}
+
+export function SandboxToolScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const searchParam = searchParams.get("search") ?? "";
+  const [search, setSearch] = useState(searchParam);
+  const deferredSearchText = useDeferredValue(search.trim());
+  const deferredSearch = deferredSearchText.toLowerCase();
+
+  const builtinPolicies = useMemo(
+    () => Object.entries(BUILTIN_POLICIES).sort(([left], [right]) => left.localeCompare(right)) as SandboxPolicyRecord[],
+    []
+  );
+
+  const filteredPolicies = useMemo(() => {
+    if (!deferredSearch) return builtinPolicies;
+    return builtinPolicies.filter(([name, policy]) => {
+      const haystack = [
+        name,
+        policy.name,
+        policy.version,
+        policy.filesystem.rules.map((rule) => `${rule.path} ${rule.access}`).join(" "),
+        policy.network.rules.map((rule) => `${rule.host} ${(rule.methods ?? []).join(" ")}`).join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(deferredSearch);
+    });
+  }, [builtinPolicies, deferredSearch]);
+
+  useEffect(() => {
+    if (searchParam !== search) setSearch(searchParam);
+  }, [search, searchParam]);
+
+  useEffect(() => {
+    const nextQuery = buildUpdatedQueryString(searchParams, {
+      search: deferredSearchText || null,
+    });
+
+    if (nextQuery === searchParams.toString()) return;
+    router.replace(nextQuery ? `/tools/sandbox?${nextQuery}` : "/tools/sandbox", { scroll: false });
+  }, [deferredSearchText, router, searchParams]);
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="Sandbox Lab"
+        subtitle="Isolation policies, integration allow-lists, and GPU-ready image presets from @hitechclaw/sandbox."
+        action={<Badge tone="slate">{builtinPolicies.length} policies</Badge>}
+      />
+
+      <SectionDescription id="sandbox-lab">
+        Review packaged sandbox policies before wiring any risky tool, connector, or ML job into live execution. This keeps HiTechClaw additive, documented, and conflict-aware.
+      </SectionDescription>
+
+      <PackageWorkspaceNav current="sandbox" note="Move between sandbox review, built-in skills, ML catalog, integrations, docs, and project workflows." />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Policies" value={builtinPolicies.length.toString()} accent="text-slate" sublabel="Built-in isolation templates" />
+        <StatCard label="Integration maps" value={Object.keys(INTEGRATION_POLICIES).length.toString()} accent="text-green" sublabel="Connector-specific policy mappings" />
+        <StatCard label="GPU images" value={GPU_SANDBOX_IMAGES.length.toString()} accent="text-amber" sublabel="ML and inference-ready sandbox images" />
+        <StatCard label="Allowed hosts" value={builtinPolicies.reduce((sum, [, policy]) => sum + countNetworkAllowRules(policy), 0).toString()} accent="text-cyan" sublabel="Explicit network allow rules across packaged policies" />
+      </div>
+
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Policy review" note="Sourced from @hitechclaw/sandbox" />
+          <FilterResetButton onClick={() => setSearch("")} disabled={!search} />
+        </div>
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search policies, hosts, filesystem rules, or image names"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <div className="space-y-4">
+            {filteredPolicies.map(([name, policy]) => (
+              <Card key={name} className="space-y-3 border-border/70 bg-bg-deep/40">
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={getPolicyTone(name)}>{name}</Badge>
+                  <Badge tone="green">fs {policy.filesystem.defaultAccess}</Badge>
+                  <Badge tone="amber">net {policy.network.defaultAction}</Badge>
+                  <Badge tone="slate">proc {policy.process.maxProcesses ?? 0}</Badge>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="space-y-3">
+                    <SectionTitle title="Filesystem rules" note={`${policy.filesystem.rules.length} declared paths`} />
+                    <div className="flex flex-wrap gap-2">
+                      {policy.filesystem.rules.map((rule) => (
+                        <Badge key={`${name}-${rule.path}`} tone="purple">{rule.path} · {rule.access}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <SectionTitle title="Network rules" note={`${policy.network.rules.length} explicit hosts`} />
+                    <div className="flex flex-wrap gap-2">
+                      {policy.network.rules.length ? (
+                        policy.network.rules.map((rule) => (
+                          <Badge key={`${name}-${rule.host}`} tone={rule.allow ? "green" : "red"}>
+                            {rule.host}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge tone="slate">No explicit hosts</Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+            {!filteredPolicies.length ? <EmptyState label="No sandbox policies matched this search." /> : null}
+          </div>
+
+          <div className="space-y-4">
+            <PackageActionBar
+              title="Package actions"
+              note="Keep isolation review close to skills, ML, integrations, and workflows."
+              items={[
+                { href: "/tools/builtin-skills", label: "Open built-in skills", tone: "cyan" },
+                { href: "/tools/skills?sandbox=review", label: "Open registry", tone: "cyan" },
+                { href: "/tools/ml", label: "Open ML catalog", tone: "amber" },
+                { href: "/tools/integrations", label: "Open integrations", tone: "green" },
+                { href: "/workflows", label: "Open workflows", tone: "amber" },
+              ]}
+            />
+
+            <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+              <SectionTitle title="Integration policy map" note="Package guardrails by connector" />
+              <div className="space-y-2">
+                {Object.entries(INTEGRATION_POLICIES)
+                  .sort(([left], [right]) => left.localeCompare(right))
+                  .map(([integrationId, policy]) => (
+                    <div key={integrationId} className="rounded-2xl border border-border/80 bg-bg-card/60 p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone="green">{integrationId}</Badge>
+                        <Badge tone={getPolicyTone(policy.name)}>{policy.name}</Badge>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+
+            <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+              <SectionTitle title="GPU-ready images" note="ML and inference presets" />
+              <div className="space-y-3">
+                {GPU_SANDBOX_IMAGES.map((image) => (
+                  <div key={image.name} className="rounded-2xl border border-border/80 bg-bg-card/60 p-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="amber">{image.name}</Badge>
+                      <Badge tone={image.gpuRequired ? "red" : "green"}>{image.gpuRequired ? "GPU required" : "CPU capable"}</Badge>
+                      {image.cudaVersion ? <Badge tone="slate">CUDA {image.cudaVersion}</Badge> : null}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-dim">{image.description}</p>
+                    <p className="mt-2 text-xs text-text-dim">Packages: {image.packages.join(", ")}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+              <SectionTitle title="Project workflow guidance" note="Non-GitHub workflow rollout" />
+              <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                <li>• Review sandbox policy first, then connect the matching integration or built-in skill.</li>
+                <li>• Use `Workflows` to orchestrate approved tasks instead of exposing direct execution paths in the UI.</li>
+                <li>• Keep ML and sensitive tools behind explicit package review, approvals, and documented allow-lists.</li>
+              </ul>
+            </Card>
+          </div>
+        </div>
       </Card>
     </div>
   );
