@@ -62,6 +62,10 @@ import { useTenantFilter } from "./tenant-context";
 
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
+  "/models": "Models",
+  "/search": "Search",
+  "/eval": "Evaluation",
+  "/multi-agent": "Multi-Agent",
   "/tools": "Tools",
   "/tools/approvals": "Approvals",
   "/tools/builtin-skills": "Built-in Skills",
@@ -165,6 +169,7 @@ const moreSheetItems: NavItem[] = [
   { href: "/infrastructure", label: "Infrastructure", icon: Network },
   { href: "/traces", label: "Traces", icon: GitBranch },
   { href: "/workflows", label: "Workflows", icon: Workflow },
+  { href: "/models", label: "Models", icon: Database },
   { href: "/client/chat", label: "AI Chat", icon: MessageSquare },
   { href: "/tools/domains", label: "Domains", icon: Globe },
   { href: "/tools/integrations", label: "Integrations", icon: Plug },
@@ -241,6 +246,7 @@ const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
     key: "manage",
     items: [
       { href: "/client/chat", label: "AI Chat", subtitle: "Package chat workspace and summaries", icon: MessageSquare },
+      { href: "/models", label: "Models", subtitle: "OpenClaw model aliases, defaults, and fallbacks", icon: Database },
       { href: "/tools/domains", label: "Domain Packs", subtitle: "Industry packs, playbooks, and presets", icon: Globe },
       { href: "/tools/integrations", label: "Integrations", subtitle: "Connector catalog, actions, and triggers", icon: Plug },
       { href: "/tools/builtin-skills", label: "Built-in Skills", subtitle: "Packaged runtime skill handlers and config", icon: Puzzle },
