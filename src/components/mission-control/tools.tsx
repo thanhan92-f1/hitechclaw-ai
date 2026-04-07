@@ -1466,6 +1466,29 @@ function buildUpdatedQueryString(
   return params.toString();
 }
 
+function FilterResetButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition ${
+        disabled
+          ? "cursor-not-allowed border-border/60 bg-bg-deep/50 text-text-dim/60"
+          : "border-border bg-bg-deep/80 text-text-dim hover:border-cyan/30 hover:text-text"
+      }`}
+    >
+      Reset filters
+    </button>
+  );
+}
+
 export function DomainsToolScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1521,6 +1544,13 @@ export function DomainsToolScreen() {
     router.replace(nextQuery ? `/tools/domains?${nextQuery}` : "/tools/domains", { scroll: false });
   }, [deferredSearchText, packParam, router, searchParams, selectedPackId]);
 
+  const isDomainResetDisabled = !search && selectedPackId === (allDomainPacks[0]?.id ?? "general");
+
+  const resetDomainFilters = () => {
+    setSearch("");
+    setSelectedPackId(allDomainPacks[0]?.id ?? "general");
+  };
+
   return (
     <div className="space-y-5 pb-24">
       <ShellHeader
@@ -1543,7 +1573,10 @@ export function DomainsToolScreen() {
       </div>
 
       <Card className="space-y-4">
-        <SectionTitle title="Pack catalog" note="Sourced from @hitechclaw/domains" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Pack catalog" note="Sourced from @hitechclaw/domains" />
+          <FilterResetButton onClick={resetDomainFilters} disabled={isDomainResetDisabled} />
+        </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -1768,6 +1801,14 @@ export function IntegrationsToolScreen() {
     router.replace(nextQuery ? `/tools/integrations?${nextQuery}` : "/tools/integrations", { scroll: false });
   }, [category, deferredSearchText, integrationParam, router, searchParams, selectedId]);
 
+  const isIntegrationResetDisabled = !search && category === "all" && selectedId === (allIntegrations[0]?.id ?? "github");
+
+  const resetIntegrationFilters = () => {
+    setSearch("");
+    setCategory("all");
+    setSelectedId(allIntegrations[0]?.id ?? "github");
+  };
+
   return (
     <div className="space-y-5 pb-24">
       <ShellHeader
@@ -1790,7 +1831,10 @@ export function IntegrationsToolScreen() {
       </div>
 
       <Card className="space-y-4">
-        <SectionTitle title="Connector catalog" note="Sourced from @hitechclaw/integrations" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Connector catalog" note="Sourced from @hitechclaw/integrations" />
+          <FilterResetButton onClick={resetIntegrationFilters} disabled={isIntegrationResetDisabled} />
+        </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -2041,6 +2085,14 @@ export function SkillsToolScreen() {
     router.replace(nextQuery ? `/tools/skills?${nextQuery}` : "/tools/skills", { scroll: false });
   }, [deferredSearchText, domainFilter, integrationFilter, router, searchParams]);
 
+  const isSkillsResetDisabled = !search && domainFilter === "all" && integrationFilter === "all";
+
+  const resetSkillFilters = () => {
+    setSearch("");
+    setDomainFilter("all");
+    setIntegrationFilter("all");
+  };
+
   return (
     <div className="space-y-5 pb-24">
       <ShellHeader
@@ -2063,7 +2115,10 @@ export function SkillsToolScreen() {
       </div>
 
       <Card className="space-y-4">
-        <SectionTitle title="Marketplace catalog" note="Sourced from @hitechclaw/skill-hub" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Marketplace catalog" note="Sourced from @hitechclaw/skill-hub" />
+          <FilterResetButton onClick={resetSkillFilters} disabled={isSkillsResetDisabled} />
+        </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -2259,6 +2314,15 @@ export function MLCatalogToolScreen() {
     router.replace(nextQuery ? `/tools/ml?${nextQuery}` : "/tools/ml", { scroll: false });
   }, [algorithmParam, deferredSearchText, familyFilter, router, searchParams, selectedId, taskFilter]);
 
+  const isMlResetDisabled = !search && taskFilter === "all" && familyFilter === "all" && selectedId === (algorithms[0]?.id ?? "linear-regression");
+
+  const resetMlFilters = () => {
+    setSearch("");
+    setTaskFilter("all");
+    setFamilyFilter("all");
+    setSelectedId(algorithms[0]?.id ?? "linear-regression");
+  };
+
   return (
     <div className="space-y-5 pb-24">
       <ShellHeader
@@ -2281,7 +2345,10 @@ export function MLCatalogToolScreen() {
       </div>
 
       <Card className="space-y-4">
-        <SectionTitle title="Algorithm catalog" note="Sourced from @hitechclaw/ml" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SectionTitle title="Algorithm catalog" note="Sourced from @hitechclaw/ml" />
+          <FilterResetButton onClick={resetMlFilters} disabled={isMlResetDisabled} />
+        </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
