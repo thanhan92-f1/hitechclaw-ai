@@ -1,6 +1,7 @@
 "use client";
 
 import DOMPurify from "dompurify";
+import { allDomainPacks } from "@hitechclaw/domains";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
@@ -152,6 +153,8 @@ type QuickCommand = {
 };
 
 marked.setOptions({ breaks: true, gfm: true });
+
+type DomainPack = (typeof allDomainPacks)[number];
 
 function renderMarkdown(content: string): string {
   const raw = marked(content) as string;
@@ -377,6 +380,7 @@ function EmptyState({ label }: { label: string }) {
 const toolLinks = [
   { href: "/tools/approvals", title: "Approvals Queue", note: "Review drafted content and approve or reject from the phone.", tone: "green" as const },
   { href: "/tools/docs", title: "Docs Viewer", note: "Searchable archive of specs, reports, logs, and plans.", tone: "cyan" as const },
+  { href: "/tools/domains", title: "Domain Packs", note: "Additive industry presets for agents, skills, and recommended integrations.", tone: "purple" as const },
   { href: "/tools/tasks", title: "Task Board", note: "Kanban board for task and agent priorities.", tone: "amber" as const },
   { href: "/tools/calendar", title: "Content Calendar", note: "Week-first content schedule with day drill-down.", tone: "purple" as const },
   { href: "/tools/agents-live", title: "Sub-Agent Live", note: "Real-time status, logs, tokens, and kill controls.", tone: "green" as const },
@@ -395,7 +399,7 @@ export function ToolsHubScreen() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Custom Tools" value="6" accent="text-cyan" sublabel="Interactive operational surfaces" />
+        <StatCard label="Custom Tools" value="7" accent="text-cyan" sublabel="Interactive operational surfaces" />
         <StatCard label="Mobile First" value="44px+" accent="text-purple" sublabel="Touch targets and sticky controls" />
         <StatCard label="Live Ops" value="5s" accent="text-amber" sublabel="Polling cadence for active runs" />
         <StatCard label="Theme" value="PWA" accent="text-green" sublabel="HiTechClaw AI dark shell reused" />
@@ -1022,6 +1026,158 @@ export function DocsToolScreen() {
 
       {error ? <ErrorState error={error} /> : null}
       {libraryError ? <ErrorState error={libraryError} /> : null}
+    </div>
+  );
+}
+
+function countDomainTools(pack: DomainPack) {
+  return pack.skills.reduce((total, skill) => total + skill.tools.length, 0);
+}
+
+export function DomainsToolScreen() {
+  const [search, setSearch] = useState("");
+  const [selectedPackId, setSelectedPackId] = useState<string>(allDomainPacks[0]?.id ?? "general");
+
+  const filteredPacks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return allDomainPacks;
+
+    return allDomainPacks.filter((pack) => {
+      const haystack = [
+        pack.name,
+        pack.description,
+        pack.id,
+        pack.agentPersona,
+        pack.recommendedIntegrations.join(" "),
+        pack.skills.map((skill) => `${skill.name} ${skill.description} ${skill.category}`).join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [search]);
+
+  const selectedPack = filteredPacks.find((pack) => pack.id === selectedPackId) ?? filteredPacks[0] ?? null;
+
+  useEffect(() => {
+    if (!selectedPack) return;
+    if (selectedPack.id !== selectedPackId) setSelectedPackId(selectedPack.id);
+  }, [selectedPack, selectedPackId]);
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="Domain Packs"
+        subtitle="Additive industry modules from the local packages folder. They extend HiTechClaw workflows without replacing existing tools."
+        action={<Badge tone="purple">{allDomainPacks.length} packs</Badge>}
+      />
+
+      <SectionDescription id="domain-packs">
+        Browse reusable domain presets for developer, finance, healthcare, sales, DevOps, research, and more. Each pack includes a persona, built-in skills, and recommended integrations that can guide future agent templates.
+      </SectionDescription>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Domain packs" value={allDomainPacks.length.toString()} accent="text-purple" sublabel="Local additive presets ready for HiTechClaw" />
+        <StatCard label="Skills" value={allDomainPacks.reduce((sum, pack) => sum + pack.skills.length, 0).toString()} accent="text-cyan" sublabel="Reusable capability bundles across all packs" />
+        <StatCard label="Tools" value={allDomainPacks.reduce((sum, pack) => sum + countDomainTools(pack), 0).toString()} accent="text-amber" sublabel="Embedded helper tools inside package presets" />
+        <StatCard label="Integrations" value={Array.from(new Set(allDomainPacks.flatMap((pack) => pack.recommendedIntegrations))).length.toString()} accent="text-green" sublabel="Unique recommended connectors referenced by the packs" />
+      </div>
+
+      <Card className="space-y-4">
+        <SectionTitle title="Pack catalog" note="Sourced from @hitechclaw/domains" />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search domains, personas, skills, or integrations"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {filteredPacks.map((pack) => (
+            <Pill key={pack.id} active={selectedPack?.id === pack.id} onClick={() => setSelectedPackId(pack.id)}>
+              {pack.icon} {pack.name}
+            </Pill>
+          ))}
+        </div>
+        {!filteredPacks.length ? <EmptyState label="No domain packs matched this search." /> : null}
+      </Card>
+
+      {selectedPack ? (
+        <>
+          <Card className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Badge tone="purple">{selectedPack.id}</Badge>
+                  <Badge tone="cyan">{selectedPack.skills.length} skills</Badge>
+                  <Badge tone="amber">{countDomainTools(selectedPack)} tools</Badge>
+                </div>
+                <h2 className="mt-3 text-2xl font-semibold text-text">{selectedPack.icon} {selectedPack.name}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-text-dim">{selectedPack.description}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+              <div className="space-y-4">
+                <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                  <SectionTitle title="Agent persona" note="Package-defined guidance" />
+                  <p className="whitespace-pre-wrap text-sm leading-6 text-text-dim">{selectedPack.agentPersona}</p>
+                </Card>
+
+                <div className="space-y-3">
+                  <SectionTitle title="Included skills" note={`${selectedPack.skills.length} presets`} />
+                  {selectedPack.skills.map((skill) => (
+                    <Card key={skill.id} className="space-y-3 border-border/70 bg-bg-deep/40">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge tone="cyan">{skill.category}</Badge>
+                            <Badge tone="slate">v{skill.version}</Badge>
+                            <Badge tone="amber">{skill.tools.length} tools</Badge>
+                          </div>
+                          <h3 className="mt-3 text-lg font-semibold text-text">{skill.name}</h3>
+                          <p className="mt-1 text-sm leading-6 text-text-dim">{skill.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {skill.tools.map((tool) => (
+                          <Badge key={`${skill.id}-${tool.name}`} tone="purple">{tool.name}</Badge>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                  <SectionTitle title="Recommended integrations" note="Safe additive guidance only" />
+                  {selectedPack.recommendedIntegrations.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPack.recommendedIntegrations.map((integrationId) => (
+                        <Badge key={integrationId} tone="green">{integrationId}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState label="No recommended integrations declared for this pack." />
+                  )}
+                </Card>
+
+                <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                  <SectionTitle title="How to use" note="Non-destructive rollout" />
+                  <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                    <li>• Use a pack as a template source for future agent presets, not as a replacement for existing Hitechclaw flows.</li>
+                    <li>• Pair recommended integrations with the existing client chat and tools hub instead of removing current capabilities.</li>
+                    <li>• Reuse persona text and skills when creating new workflow defaults, onboarding presets, or admin templates.</li>
+                  </ul>
+                </Card>
+              </div>
+            </div>
+          </Card>
+        </>
+      ) : (
+        <EmptyState label="No domain pack selected." />
+      )}
     </div>
   );
 }

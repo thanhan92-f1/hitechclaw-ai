@@ -21,6 +21,7 @@
     "paths": {
       "@hitechclaw/chat-sdk": ["./packages/chat-sdk/dist/index.js"],
       "@hitechclaw/chat-sdk/react": ["./packages/chat-sdk/dist/react/index.js"],
+      "@hitechclaw/domains": ["./packages/domains/dist/index.js"],
       "@hitechclaw/doc-mcp": ["./packages/doc-mcp/dist/index.js"],
       "@hitechclaw/doc-mcp/doc-store": ["./packages/doc-mcp/dist/doc-store.js"],
       "@/*": ["./src/*"]

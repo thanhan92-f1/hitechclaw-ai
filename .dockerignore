@@ -11,6 +11,8 @@ build
 dist
 !packages/chat-sdk/dist
 !packages/chat-sdk/dist/**
+!packages/domains/dist
+!packages/domains/dist/**
 !packages/doc-mcp/dist
 !packages/doc-mcp/dist/**
 
