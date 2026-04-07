@@ -36,6 +36,10 @@ interface WorkflowTemplate {
   trigger_config: { cron_expression?: string } | null;
   definition: WorkflowDefinition;
   customizationHints: string[];
+  packageResources?: Array<{
+    href: string;
+    label: string;
+  }>;
 }
 
 interface PackageWorkflowKit {
@@ -216,6 +220,156 @@ const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       ],
     },
     customizationHints: ["Change severity threshold in the condition", "Adjust polling frequency", "Route alerts to different channels per severity"],
+    packageResources: [
+      { href: "/tools/builtin-skills", label: "Built-in Skills" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
+  },
+  {
+    id: "docs-library-digest",
+    name: "Docs Library Digest",
+    description: "Send a daily digest of indexed project documentation so operators can review package guidance before rollout.",
+    icon: Info,
+    color: "#8b5cf6",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "30 7 * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 7:30", cron_expression: "30 7 * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Docs Library", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/tools/docs/library?limit=12", headers: {}, timeout: 10000 } },
+        { id: "3", type: "notify", position: { x: 250, y: 340 }, data: { label: "Send Docs Digest", channel: "telegram", message: "Daily docs digest ready. Review indexed guidance from the repository docs library and align upcoming workflow changes with the latest package notes. Response: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+      ],
+    },
+    customizationHints: ["Filter the docs library by category or search terms in the request URL", "Switch the digest channel from Telegram to log-only during staging", "Pair the digest with Built-in Skills guidance before enabling production workflows"],
+    packageResources: [
+      { href: "/tools/docs", label: "Docs Tools" },
+      { href: "/tools/builtin-skills", label: "Built-in Skills" },
+    ],
+  },
+  {
+    id: "infra-self-report-review",
+    name: "Infra Self-Report Review",
+    description: "Submit a controlled infrastructure self-report payload, then alert operators when the node reports a degraded status.",
+    icon: HeartPulse,
+    color: "#22c55e",
+    trigger_type: "manual",
+    trigger_config: null,
+    definition: {
+      nodes: [
+        { id: "1", type: "manual-trigger", position: { x: 250, y: 30 }, data: { label: "Run Review" } },
+        {
+          id: "2",
+          type: "http-request",
+          position: { x: 250, y: 180 },
+          data: {
+            label: "Submit Infra Report",
+            method: "POST",
+            url: "{{HITECHCLAW_AI_BASE_URL}}/api/infra/report",
+            headers: {},
+            timeout: 10000,
+            body: '{"nodeId":"replace-with-node-id","cpu":92,"memUsed":15360,"memTotal":16384,"diskUsed":920,"diskTotal":1000,"dockerRunning":true,"gpuUtil":78,"services":[{"name":"gateway","status":"running"},{"name":"scheduler","status":"running"}]}'
+          }
+        },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Report Degraded?", field: "body.status", operator: "eq", value: "degraded" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Infra Risk", channel: "telegram", message: "Infrastructure self-report returned degraded status. Review the affected node, confirm service health, and inspect infrastructure dashboards. Response: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Replace the placeholder node ID before saving the template", "Tune CPU, memory, and disk values to match your real node payload format", "Keep this template manual until the node-side cron sender has been verified in staging"],
+    packageResources: [
+      { href: "/infrastructure", label: "Infrastructure" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
+  },
+  {
+    id: "security-daily-brief",
+    name: "Security Daily Brief",
+    description: "Review the last 24 hours of security posture and escalate only when critical findings are present.",
+    icon: ShieldAlert,
+    color: "#dc2626",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "0 8 * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Daily at 8:00", cron_expression: "0 8 * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Security Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=24h", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Critical Findings Present?", field: "body", operator: "contains", value: "critical" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Critical Brief", channel: "telegram", message: "Critical findings detected in the last 24 hours. Review the security overview and validate containment or sandbox policy changes immediately." } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Expand the range to 7d for weekly posture reviews", "Change the condition keyword if you want to escalate high severity findings too", "Link the notification runbook to Sandbox Lab when containment depends on policy changes"],
+    packageResources: [
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+      { href: "/tools/builtin-skills", label: "Built-in Skills" },
+    ],
+  },
+  {
+    id: "cost-anomaly-watch",
+    name: "Cost Anomaly Watch",
+    description: "Check for agent spend spikes and route operators to the right package catalogs before scaling usage.",
+    icon: Wallet,
+    color: "#14b8a6",
+    trigger_type: "cron",
+    trigger_config: { cron_expression: "0 * * * *" },
+    definition: {
+      nodes: [
+        { id: "1", type: "cron-trigger", position: { x: 250, y: 30 }, data: { label: "Hourly Review", cron_expression: "0 * * * *" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Cost Overview", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/costs/overview?range=7d", headers: {}, timeout: 10000 } },
+        { id: "3", type: "condition", position: { x: 250, y: 340 }, data: { label: "Anomalies Detected?", field: "body.agent_anomalies.length", operator: "gt", value: "0" } },
+        { id: "4", type: "notify", position: { x: 80, y: 500 }, data: { label: "Escalate Spend Spike", channel: "telegram", message: "Cost anomaly detected. Review agent spikes, then confirm model and sandbox choices before increasing throughput. Summary: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4", sourceHandle: "true" },
+      ],
+    },
+    customizationHints: ["Narrow the tenant scope in the request URL for customer-specific monitoring", "Adjust the cadence if hourly checks are too noisy", "Use ML Catalog and Sandbox Lab together before approving higher-cost runtime changes"],
+    packageResources: [
+      { href: "/tools/ml", label: "ML Catalog" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
+  },
+  {
+    id: "package-readiness-review",
+    name: "Package Readiness Review",
+    description: "Run a manual pre-release review that checks docs coverage first, then logs a security snapshot for the rollout decision.",
+    icon: LayoutGrid,
+    color: "#0ea5e9",
+    trigger_type: "manual",
+    trigger_config: null,
+    definition: {
+      nodes: [
+        { id: "1", type: "manual-trigger", position: { x: 250, y: 30 }, data: { label: "Launch Review" } },
+        { id: "2", type: "http-request", position: { x: 250, y: 180 }, data: { label: "Fetch Docs Inventory", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/tools/docs/library?limit=20", headers: {}, timeout: 10000 } },
+        { id: "3", type: "http-request", position: { x: 250, y: 340 }, data: { label: "Fetch Security Snapshot", method: "GET", url: "{{HITECHCLAW_AI_BASE_URL}}/api/security/overview?range=7d", headers: {}, timeout: 10000 } },
+        { id: "4", type: "notify", position: { x: 250, y: 500 }, data: { label: "Publish Readiness Summary", channel: "log", message: "Package readiness review completed. Confirm docs coverage, security posture, and rollout approvals before enabling the next workflow set. Latest snapshot: {{body}}" } },
+      ],
+      edges: [
+        { id: "e1-2", source: "1", target: "2" },
+        { id: "e2-3", source: "2", target: "3" },
+        { id: "e3-4", source: "3", target: "4" },
+      ],
+    },
+    customizationHints: ["Keep this manual until your release checklist is stable", "Switch the final notification to Telegram when the review owners are defined", "Open each linked package surface while refining the checklist and approval wording"],
+    packageResources: [
+      { href: "/tools/docs", label: "Docs Tools" },
+      { href: "/tools/builtin-skills", label: "Built-in Skills" },
+      { href: "/tools/sandbox", label: "Sandbox Lab" },
+    ],
   },
 ];
 
@@ -699,6 +853,20 @@ export function WorkflowsScreen() {
                                 <span className="font-mono text-cyan-400/70">{tmpl.trigger_config.cron_expression}</span>
                               )}
                             </div>
+                            {tmpl.packageResources?.length ? (
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {tmpl.packageResources.map((resource) => (
+                                  <Link
+                                    key={`${tmpl.id}-${resource.href}`}
+                                    href={resource.href}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[10px] uppercase tracking-wider text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                                  >
+                                    {resource.label}
+                                  </Link>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                           <div className="shrink-0 flex items-center gap-2">
                             <button
@@ -776,6 +944,19 @@ export function WorkflowsScreen() {
                         </li>
                       ))}
                     </ul>
+                    {selectedTemplate.packageResources?.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border)] pt-3">
+                        {selectedTemplate.packageResources.map((resource) => (
+                          <Link
+                            key={`selected-${resource.href}`}
+                            href={resource.href}
+                            className="rounded-full border border-[var(--border)] px-2.5 py-1 text-[10px] uppercase tracking-wider text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"
+                          >
+                            {resource.label}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 )}
 

@@ -60,6 +60,67 @@ function interpolateTemplate(template: string, context: Record<string, unknown>)
   });
 }
 
+function tryParseJson(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function getValueByPath(source: unknown, path: string): unknown {
+  if (!path) return source;
+
+  const segments = path.split(".").filter(Boolean);
+  let current: unknown = tryParseJson(source);
+
+  for (const segment of segments) {
+    current = tryParseJson(current);
+
+    if (segment === "length") {
+      if (Array.isArray(current) || typeof current === "string") {
+        current = current.length;
+        continue;
+      }
+      if (current && typeof current === "object") {
+        current = Object.keys(current).length;
+        continue;
+      }
+      return undefined;
+    }
+
+    if (Array.isArray(current)) {
+      const index = Number(segment);
+      if (!Number.isInteger(index)) return undefined;
+      current = current[index];
+      continue;
+    }
+
+    if (current && typeof current === "object") {
+      current = (current as Record<string, unknown>)[segment];
+      continue;
+    }
+
+    return undefined;
+  }
+
+  return current;
+}
+
+function resolveConditionValue(field: string, context: Record<string, unknown>): unknown {
+  if (field in context) return context[field];
+
+  if (field.startsWith("body.")) {
+    return getValueByPath(context.body, field.slice(5));
+  }
+
+  return getValueByPath(context, field);
+}
+
 // ── Node executors ─────────────────────────────────────────────────────────────
 
 async function executeHttpRequest(data: Record<string, unknown>, context: Record<string, unknown>): Promise<{ status: number; body: unknown }> {
@@ -115,7 +176,8 @@ function evaluateCondition(data: Record<string, unknown>, context: Record<string
   const field = String(data.field ?? "status");
   const operator = String(data.operator ?? "eq");
   const expected = String(data.value ?? "");
-  const actual = String(context[field] ?? "");
+  const actualValue = resolveConditionValue(field, context);
+  const actual = String(actualValue ?? "");
 
   switch (operator) {
     case "eq": return actual === expected;
