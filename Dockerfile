@@ -17,6 +17,9 @@ COPY public/ public/
 COPY migrations/ migrations/
 COPY packages/chat-sdk/dist/ packages/chat-sdk/dist/
 COPY packages/domains/dist/ packages/domains/dist/
+COPY packages/integrations/dist/ packages/integrations/dist/
+COPY packages/ml/dist/ packages/ml/dist/
+COPY packages/skill-hub/dist/ packages/skill-hub/dist/
 COPY packages/doc-mcp/dist/ packages/doc-mcp/dist/
 COPY scripts/ scripts/
 COPY next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./

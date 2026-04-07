@@ -9,6 +9,10 @@ import {
   MessageSquare,
   Wallet,
   Key,
+  Globe,
+  Plug,
+  Puzzle,
+  Brain,
   LogOut,
   Menu,
   ChevronRight,
@@ -24,6 +28,10 @@ function isRouteActive(pathname: string | null, href: string) {
 const clientNav: Array<{ href: string; label: string; subtitle: string; icon: LucideIcon }> = [
   { href: "/client", label: "Dashboard", subtitle: "Overview & activity", icon: LayoutDashboard },
   { href: "/client/chat", label: "AI Chat", subtitle: "Conversations & summaries", icon: MessageSquare },
+  { href: "/tools/domains", label: "Domains", subtitle: "Industry packs & presets", icon: Globe },
+  { href: "/tools/integrations", label: "Integrations", subtitle: "Connectors & automations", icon: Plug },
+  { href: "/tools/skills", label: "Skills", subtitle: "Skill registry & tools", icon: Puzzle },
+  { href: "/tools/ml", label: "ML Catalog", subtitle: "Algorithms & tasks", icon: Brain },
   { href: "/client/agents", label: "My Agents", subtitle: "Status & sessions", icon: Bot },
   { href: "/client/costs", label: "Costs", subtitle: "Usage & billing", icon: Wallet },
   { href: "/client/api-keys", label: "API Keys", subtitle: "Integration tokens", icon: Key },
@@ -189,7 +197,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
 
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)]/80 bg-[var(--bg-primary)]/95 backdrop-blur md:hidden">
         <div className="mx-auto grid h-[60px] max-w-3xl grid-cols-4 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
-          {clientNav.map((tab) => {
+          {clientNav.slice(0, 4).map((tab) => {
             const active = isRouteActive(pathname, tab.href);
             const Icon = tab.icon;
             return (

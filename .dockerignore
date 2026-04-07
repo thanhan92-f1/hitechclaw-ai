@@ -13,6 +13,12 @@ dist
 !packages/chat-sdk/dist/**
 !packages/domains/dist
 !packages/domains/dist/**
+!packages/integrations/dist
+!packages/integrations/dist/**
+!packages/ml/dist
+!packages/ml/dist/**
+!packages/skill-hub/dist
+!packages/skill-hub/dist/**
 !packages/doc-mcp/dist
 !packages/doc-mcp/dist/**
 

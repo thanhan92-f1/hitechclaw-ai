@@ -2,6 +2,9 @@
 
 import DOMPurify from "dompurify";
 import { allDomainPacks } from "@hitechclaw/domains";
+import { allIntegrations } from "@hitechclaw/integrations";
+import { algorithms, getAlgorithmsForTask } from "@hitechclaw/ml";
+import { createSkillRegistry, describeSkill, formatSkillId } from "@hitechclaw/skill-hub";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
@@ -155,6 +158,72 @@ type QuickCommand = {
 marked.setOptions({ breaks: true, gfm: true });
 
 type DomainPack = (typeof allDomainPacks)[number];
+type IntegrationDefinition = (typeof allIntegrations)[number];
+type MLAlgorithm = (typeof algorithms)[number];
+type SkillHubParameter = {
+  name: string;
+  type: "string" | "number" | "boolean" | "object" | "array";
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+};
+type SkillHubTool = {
+  name: string;
+  description: string;
+  parameters?: SkillHubParameter[];
+};
+type SkillRegistryEntry = {
+  id: string;
+  name: string;
+  description: string;
+  domainId: string;
+  icon?: string;
+  tools: SkillHubTool[];
+  installed: boolean;
+  version?: string;
+  tags?: string[];
+  author?: string;
+  trustLevel?: "builtin" | "verified" | "community" | "untrusted";
+  sandboxRequired?: boolean;
+  sandboxPolicy?: string;
+};
+
+const integrationIds = new Set(allIntegrations.map((integration) => integration.id));
+
+function buildSkillRegistryEntries(): SkillRegistryEntry[] {
+  const registry = createSkillRegistry();
+
+  for (const pack of allDomainPacks) {
+    for (const skill of pack.skills) {
+      registry.register({
+        id: formatSkillId(pack.id, skill.name),
+        name: skill.name,
+        description: skill.description,
+        domainId: pack.id,
+        icon: pack.icon,
+        tools: skill.tools.map((tool): SkillHubTool => ({
+          name: tool.name,
+          description: tool.description,
+          parameters: Object.entries(tool.parameters.properties).map(([name, config]): SkillHubParameter => ({
+            name,
+            type: (config.type === "integer" ? "number" : config.type) as "string" | "number" | "boolean" | "object" | "array",
+            description: config.description,
+            required: tool.parameters.required?.includes(name),
+          })),
+        })),
+        installed: true,
+        version: skill.version,
+        tags: [skill.category, pack.id, ...pack.recommendedIntegrations],
+        author: "Nguyen Thanh An by Pho Tue SoftWare Solutions JSC",
+        trustLevel: "builtin",
+        sandboxRequired: false,
+        sandboxPolicy: "permissive",
+      });
+    }
+  }
+
+  return registry.list();
+}
 
 function renderMarkdown(content: string): string {
   const raw = marked(content) as string;
@@ -381,6 +450,9 @@ const toolLinks = [
   { href: "/tools/approvals", title: "Approvals Queue", note: "Review drafted content and approve or reject from the phone.", tone: "green" as const },
   { href: "/tools/docs", title: "Docs Viewer", note: "Searchable archive of specs, reports, logs, and plans.", tone: "cyan" as const },
   { href: "/tools/domains", title: "Domain Packs", note: "Additive industry presets for agents, skills, and recommended integrations.", tone: "purple" as const },
+  { href: "/tools/integrations", title: "Integrations Catalog", note: "Connector inventory with auth, actions, triggers, and risk guidance.", tone: "green" as const },
+  { href: "/tools/ml", title: "ML Catalog", note: "Algorithm, task, and AutoML catalog sourced from the local ML engine package.", tone: "amber" as const },
+  { href: "/tools/skills", title: "Skill Registry", note: "Browse built-in skill entries derived from domain packs via the local skill hub SDK.", tone: "cyan" as const },
   { href: "/tools/tasks", title: "Task Board", note: "Kanban board for task and agent priorities.", tone: "amber" as const },
   { href: "/tools/calendar", title: "Content Calendar", note: "Week-first content schedule with day drill-down.", tone: "purple" as const },
   { href: "/tools/agents-live", title: "Sub-Agent Live", note: "Real-time status, logs, tokens, and kill controls.", tone: "green" as const },
@@ -388,6 +460,26 @@ const toolLinks = [
   { href: "/actions", title: "Actions", note: "Existing action list remains available from the hub.", tone: "slate" as const },
   { href: "/confessions", title: "Confessions", note: "Mission-aligned declarations and scriptures.", tone: "purple" as const },
   { href: "/visuals", title: "Visuals", note: "Visual briefing and live diagrams.", tone: "amber" as const },
+];
+
+const packageMenuSections: Array<{
+  title: string;
+  note: string;
+  items: Array<{ href: string; label: string; description: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
+}> = [
+  {
+    title: "Package Functions",
+    note: "Function nào menu đó — each integrated package now has a direct menu destination.",
+    items: [
+      { href: "/client/chat", label: "AI Chat", description: "Open the packaged chat workspace for conversations, summaries, and assistant flows.", tone: "green" },
+      { href: "/tools/domains", label: "Domain Packs", description: "Browse domain presets, recommended integrations, and packaged operating patterns.", tone: "purple" },
+      { href: "/tools/integrations", label: "Integrations Catalog", description: "Inspect connectors, auth models, triggers, and supported actions from the integrations package.", tone: "green" },
+      { href: "/tools/skills", label: "Skill Registry", description: "Review packaged skill entries, tools, and domain-linked execution capabilities.", tone: "cyan" },
+      { href: "/tools/ml", label: "ML Catalog", description: "Explore algorithms, supported tasks, and local ML engine references.", tone: "amber" },
+      { href: "/tools/docs", label: "Docs Library", description: "Read indexed docs and package guidance from the documentation module.", tone: "cyan" },
+      { href: "/tools/mcp", label: "MCP Inventory", description: "Manage MCP servers, imports, and execution gateways from the tooling layer.", tone: "slate" },
+    ],
+  },
 ];
 
 export function ToolsHubScreen() {
@@ -399,7 +491,7 @@ export function ToolsHubScreen() {
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Custom Tools" value="7" accent="text-cyan" sublabel="Interactive operational surfaces" />
+        <StatCard label="Custom Tools" value="10" accent="text-cyan" sublabel="Interactive operational surfaces" />
         <StatCard label="Mobile First" value="44px+" accent="text-purple" sublabel="Touch targets and sticky controls" />
         <StatCard label="Live Ops" value="5s" accent="text-amber" sublabel="Polling cadence for active runs" />
         <StatCard label="Theme" value="PWA" accent="text-green" sublabel="HiTechClaw AI dark shell reused" />
@@ -423,6 +515,27 @@ export function ToolsHubScreen() {
           ))}
         </div>
       </Card>
+
+      {packageMenuSections.map((section) => (
+        <Card key={section.title}>
+          <SectionTitle title={section.title} note={section.note} />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {section.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 transition hover:border-cyan/40"
+              >
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <Badge tone={item.tone}>{item.label}</Badge>
+                  <span className="text-xs text-text-dim">Menu</span>
+                </div>
+                <p className="text-sm leading-6 text-text-dim">{item.description}</p>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -1035,8 +1148,16 @@ function countDomainTools(pack: DomainPack) {
 }
 
 export function DomainsToolScreen() {
-  const [search, setSearch] = useState("");
-  const [selectedPackId, setSelectedPackId] = useState<string>(allDomainPacks[0]?.id ?? "general");
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [selectedPackId, setSelectedPackId] = useState<string>(searchParams.get("pack") ?? allDomainPacks[0]?.id ?? "general");
+
+  useEffect(() => {
+    const pack = searchParams.get("pack");
+    const nextSearch = searchParams.get("search") ?? "";
+    if (pack && pack !== selectedPackId) setSelectedPackId(pack);
+    if (nextSearch !== search) setSearch(nextSearch);
+  }, [search, searchParams, selectedPackId]);
 
   const filteredPacks = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -1155,12 +1276,31 @@ export function DomainsToolScreen() {
                   {selectedPack.recommendedIntegrations.length ? (
                     <div className="flex flex-wrap gap-2">
                       {selectedPack.recommendedIntegrations.map((integrationId) => (
-                        <Badge key={integrationId} tone="green">{integrationId}</Badge>
+                        <Link key={integrationId} href={`/tools/integrations?integration=${encodeURIComponent(integrationId)}`}>
+                          <Badge tone="green">{integrationId}</Badge>
+                        </Link>
                       ))}
                     </div>
                   ) : (
                     <EmptyState label="No recommended integrations declared for this pack." />
                   )}
+                </Card>
+
+                <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                  <SectionTitle title="Cross-links" note="Jump into related catalogs" />
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/tools/skills?domain=${encodeURIComponent(selectedPack.id)}`}>
+                      <Badge tone="cyan">Open skills</Badge>
+                    </Link>
+                    {selectedPack.id === "ml" ? (
+                      <Link href="/tools/ml?taskType=classification">
+                        <Badge tone="amber">Open ML catalog</Badge>
+                      </Link>
+                    ) : null}
+                  </div>
+                  <p className="text-sm leading-6 text-text-dim">
+                    Use domain-level deep-links to inspect related skills and recommended integrations without leaving the existing tools workflow.
+                  </p>
                 </Card>
 
                 <Card className="space-y-3 border-border/70 bg-bg-deep/40">
@@ -1177,6 +1317,643 @@ export function DomainsToolScreen() {
         </>
       ) : (
         <EmptyState label="No domain pack selected." />
+      )}
+    </div>
+  );
+}
+
+function getIntegrationAuthLabel(integration: IntegrationDefinition) {
+  if (integration.auth.type === "oauth2") return "OAuth2";
+  if (integration.auth.type === "api-key") return "API Key";
+  if (integration.auth.type === "bearer") return "Bearer Token";
+  if (integration.auth.type === "basic") return "Basic Auth";
+  return "No Auth";
+}
+
+function getIntegrationRiskTone(integration: IntegrationDefinition) {
+  const risks = integration.actions.map((action) => action.riskLevel ?? "safe");
+  if (risks.includes("dangerous")) return "red" as const;
+  if (risks.includes("moderate")) return "amber" as const;
+  return "green" as const;
+}
+
+function getIntegrationSummary(integration: IntegrationDefinition) {
+  const approvals = integration.actions.filter((action) => action.requiresApproval).length;
+  const triggers = integration.triggers?.length ?? 0;
+  return `${integration.actions.length} actions · ${triggers} triggers · ${approvals} approval-gated`;
+}
+
+export function IntegrationsToolScreen() {
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [category, setCategory] = useState<string>(searchParams.get("category") ?? "all");
+  const [selectedId, setSelectedId] = useState<string>(searchParams.get("integration") ?? allIntegrations[0]?.id ?? "github");
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") ?? "";
+    const nextCategory = searchParams.get("category") ?? "all";
+    const nextSelected = searchParams.get("integration");
+    if (nextSearch !== search) setSearch(nextSearch);
+    if (nextCategory !== category) setCategory(nextCategory);
+    if (nextSelected && nextSelected !== selectedId) setSelectedId(nextSelected);
+  }, [category, search, searchParams, selectedId]);
+
+  const categories = useMemo(
+    () => ["all", ...Array.from(new Set(allIntegrations.map((integration) => integration.category))).sort()],
+    []
+  );
+
+  const filteredIntegrations = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return allIntegrations.filter((integration) => {
+      if (category !== "all" && integration.category !== category) return false;
+      if (!query) return true;
+
+      const haystack = [
+        integration.name,
+        integration.id,
+        integration.description,
+        integration.category,
+        getIntegrationAuthLabel(integration),
+        integration.actions.map((action) => `${action.name} ${action.description}`).join(" "),
+        integration.triggers?.map((trigger) => `${trigger.name} ${trigger.description}`).join(" ") ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [category, search]);
+
+  const selected = filteredIntegrations.find((integration) => integration.id === selectedId) ?? filteredIntegrations[0] ?? null;
+  const relatedPacks = selected
+    ? allDomainPacks.filter((pack) => pack.recommendedIntegrations.includes(selected.id))
+    : [];
+
+  useEffect(() => {
+    if (!selected) return;
+    if (selected.id !== selectedId) setSelectedId(selected.id);
+  }, [selected, selectedId]);
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="Integrations Catalog"
+        subtitle="Read-only connector inventory from the local packages folder. This extends HiTechClaw without replacing existing MCP or workflow features."
+        action={<Badge tone="green">{allIntegrations.length} connectors</Badge>}
+      />
+
+      <SectionDescription id="integrations-catalog">
+        Review built-in connectors for email, messaging, GitHub, search, calendars, and AI services. This screen is additive and read-only: it documents auth patterns, available actions, triggers, and approval risk before deeper integration.
+      </SectionDescription>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Connectors" value={allIntegrations.length.toString()} accent="text-green" sublabel="Package-backed integration definitions" />
+        <StatCard label="Actions" value={allIntegrations.reduce((sum, integration) => sum + integration.actions.length, 0).toString()} accent="text-cyan" sublabel="Executable operations exposed by the catalog" />
+        <StatCard label="Triggers" value={allIntegrations.reduce((sum, integration) => sum + (integration.triggers?.length ?? 0), 0).toString()} accent="text-amber" sublabel="Event hooks available for future automations" />
+        <StatCard label="Approvals" value={allIntegrations.reduce((sum, integration) => sum + integration.actions.filter((action) => action.requiresApproval).length, 0).toString()} accent="text-purple" sublabel="Actions that should stay behind approval flows" />
+      </div>
+
+      <Card className="space-y-4">
+        <SectionTitle title="Connector catalog" note="Sourced from @hitechclaw/integrations" />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search connectors, actions, triggers, or auth modes"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {categories.map((entry) => (
+            <Pill key={entry} active={category === entry} onClick={() => setCategory(entry)}>
+              {entry === "all" ? "All" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {filteredIntegrations.map((integration) => (
+            <button
+              key={integration.id}
+              type="button"
+              onClick={() => setSelectedId(integration.id)}
+              className={`rounded-[22px] border p-4 text-left transition ${selected?.id === integration.id ? "border-cyan/40 bg-cyan/5" : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] hover:border-cyan/30"}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="green">{integration.category}</Badge>
+                    <Badge tone={getIntegrationRiskTone(integration)}>{getIntegrationAuthLabel(integration)}</Badge>
+                  </div>
+                  <h2 className="mt-3 text-lg font-semibold text-text">{integration.icon} {integration.name}</h2>
+                  <p className="mt-2 text-sm leading-6 text-text-dim">{integration.description}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-text-dim">{getIntegrationSummary(integration)}</p>
+            </button>
+          ))}
+        </div>
+        {!filteredIntegrations.length ? <EmptyState label="No integrations matched this filter." /> : null}
+      </Card>
+
+      {selected ? (
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="green">{selected.category}</Badge>
+                <Badge tone="cyan">{getIntegrationAuthLabel(selected)}</Badge>
+                <Badge tone={getIntegrationRiskTone(selected)}>{selected.actions.length} actions</Badge>
+                <Badge tone="purple">{selected.triggers?.length ?? 0} triggers</Badge>
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold text-text">{selected.icon} {selected.name}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-dim">{selected.description}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+            <div className="space-y-4">
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Available actions" note={`${selected.actions.length} operations`} />
+                <div className="space-y-3">
+                  {selected.actions.map((action) => (
+                    <div key={`${selected.id}-${action.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="cyan">{action.name}</Badge>
+                        <Badge tone={action.riskLevel === "dangerous" ? "red" : action.riskLevel === "moderate" ? "amber" : "green"}>
+                          {action.riskLevel ?? "safe"}
+                        </Badge>
+                        {action.requiresApproval ? <Badge tone="purple">approval required</Badge> : null}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-text-dim">{action.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Event triggers" note="Future automation hooks" />
+                {selected.triggers?.length ? (
+                  <div className="space-y-3">
+                    {selected.triggers.map((trigger) => (
+                      <div key={`${selected.id}-${trigger.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge tone="green">{trigger.name}</Badge>
+                          {trigger.pollInterval ? <Badge tone="slate">poll {Math.round(trigger.pollInterval / 1000)}s</Badge> : null}
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-text-dim">{trigger.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState label="No triggers declared for this integration." />
+                )}
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Authentication" note="Connector onboarding guidance" />
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="cyan">{getIntegrationAuthLabel(selected)}</Badge>
+                  {selected.auth.type === "oauth2" ? <Badge tone="green">refreshable {selected.auth.config.refreshable ? "yes" : "no"}</Badge> : null}
+                </div>
+                {selected.auth.type === "oauth2" ? (
+                  <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                    <li>• Client ID env: `{selected.auth.config.clientIdEnv}`</li>
+                    <li>• Client secret env: `{selected.auth.config.clientSecretEnv}`</li>
+                    <li>• Scopes: {selected.auth.config.scopes.join(", ")}</li>
+                  </ul>
+                ) : selected.auth.type === "none" ? (
+                  <p className="text-sm leading-6 text-text-dim">No credentials required.</p>
+                ) : (
+                  <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                    {selected.auth.fields.map((field) => (
+                      <li key={`${selected.id}-${field.key}`}>
+                        • {field.label} ({field.type}){field.envVar ? ` — env ${field.envVar}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
+
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Rollout recommendation" note="Keep existing Hitechclaw features intact" />
+                <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                  <li>• Start with catalog visibility only. Do not replace existing MCP, notification, or workflow screens.</li>
+                  <li>• Introduce connector setup later behind explicit settings and approvals.</li>
+                  <li>• Reuse low-risk actions first, then wire moderate or approval-gated actions into existing approval queues.</li>
+                </ul>
+              </Card>
+
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Related domains and skills" note="Cross-linked discovery" />
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/tools/skills?integration=${encodeURIComponent(selected.id)}`}>
+                    <Badge tone="cyan">Find matching skills</Badge>
+                  </Link>
+                  {relatedPacks.map((pack) => (
+                    <Link key={pack.id} href={`/tools/domains?pack=${encodeURIComponent(pack.id)}`}>
+                      <Badge tone="purple">{pack.icon} {pack.name}</Badge>
+                    </Link>
+                  ))}
+                </div>
+                {!relatedPacks.length ? <p className="text-sm leading-6 text-text-dim">No domain packs currently reference this integration.</p> : null}
+              </Card>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <EmptyState label="No integration selected." />
+      )}
+    </div>
+  );
+}
+
+function countSkillParameters(entry: SkillRegistryEntry) {
+  return entry.tools.reduce((total: number, tool: SkillHubTool) => total + (tool.parameters?.length ?? 0), 0);
+}
+
+export function SkillsToolScreen() {
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [domainFilter, setDomainFilter] = useState<string>(searchParams.get("domain") ?? "all");
+  const [integrationFilter, setIntegrationFilter] = useState<string>(searchParams.get("integration") ?? "all");
+
+  const skillEntries = useMemo(() => buildSkillRegistryEntries(), []);
+  const domains = useMemo(
+    () => ["all", ...Array.from(new Set(skillEntries.map((entry) => entry.domainId))).sort()],
+    [skillEntries]
+  );
+  const integrations = useMemo(
+    () => [
+      "all",
+      ...Array.from(
+        new Set(
+          skillEntries.flatMap((entry) => (entry.tags ?? []).filter((tag) => integrationIds.has(tag)))
+        )
+      ).sort(),
+    ],
+    [skillEntries]
+  );
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") ?? "";
+    const nextDomain = searchParams.get("domain") ?? "all";
+    const nextIntegration = searchParams.get("integration") ?? "all";
+    if (nextSearch !== search) setSearch(nextSearch);
+    if (nextDomain !== domainFilter) setDomainFilter(nextDomain);
+    if (nextIntegration !== integrationFilter) setIntegrationFilter(nextIntegration);
+  }, [domainFilter, integrationFilter, search, searchParams]);
+
+  const filteredEntries = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return skillEntries.filter((entry) => {
+      if (domainFilter !== "all" && entry.domainId !== domainFilter) return false;
+      if (integrationFilter !== "all" && !(entry.tags ?? []).includes(integrationFilter)) return false;
+      if (!query) return true;
+
+      const haystack = [
+        entry.id,
+        entry.name,
+        entry.description,
+        entry.domainId,
+        entry.tags?.join(" ") ?? "",
+        entry.tools.map((tool) => `${tool.name} ${tool.description}`).join(" "),
+        describeSkill(entry),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [domainFilter, integrationFilter, search, skillEntries]);
+
+  const sandboxed = useMemo(
+    () => skillEntries.filter((entry) => entry.sandboxRequired || entry.trustLevel === "community" || entry.trustLevel === "untrusted"),
+    [skillEntries]
+  );
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="Skill Registry"
+        subtitle="Read-only skill marketplace view powered by the local skill hub SDK and domain-pack metadata."
+        action={<Badge tone="cyan">{skillEntries.length} skills</Badge>}
+      />
+
+      <SectionDescription id="skill-registry">
+        Browse built-in skill entries derived from local domain packs. This gives HiTechClaw a safe marketplace-style registry view without replacing current tools, workflows, or agent setup flows.
+      </SectionDescription>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Registry entries" value={skillEntries.length.toString()} accent="text-cyan" sublabel="Generated through @hitechclaw/skill-hub" />
+        <StatCard label="Domains" value={Array.from(new Set(skillEntries.map((entry) => entry.domainId))).length.toString()} accent="text-purple" sublabel="Industry packs contributing reusable skills" />
+        <StatCard label="Tools" value={skillEntries.reduce((sum, entry) => sum + entry.tools.length, 0).toString()} accent="text-green" sublabel="Actionable tools declared inside skill definitions" />
+        <StatCard label="Sandboxed" value={sandboxed.length.toString()} accent="text-amber" sublabel="Entries that would require stricter execution controls" />
+      </div>
+
+      <Card className="space-y-4">
+        <SectionTitle title="Marketplace catalog" note="Sourced from @hitechclaw/skill-hub" />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search skills, tools, descriptions, or tags"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {domains.map((entry) => (
+            <Pill key={entry} active={domainFilter === entry} onClick={() => setDomainFilter(entry)}>
+              {entry === "all" ? "All domains" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {integrations.map((entry) => (
+            <Pill key={entry} active={integrationFilter === entry} onClick={() => setIntegrationFilter(entry)}>
+              {entry === "all" ? "All integrations" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {filteredEntries.map((entry) => (
+            <Card key={entry.id} className="space-y-3 border-border/70 bg-bg-deep/40">
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="purple">{entry.domainId}</Badge>
+                <Badge tone="cyan">{entry.trustLevel ?? "unknown"}</Badge>
+                <Badge tone="green">{entry.tools.length} tools</Badge>
+                <Badge tone="amber">{countSkillParameters(entry)} params</Badge>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-text">{entry.icon} {entry.name}</h2>
+                <p className="mt-2 text-sm leading-6 text-text-dim">{entry.description}</p>
+              </div>
+              <p className="text-xs text-text-dim">{describeSkill(entry)}</p>
+              <div className="flex flex-wrap gap-2">
+                {(entry.tags ?? []).slice(0, 6).map((tag) => (
+                  integrationIds.has(tag) ? (
+                    <Link key={`${entry.id}-${tag}`} href={`/tools/integrations?integration=${encodeURIComponent(tag)}`}>
+                      <Badge tone="green">{tag}</Badge>
+                    </Link>
+                  ) : (
+                    <Badge key={`${entry.id}-${tag}`} tone="slate">{tag}</Badge>
+                  )
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/tools/domains?pack=${encodeURIComponent(entry.domainId)}`}>
+                  <Badge tone="purple">Open domain</Badge>
+                </Link>
+                {entry.domainId === "ml" ? (
+                  <Link href="/tools/ml?taskType=classification">
+                    <Badge tone="amber">Open ML catalog</Badge>
+                  </Link>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                {entry.tools.map((tool) => (
+                  <div key={`${entry.id}-${tool.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="cyan">{tool.name}</Badge>
+                      <Badge tone="green">{tool.parameters?.length ?? 0} params</Badge>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-text-dim">{tool.description}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ))}
+        </div>
+        {!filteredEntries.length ? <EmptyState label="No skill entries matched this filter." /> : null}
+      </Card>
+
+      <Card className="space-y-4">
+        <SectionTitle title="Rollout recommendation" note="Preserve existing Hitechclaw flows" />
+        <ul className="space-y-2 text-sm leading-6 text-text-dim">
+          <li>• Use this registry as a browse-only marketplace surface first.</li>
+          <li>• Keep skill installation and execution behind current agent, MCP, and approval flows.</li>
+          <li>• Promote high-value builtin skills into future onboarding templates instead of replacing existing dashboards.</li>
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+function getTaskTone(taskType: string) {
+  if (["classification", "nlp-classification"].includes(taskType)) return "cyan" as const;
+  if (["regression", "time-series"].includes(taskType)) return "green" as const;
+  if (["clustering", "anomaly-detection"].includes(taskType)) return "amber" as const;
+  return "purple" as const;
+}
+
+function getAlgorithmRiskNote(algorithm: MLAlgorithm) {
+  if (algorithm.family === "ensemble") return "Higher compute, stronger baseline performance";
+  if (algorithm.family === "neural-network") return "Best for advanced pipelines and larger datasets";
+  if (algorithm.family === "clustering") return "Useful for unsupervised discovery and anomaly grouping";
+  return "Good read-only catalog candidate for future ML workflows";
+}
+
+export function MLCatalogToolScreen() {
+  const searchParams = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+  const [taskFilter, setTaskFilter] = useState<string>(searchParams.get("taskType") ?? "all");
+  const [familyFilter, setFamilyFilter] = useState<string>(searchParams.get("family") ?? "all");
+  const [selectedId, setSelectedId] = useState<string>(searchParams.get("algorithm") ?? algorithms[0]?.id ?? "linear-regression");
+
+  const taskTypes = useMemo(
+    () => ["all", ...Array.from(new Set(algorithms.flatMap((algorithm) => algorithm.supportedTasks))).sort()],
+    []
+  );
+  const families = useMemo(
+    () => ["all", ...Array.from(new Set(algorithms.map((algorithm) => algorithm.family))).sort()],
+    []
+  );
+
+  useEffect(() => {
+    const nextSearch = searchParams.get("search") ?? "";
+    const nextTask = searchParams.get("taskType") ?? "all";
+    const nextFamily = searchParams.get("family") ?? "all";
+    const nextAlgorithm = searchParams.get("algorithm");
+    if (nextSearch !== search) setSearch(nextSearch);
+    if (nextTask !== taskFilter) setTaskFilter(nextTask);
+    if (nextFamily !== familyFilter) setFamilyFilter(nextFamily);
+    if (nextAlgorithm && nextAlgorithm !== selectedId) setSelectedId(nextAlgorithm);
+  }, [familyFilter, search, searchParams, selectedId, taskFilter]);
+
+  const filteredAlgorithms = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const activeTaskFilter = taskFilter === "all" ? null : (taskFilter as MLAlgorithm["supportedTasks"][number]);
+
+    return algorithms.filter((algorithm) => {
+      if (activeTaskFilter && !algorithm.supportedTasks.includes(activeTaskFilter)) return false;
+      if (familyFilter !== "all" && algorithm.family !== familyFilter) return false;
+      if (!query) return true;
+
+      const haystack = [
+        algorithm.id,
+        algorithm.name,
+        algorithm.family,
+        algorithm.description,
+        algorithm.supportedTasks.join(" "),
+        algorithm.hyperparameters.map((parameter) => `${parameter.name} ${parameter.description}`).join(" "),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [familyFilter, search, taskFilter]);
+
+  const selected = filteredAlgorithms.find((algorithm) => algorithm.id === selectedId) ?? filteredAlgorithms[0] ?? null;
+  const mlPack = allDomainPacks.find((pack) => pack.id === "ml") ?? null;
+
+  useEffect(() => {
+    if (!selected) return;
+    if (selected.id !== selectedId) setSelectedId(selected.id);
+  }, [selected, selectedId]);
+
+  return (
+    <div className="space-y-5 pb-24">
+      <ShellHeader
+        title="ML Catalog"
+        subtitle="Read-only machine learning and AutoML catalog from the local ML engine package."
+        action={<Badge tone="amber">{algorithms.length} algorithms</Badge>}
+      />
+
+      <SectionDescription id="ml-catalog">
+        Review supported algorithms, task coverage, hyperparameters, and AutoML-ready capabilities before wiring live training flows. This is an additive catalog only and does not replace any current HiTechClaw screens.
+      </SectionDescription>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Algorithms" value={algorithms.length.toString()} accent="text-amber" sublabel="Built-in catalog from @hitechclaw/ml" />
+        <StatCard label="Task types" value={taskTypes.filter((item) => item !== "all").length.toString()} accent="text-cyan" sublabel="Classification, regression, clustering, anomaly, NLP and more" />
+        <StatCard label="Families" value={families.filter((item) => item !== "all").length.toString()} accent="text-green" sublabel="Linear, tree, ensemble, clustering and additional groups" />
+        <StatCard label="AutoML ready" value={taskFilter === "all" ? algorithms.length.toString() : getAlgorithmsForTask(taskFilter as MLAlgorithm["supportedTasks"][number]).length.toString()} accent="text-purple" sublabel="Algorithms available for the active task filter" />
+      </div>
+
+      <Card className="space-y-4">
+        <SectionTitle title="Algorithm catalog" note="Sourced from @hitechclaw/ml" />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search algorithms, tasks, families, or hyperparameters"
+          className="min-h-11 w-full rounded-2xl border border-border bg-bg-deep/80 px-4 text-sm text-text outline-none"
+        />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {taskTypes.map((entry) => (
+            <Pill key={entry} active={taskFilter === entry} onClick={() => setTaskFilter(entry)}>
+              {entry === "all" ? "All tasks" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {families.map((entry) => (
+            <Pill key={entry} active={familyFilter === entry} onClick={() => setFamilyFilter(entry)}>
+              {entry === "all" ? "All families" : entry}
+            </Pill>
+          ))}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {filteredAlgorithms.map((algorithm) => (
+            <button
+              key={algorithm.id}
+              type="button"
+              onClick={() => setSelectedId(algorithm.id)}
+              className={`rounded-[22px] border p-4 text-left transition ${selected?.id === algorithm.id ? "border-cyan/40 bg-cyan/5" : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] hover:border-cyan/30"}`}
+            >
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="amber">{algorithm.family}</Badge>
+                <Badge tone="green">{algorithm.hyperparameters.length} hyperparams</Badge>
+              </div>
+              <h2 className="mt-3 text-lg font-semibold text-text">{algorithm.name}</h2>
+              <p className="mt-2 text-sm leading-6 text-text-dim">{algorithm.description}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {algorithm.supportedTasks.map((taskType) => (
+                  <Badge key={`${algorithm.id}-${taskType}`} tone={getTaskTone(taskType)}>{taskType}</Badge>
+                ))}
+              </div>
+            </button>
+          ))}
+        </div>
+        {!filteredAlgorithms.length ? <EmptyState label="No algorithms matched this filter." /> : null}
+      </Card>
+
+      {selected ? (
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="amber">{selected.family}</Badge>
+                <Badge tone="green">{selected.hyperparameters.length} hyperparams</Badge>
+              </div>
+              <h2 className="mt-3 text-2xl font-semibold text-text">{selected.name}</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-text-dim">{selected.description}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+            <div className="space-y-4">
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Supported tasks" note="AutoML routing hints" />
+                <div className="flex flex-wrap gap-2">
+                  {selected.supportedTasks.map((taskType) => (
+                    <Badge key={`${selected.id}-${taskType}`} tone={getTaskTone(taskType)}>{taskType}</Badge>
+                  ))}
+                </div>
+                <p className="text-sm leading-6 text-text-dim">{getAlgorithmRiskNote(selected)}</p>
+              </Card>
+
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Hyperparameters" note="Tuning surface" />
+                <div className="space-y-3">
+                  {selected.hyperparameters.map((parameter) => (
+                    <div key={`${selected.id}-${parameter.name}`} className="rounded-2xl border border-border/80 bg-bg-card/60 p-4">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone="cyan">{parameter.name}</Badge>
+                        <Badge tone="green">{parameter.type}</Badge>
+                        <Badge tone="slate">default {String(parameter.default)}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-text-dim">{parameter.description}</p>
+                      {parameter.choices?.length ? (
+                        <p className="mt-2 text-xs text-text-dim">choices: {parameter.choices.map((choice) => String(choice)).join(", ")}</p>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="Cross-links" note="Domains and skills" />
+                <div className="flex flex-wrap gap-2">
+                  {mlPack ? (
+                    <Link href="/tools/domains?pack=ml">
+                      <Badge tone="purple">{mlPack.icon} ML domain</Badge>
+                    </Link>
+                  ) : null}
+                  <Link href={`/tools/skills?domain=ml&search=${encodeURIComponent(selected.name)}`}>
+                    <Badge tone="cyan">Find related skills</Badge>
+                  </Link>
+                </div>
+                <p className="text-sm leading-6 text-text-dim">
+                  Use the ML domain and skill registry deep-links to keep machine-learning discovery connected to the rest of the package-driven catalogs.
+                </p>
+              </Card>
+
+              <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+                <SectionTitle title="AutoML notes" note="Additive rollout only" />
+                <ul className="space-y-2 text-sm leading-6 text-text-dim">
+                  <li>• Start with browse-only algorithm guidance before enabling real dataset uploads or training jobs.</li>
+                  <li>• Reuse this catalog to drive future admin templates, ML onboarding, and evaluation workflows.</li>
+                  <li>• Keep live training and model deployment behind explicit approvals and existing operational guardrails.</li>
+                </ul>
+              </Card>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <EmptyState label="No algorithm selected." />
       )}
     </div>
   );
