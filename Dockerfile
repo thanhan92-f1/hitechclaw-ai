@@ -18,7 +18,11 @@ COPY migrations/ migrations/
 COPY packages/chat-sdk/dist/ packages/chat-sdk/dist/
 COPY packages/doc-mcp/dist/ packages/doc-mcp/dist/
 COPY scripts/ scripts/
-COPY next-env.d.ts next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./
+COPY next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./
+
+RUN if [ ! -f next-env.d.ts ]; then \
+            printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n\n// NOTE: This file should not be edited\n' > next-env.d.ts; \
+        fi
 
 # Next.js standalone build
 ENV NEXT_TELEMETRY_DISABLED=1
