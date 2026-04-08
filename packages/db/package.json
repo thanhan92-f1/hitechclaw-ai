@@ -25,7 +25,7 @@
     "dependencies": {
         "@hitechclaw/shared": "*",
         "dotenv": "^16.4.0",
-        "drizzle-orm": "^0.39.0",
+        "drizzle-orm": "^0.45.2",
         "mongodb": "^7.1.0",
         "postgres": "^3.4.0"
     },
