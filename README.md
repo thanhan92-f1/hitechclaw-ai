@@ -41,6 +41,10 @@
   </a>
 </p>
 
+<p align="center">
+  <em>Container publishing is manual-only in the cost-controlled self-hosted setup.</em>
+</p>
+
 ---
 
 ## Why I Built This

@@ -24,8 +24,8 @@ The `.github` automation in HiTechClaw AI is designed to enforce five outcomes:
 | --- | --- | --- |
 | Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, categorized regression, and optional manual cross-browser validation. |
 | CodeQL Security Analysis | `.github/workflows/codeql.yml` | Perform CodeQL scanning for JavaScript and TypeScript code on demand. |
-| Docker Package Publish | `.github/workflows/docker-publish.yml` | Publish signed multi-arch GHCR images for `main`, including provenance and SBOM attestations. |
-| Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, build release bundles, publish signed containers, and create GitHub Releases. |
+| Docker Package Publish | `.github/workflows/docker-publish.yml` | Publish signed multi-arch GHCR images only when maintainers manually dispatch the workflow. |
+| Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, create GitHub Releases, and optionally publish signed containers when explicitly requested. |
 | Publish npm SDK | `.github/workflows/npm-publish.yml` | Build and publish `@hitechclaw-ai/sdk` to npmjs on `sdk-v*.*.*` tags or manual dispatch. |
 | Self-Hosted Runner Setup Guide | `.github/workflows/runner-setup.yml` | Publish the expected Windows runner labels, prerequisites, and validation checklist into the workflow summary. |
 
@@ -118,6 +118,8 @@ To make the automation fully effective, maintainers should verify these reposito
 8. **Security Advisories** is enabled so private vulnerability reports can be filed correctly.
 
 Consumers who deploy the published GHCR images should verify signatures and attestations before promotion. The concrete `cosign verify` and `cosign verify-attestation` examples are documented in `INSTALL.md`. Maintainers should also verify that newly published images are visible from the GitHub `Packages` UI after the first successful publish on `main`.
+
+In the cost-controlled setup, GHCR publication is no longer automatic on `main`. Maintainers should manually dispatch `docker-publish.yml` or enable `publish_container` in `release.yml` only when a new image is actually required.
 
 ---
 

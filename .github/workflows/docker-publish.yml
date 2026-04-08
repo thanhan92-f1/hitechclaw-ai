@@ -1,10 +1,12 @@
 name: Docker Package Publish
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional explicit image tag. Defaults to main.
+        required: false
+        type: string
 
 concurrency:
   group: docker-publish-${{ github.ref }}
@@ -33,6 +35,18 @@ jobs:
         run: |
           throw 'Docker publish is only supported from the main branch.'
 
+      - name: Resolve publish tag
+        id: publish_tag
+        shell: pwsh
+        run: |
+          if ('${{ inputs.image_tag }}') {
+            $tag = '${{ inputs.image_tag }}'
+          } else {
+            $tag = 'main'
+          }
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "tag=$tag"
+
       - name: Check out repository
         uses: actions/checkout@v4
 
@@ -55,8 +69,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest
-            type=raw,value=main
+            type=raw,value=${{ steps.publish_tag.outputs.tag }}
             type=sha,prefix=sha-
           labels: |
             org.opencontainers.image.title=HiTechClaw AI
@@ -92,6 +105,7 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Docker publish summary'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Image: \`${env:IMAGE_NAME}\`"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Digest: \`${{ steps.build.outputs.digest }}\`"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Publish tag: \`${{ steps.publish_tag.outputs.tag }}\`"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Tags:'
           $tags = ($env:IMAGE_TAGS -split "`r?`n") | Where-Object { $_ }
           foreach ($tag in $tags) {

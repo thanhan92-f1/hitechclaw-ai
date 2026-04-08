@@ -13,7 +13,7 @@ on:
       publish_container:
         description: Publish the GHCR container image.
         required: false
-        default: true
+        default: false
         type: boolean
 
 permissions:
@@ -92,7 +92,7 @@ jobs:
   publish-container:
     name: Publish release container
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_container }}
+    if: ${{ inputs.publish_container }}
     runs-on:
       - self-hosted
       - windows
@@ -191,11 +191,11 @@ jobs:
           body: |
             Release automation completed for `${{ needs.prepare.outputs.version }}`.
 
-            - Container image: `ghcr.io/thanhan92-f1/hitechclaw-ai:${{ needs.prepare.outputs.version }}`
+            - Container image published: `${{ needs.publish-container.result == 'success' }}`
             - Multi-arch platforms: `linux/amd64`, `linux/arm64`
-            - OCI provenance: enabled
-            - SPDX SBOM: enabled
-            - Sigstore/Cosign keyless signature: enabled
+            - OCI provenance: enabled when container publish is enabled
+            - SPDX SBOM: enabled when container publish is enabled
+            - Sigstore/Cosign keyless signature: enabled when container publish is enabled
 
       - name: Write release summary
         shell: pwsh
