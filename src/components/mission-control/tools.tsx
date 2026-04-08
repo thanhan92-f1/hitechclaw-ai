@@ -920,6 +920,313 @@ const packageOverviewGroups: Array<{
   },
 ];
 
+const toolsControlLanes: Array<{
+  title: string;
+  href: string;
+  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
+  summary: string;
+  bullets: string[];
+}> = [
+  {
+    title: "Review and approve",
+    href: "/tools/approvals",
+    tone: "green",
+    summary: "Keep risky actions gated with fast approval handling, reviewer notes, and audit-ready decisions.",
+    bullets: ["Moderated actions", "Mobile-friendly queue", "Explicit approval trail"],
+  },
+  {
+    title: "Coordinate work",
+    href: "/tools/tasks",
+    tone: "amber",
+    summary: "Use the task board and calendar surfaces as the operator layer for package-backed execution.",
+    bullets: ["Task priorities", "Calendar drill-down", "Human + agent coordination"],
+  },
+  {
+    title: "Run live operations",
+    href: "/tools/agents-live",
+    tone: "cyan",
+    summary: "Watch active sub-agents, inspect outputs, and terminate unhealthy runs before they create incidents.",
+    bullets: ["Run status", "Token visibility", "Fast kill controls"],
+  },
+  {
+    title: "Expand capability",
+    href: "/tools/integrations",
+    tone: "purple",
+    summary: "Move from package discovery into safe rollout through integrations, skills, sandbox policy, and MCP inventory.",
+    bullets: ["Connector readiness", "Skill packaging", "Execution guardrails"],
+  },
+];
+
+const toolsOperatingRhythm: Array<{
+  step: string;
+  title: string;
+  description: string;
+  href: string;
+  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
+}> = [
+  {
+    step: "01",
+    title: "Discover the package surface",
+    description: "Start with domains, built-in skills, integrations, and ML references before wiring anything live.",
+    href: "/tools/domains",
+    tone: "purple",
+  },
+  {
+    step: "02",
+    title: "Verify docs and control plane assumptions",
+    description: "Check docs, MCP inventory, and sandbox policy so rollout stays aligned with current governance.",
+    href: "/tools/docs",
+    tone: "cyan",
+  },
+  {
+    step: "03",
+    title: "Execute through managed routes",
+    description: "Use approvals, tasks, quick command, and live sub-agent monitoring as the operational handoff layer.",
+    href: "/tools/command",
+    tone: "green",
+  },
+];
+
+function ToolsControlCenter() {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+      <Card className="space-y-4 border-border/70 bg-bg-deep/40">
+        <SectionTitle title="Control lanes" note="Turn the tools area into an operator-first control center." />
+        <div className="grid gap-3 md:grid-cols-2">
+          {toolsControlLanes.map((lane) => (
+            <Link
+              key={lane.href}
+              href={lane.href}
+              className="rounded-[22px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <Badge tone={lane.tone}>{lane.title}</Badge>
+                <span className="text-xs text-text-dim">Open</span>
+              </div>
+              <p className="text-sm leading-6 text-text-dim">{lane.summary}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {lane.bullets.map((bullet) => (
+                  <span
+                    key={`${lane.href}-${bullet}`}
+                    className="rounded-full border border-border/80 px-2.5 py-1 text-[11px] font-medium text-text-dim"
+                  >
+                    {bullet}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </Card>
+
+      <div className="space-y-4">
+        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+          <SectionTitle title="Operator rhythm" note="Recommended sequence for package-backed rollout and control." />
+          <div className="space-y-3">
+            {toolsOperatingRhythm.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex gap-3 rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border text-sm font-semibold text-text">
+                  {item.step}
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge tone={item.tone}>{item.title}</Badge>
+                  </div>
+                  <p className="text-sm leading-6 text-text-dim">{item.description}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+          <SectionTitle title="Mission intent" note="What this landing page should optimize for." />
+          <ul className="space-y-2 text-sm leading-6 text-text-dim">
+            <li>• Route operators to the highest-value control surfaces first, not just a long menu.</li>
+            <li>• Keep package discovery separate from live execution so rollout remains deliberate.</li>
+            <li>• Preserve approvals, sandbox policy, and MCP visibility before enabling deeper automation.</li>
+          </ul>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ToolsLiveSnapshot() {
+  const now = useNow(60000);
+  const approvals = usePollingData<{ items: ApprovalItem[]; pendingCount: number }>("/api/tools/approvals?status=all", 15000);
+  const tasks = usePollingData<{ items: TaskItem[] }>("/api/tools/tasks", 15000);
+  const agents = usePollingData<{ items: SubagentRun[] }>("/api/tools/agents-live", 5000);
+  const commands = usePollingData<{ items: QuickCommand[] }>("/api/tools/commands?limit=6", 5000);
+
+  const calendarRange = useMemo(() => {
+    const start = getWeekStart();
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return {
+      start: start.toISOString(),
+      end: end.toISOString(),
+    };
+  }, []);
+
+  const calendar = usePollingData<{ items: CalendarItem[] }>(
+    `/api/tools/calendar?start=${calendarRange.start}&end=${calendarRange.end}`,
+    20000
+  );
+
+  const taskItems = tasks.data?.items ?? [];
+  const activeTasks = taskItems.filter((item) => item.status === "in_progress").length;
+  const overdueTasks = taskItems.filter(
+    (item) => item.status !== "done" && item.due_date && new Date(item.due_date).getTime() < now
+  ).length;
+  const runningAgents = (agents.data?.items ?? []).filter((item) => item.status === "running").length;
+  const failedAgents = (agents.data?.items ?? []).filter((item) => item.status === "failed").length;
+  const upcomingCalendar = (calendar.data?.items ?? []).filter((item) => new Date(item.scheduled_at).getTime() >= now).length;
+  const queuedCommands = (commands.data?.items ?? []).filter((item) => item.status !== "completed").length;
+
+  const spotlightApprovals = (approvals.data?.items ?? [])
+    .filter((item) => item.status === "pending")
+    .slice(0, 3);
+
+  const spotlightTasks = taskItems
+    .filter((item) => item.status !== "done")
+    .sort((left, right) => {
+      const leftPriority = left.priority === "P1" ? 0 : left.priority === "P2" ? 1 : 2;
+      const rightPriority = right.priority === "P1" ? 0 : right.priority === "P2" ? 1 : 2;
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+      return (left.due_date ? new Date(left.due_date).getTime() : Number.MAX_SAFE_INTEGER)
+        - (right.due_date ? new Date(right.due_date).getTime() : Number.MAX_SAFE_INTEGER);
+    })
+    .slice(0, 3);
+
+  const spotlightRuns = (agents.data?.items ?? []).slice(0, 3);
+  const spotlightSchedule = (calendar.data?.items ?? [])
+    .slice()
+    .sort((left, right) => new Date(left.scheduled_at).getTime() - new Date(right.scheduled_at).getTime())
+    .slice(0, 3);
+
+  const loading = [approvals, tasks, agents, commands, calendar].some((state) => state.loading && !state.data);
+  const errors = [approvals.error, tasks.error, agents.error, commands.error, calendar.error].filter(Boolean) as string[];
+
+  if (loading) {
+    return <LoadingState label="Loading live tools snapshot" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-4 border-border/70 bg-bg-deep/40">
+        <SectionTitle title="Live operational snapshot" note="Real-time view across approvals, work coordination, schedule, and active agents." />
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
+          <StatCard label="Pending approvals" value={String(approvals.data?.pendingCount ?? 0)} accent="text-green" sublabel="Requests waiting for review" />
+          <StatCard label="Active tasks" value={String(activeTasks)} accent="text-amber" sublabel="Work items currently in progress" />
+          <StatCard label="Overdue tasks" value={String(overdueTasks)} accent="text-red" sublabel="Open work past due date" />
+          <StatCard label="Running agents" value={String(runningAgents)} accent="text-cyan" sublabel="Live sub-agent executions" />
+          <StatCard label="Upcoming events" value={String(upcomingCalendar)} accent="text-purple" sublabel="Scheduled items in this week window" />
+          <StatCard label="Queued commands" value={String(queuedCommands)} accent="text-slate" sublabel="Recent commands still awaiting completion" />
+        </div>
+      </Card>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+          <SectionTitle title="Priority queue" note="What operators should look at first." />
+          <div className="space-y-3">
+            {spotlightApprovals.map((item) => (
+              <Link key={`approval-${item.id}`} href="/tools/approvals" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="green">Approval</Badge>
+                    <Badge tone={item.priority === "urgent" ? "red" : item.priority === "low" ? "slate" : "cyan"}>{item.priority}</Badge>
+                  </div>
+                  <span className="text-xs text-text-dim">{timeAgo(item.created_at)}</span>
+                </div>
+                <div className="text-sm font-semibold text-text">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-text-dim line-clamp-2">{item.content}</p>
+              </Link>
+            ))}
+
+            {spotlightTasks.map((item) => (
+              <Link key={`task-${item.id}`} href="/tools/tasks" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="amber">Task</Badge>
+                    <Badge tone={priorityTone(item.priority)}>{item.priority}</Badge>
+                  </div>
+                  <span className={`text-xs ${item.due_date && new Date(item.due_date).getTime() < now ? "text-red" : "text-text-dim"}`}>
+                    {item.due_date ? formatShortDate(item.due_date) : "No due"}
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-text">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-text-dim">{item.description ?? "No description supplied."}</p>
+              </Link>
+            ))}
+
+            {!spotlightApprovals.length && !spotlightTasks.length ? <EmptyState label="No approval or task pressure detected right now." /> : null}
+          </div>
+        </Card>
+
+        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+          <SectionTitle title="Execution monitor" note="Live agent activity and immediate schedule context." />
+          <div className="space-y-3">
+            {spotlightRuns.map((run) => (
+              <Link key={`run-${run.id}`} href="/tools/agents-live" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={runTone(run.status)}>{run.status}</Badge>
+                    <Badge tone="purple">{run.model}</Badge>
+                  </div>
+                  <span className="text-xs text-text-dim">{elapsedLabel(run.started_at, run.completed_at, now)}</span>
+                </div>
+                <div className="text-sm font-semibold text-text">{run.run_label}</div>
+                <p className="mt-1 text-sm leading-6 text-text-dim">{run.task_summary ?? run.error_message ?? "No summary supplied."}</p>
+              </Link>
+            ))}
+
+            {spotlightSchedule.map((item) => (
+              <Link key={`calendar-${item.id}`} href="/tools/calendar" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="purple">{item.item_type}</Badge>
+                    <Badge tone={item.status === "published" ? "green" : item.status === "cancelled" ? "red" : "amber"}>{item.status}</Badge>
+                  </div>
+                  <span className="text-xs text-text-dim">{formatDate(item.scheduled_at)}</span>
+                </div>
+                <div className="text-sm font-semibold text-text">{item.title}</div>
+                <p className="mt-1 text-sm leading-6 text-text-dim">{item.description ?? "No schedule notes supplied."}</p>
+              </Link>
+            ))}
+
+            {!spotlightRuns.length && !spotlightSchedule.length ? <EmptyState label="No active runs or scheduled events in the current window." /> : null}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="space-y-3 border-border/70 bg-bg-deep/40">
+        <SectionTitle title="Command pulse" note="Recent operator-to-agent requests and execution backlog." />
+        <div className="grid gap-3 lg:grid-cols-3">
+          {(commands.data?.items ?? []).slice(0, 3).map((entry) => (
+            <Link key={`command-${entry.id}`} href="/tools/command" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <Badge tone={entry.status === "completed" ? "green" : entry.status === "processing" ? "amber" : "slate"}>{entry.status}</Badge>
+                <span className="text-xs text-text-dim">{timeAgo(entry.created_at)}</span>
+              </div>
+              <div className="text-sm font-semibold text-text line-clamp-2">{entry.command}</div>
+              <p className="mt-1 text-sm leading-6 text-text-dim line-clamp-3">{entry.response ?? "Awaiting response from agent."}</p>
+            </Link>
+          ))}
+          {!commands.data?.items?.length ? <EmptyState label="No recent command traffic." /> : null}
+        </div>
+        {failedAgents > 0 ? <div className="text-sm text-red">{failedAgents} recent sub-agent run(s) reported a failed status and may require follow-up.</div> : null}
+        {errors.length ? <ErrorState error={errors[0]} /> : null}
+      </Card>
+    </div>
+  );
+}
+
 function PackageOverviewDashboard() {
   const skillEntries = useMemo(() => buildSkillRegistryEntries(), []);
   const builtinSkillCount = builtinSkills.length;
@@ -1101,16 +1408,24 @@ export function ToolsHubScreen() {
     <div className="space-y-5">
       <ShellHeader
         title="Tools"
-        subtitle="Operational cockpit for approvals, documents, tasks, schedules, sub-agents, and quick command dispatch."
+        subtitle="Control center landing page for package discovery, governed execution, live agent operations, and operator workflow handoff."
       />
+
+      <SectionDescription id="tools-control-center">
+        Use this page as the operational front door for package-backed capabilities. Discover reusable building blocks, verify governance assumptions, then move into approvals, task coordination, quick commands, and live sub-agent control without losing guardrails.
+      </SectionDescription>
+
+      <ToolsControlCenter />
+
+      <ToolsLiveSnapshot />
 
       <PackageOverviewDashboard />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Custom Tools" value={toolLinks.length.toString()} accent="text-cyan" sublabel="Interactive operational surfaces" />
-        <StatCard label="Mobile First" value="44px+" accent="text-purple" sublabel="Touch targets and sticky controls" />
-        <StatCard label="Live Ops" value="5s" accent="text-amber" sublabel="Polling cadence for active runs" />
-        <StatCard label="Theme" value="PWA" accent="text-green" sublabel="HiTechClaw AI dark shell reused" />
+        <StatCard label="Control Surfaces" value={toolLinks.length.toString()} accent="text-cyan" sublabel="Operational routes reachable from this hub" />
+        <StatCard label="Package Modules" value={packageWorkspaceItems.length.toString()} accent="text-purple" sublabel="Package-backed destinations with dedicated pages" />
+        <StatCard label="Control Lanes" value={toolsControlLanes.length.toString()} accent="text-amber" sublabel="Primary operator workflows surfaced first" />
+        <StatCard label="Live Ops" value="5s" accent="text-green" sublabel="Polling cadence retained for active run monitoring" />
       </div>
 
       <Card>
