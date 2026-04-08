@@ -15,6 +15,7 @@
   <a href="#features">Features</a> ·
   <a href="https://ai.hitechclaw.com">Website</a> ·
   <a href="INSTALL.md">Full Install Guide</a> ·
+  <a href="docs/github-governance.md">GitHub Governance</a> ·
   <a href="API.md">API Docs</a>
 </p>
 
@@ -23,6 +24,21 @@
   <img src="https://img.shields.io/badge/version-0.1.0-green" alt="Version" />
   <img src="https://img.shields.io/badge/docker-compose%20up-green" alt="Docker" />
   <img src="https://img.shields.io/badge/ghcr.io-package-blue" alt="GHCR Package" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/thanhan92-f1/hitechclaw-ai/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/thanhan92-f1/hitechclaw-ai/ci.yml?branch=main&label=CI" alt="CI status" />
+  </a>
+  <a href="https://github.com/thanhan92-f1/hitechclaw-ai/actions/workflows/codeql.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/thanhan92-f1/hitechclaw-ai/codeql.yml?branch=main&label=CodeQL" alt="CodeQL status" />
+  </a>
+  <a href="https://github.com/thanhan92-f1/hitechclaw-ai/actions/workflows/docker-publish.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/thanhan92-f1/hitechclaw-ai/docker-publish.yml?branch=main&label=Container%20Publish" alt="Container publish status" />
+  </a>
+  <a href="https://github.com/thanhan92-f1/hitechclaw-ai/actions/workflows/maintenance.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/thanhan92-f1/hitechclaw-ai/maintenance.yml?branch=main&label=Maintenance" alt="Maintenance status" />
+  </a>
 </p>
 
 ---

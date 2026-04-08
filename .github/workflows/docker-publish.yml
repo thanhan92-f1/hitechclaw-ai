@@ -18,17 +18,20 @@ permissions:
 jobs:
   publish:
     name: Build and publish GHCR image
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     timeout-minutes: 60
     env:
       IMAGE_NAME: ghcr.io/thanhan92-f1/hitechclaw-ai
     steps:
       - name: Enforce main branch for manual runs
         if: ${{ github.ref_name != 'main' }}
-        shell: bash
+        shell: pwsh
         run: |
-          echo "Docker publish is only supported from the main branch." >&2
-          exit 1
+          throw 'Docker publish is only supported from the main branch.'
 
       - name: Check out repository
         uses: actions/checkout@v4
@@ -72,28 +75,29 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: true
           sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign published image digest
-        shell: bash
+        shell: pwsh
         run: |
           cosign sign --yes "${IMAGE_NAME}@${{ steps.build.outputs.digest }}"
 
       - name: Write publish summary
-        shell: bash
+        shell: pwsh
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          {
-            echo "## Docker publish summary"
-            echo "- Image: \\`${IMAGE_NAME}\\`"
-            echo "- Digest: \\`${{ steps.build.outputs.digest }}\\`"
-            echo "- Tags:"
-            echo '${{ steps.meta.outputs.tags }}' | sed 's/^/- `/; s/$/`/'
-            echo "- Platforms: \\`linux/amd64\\`, \\`linux/arm64\\`"
-            echo "- Provenance: enabled"
-            echo "- SBOM: enabled"
-            echo "- Signature: keyless Cosign via GitHub OIDC"
-          } >> "$GITHUB_STEP_SUMMARY"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Docker publish summary'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Image: \`${env:IMAGE_NAME}\`"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Digest: \`${{ steps.build.outputs.digest }}\`"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Tags:'
+          $tags = ($env:IMAGE_TAGS -split "`r?`n") | Where-Object { $_ }
+          foreach ($tag in $tags) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- \`$tag\`"
+          }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Platforms: `linux/amd64`, `linux/arm64`'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Provenance: enabled'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- SBOM: enabled'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Signature: keyless Cosign via GitHub OIDC'

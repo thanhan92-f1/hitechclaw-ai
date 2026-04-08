@@ -1,0 +1,100 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-automerge:
+    name: Enable safe Dependabot auto-merge
+    if: ${{ github.actor == 'dependabot[bot]' && github.event.pull_request.draft == false }}
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable pull request auto-merge
+        uses: actions/github-script@v7
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCIES: ${{ steps.metadata.outputs.dependency-names }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const updateType = process.env.UPDATE_TYPE || '';
+            const ecosystem = process.env.ECOSYSTEM || 'unknown';
+            const dependencies = process.env.DEPENDENCIES || 'n/a';
+            const isSafeUpdate =
+              updateType.includes('version-update:semver-patch') ||
+              updateType.includes('version-update:semver-minor');
+
+            if (!isSafeUpdate) {
+              core.info(`Skipping auto-merge for non low-risk update type: ${updateType || 'unknown'}`);
+              return;
+            }
+
+            const pullRequestId = context.payload.pull_request.node_id;
+
+            try {
+              await github.graphql(
+                `mutation EnableAutoMerge($pullRequestId: ID!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest {
+                      number
+                      autoMergeRequest {
+                        enabledAt
+                      }
+                    }
+                  }
+                }`,
+                {
+                  pullRequestId,
+                },
+              );
+
+              core.summary
+                .addHeading('Dependabot auto-merge enabled')
+                .addTable([
+                  [{ data: 'Field', header: true }, { data: 'Value', header: true }],
+                  ['Pull request', `#${context.payload.pull_request.number}`],
+                  ['Ecosystem', ecosystem],
+                  ['Dependencies', dependencies],
+                  ['Update type', updateType],
+                  ['Merge method', 'squash'],
+                ])
+                .addRaw(
+                  'Auto-merge will complete only after all required reviews and status checks succeed.',
+                )
+                .write();
+            } catch (error) {
+              const message = String(error?.message || error);
+
+              if (
+                message.includes('already enabled') ||
+                message.includes('Pull request already has auto-merge enabled')
+              ) {
+                core.info('Auto-merge is already enabled for this pull request.');
+                return;
+              }
+
+              throw error;
+            }

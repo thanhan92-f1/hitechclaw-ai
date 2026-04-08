@@ -24,7 +24,11 @@ permissions:
 jobs:
   prepare:
     name: Verify release candidate
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     timeout-minutes: 45
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -35,33 +39,31 @@ jobs:
 
       - name: Resolve release version
         id: version
-        shell: bash
+        shell: pwsh
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            version='${{ inputs.release_version }}'
-          else
-            version='${GITHUB_REF_NAME}'
-          fi
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ inputs.release_version }}'
+          } else {
+            $version = $env:GITHUB_REF_NAME
+          }
 
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Release version must match v<semver>. Got: $version" >&2
-            exit 1
-          fi
+          if ($version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Release version must match v<semver>. Got: $version"
+          }
 
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "image_version=${version#v}" >> "$GITHUB_OUTPUT"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value ("image_version=" + ($version -replace '^v', ''))
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
 
       - name: Prepare local environment files
-        shell: bash
+        shell: pwsh
         run: |
-          cp .env.development.example .env.local
-          cp .env.test.example .env.test.local
+          Copy-Item .env.development.example .env.local -Force
+          Copy-Item .env.test.example .env.test.local -Force
 
       - name: Install dependencies
         run: npm ci
@@ -73,32 +75,36 @@ jobs:
         run: npm run build
 
       - name: Build release manifest
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p release-bundle
-          cat > release-bundle/release-manifest.json <<EOF
-          {
-            "version": "${{ steps.version.outputs.version }}",
-            "commit": "${GITHUB_SHA}",
-            "repository": "${GITHUB_REPOSITORY}",
-            "generatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "artifacts": {
-              "container": "ghcr.io/thanhan92-f1/hitechclaw-ai:${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory -Path release-bundle -Force | Out-Null
+          $manifest = [ordered]@{
+            version = '${{ steps.version.outputs.version }}'
+            commit = $env:GITHUB_SHA
+            repository = $env:GITHUB_REPOSITORY
+            generatedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            artifacts = [ordered]@{
+              container = 'ghcr.io/thanhan92-f1/hitechclaw-ai:${{ steps.version.outputs.version }}'
             }
           }
-          EOF
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path release-bundle/release-manifest.json
 
       - name: Upload release bundle
         uses: actions/upload-artifact@v4
         with:
           name: release-bundle-${{ steps.version.outputs.version }}
           path: release-bundle/release-manifest.json
+          retention-days: 1
 
   publish-container:
     name: Publish release container
     needs: prepare
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_container }}
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     timeout-minutes: 90
     env:
       IMAGE_NAME: ghcr.io/thanhan92-f1/hitechclaw-ai
@@ -146,14 +152,12 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: true
           sbom: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Sign release image digest
-        shell: bash
+        shell: pwsh
         run: |
           cosign sign --yes "${IMAGE_NAME}@${{ steps.build.outputs.digest }}"
 
@@ -163,7 +167,11 @@ jobs:
       - prepare
       - publish-container
     if: ${{ always() && needs.prepare.result == 'success' && (needs.publish-container.result == 'success' || needs.publish-container.result == 'skipped') }}
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     steps:
       - name: Download release bundle
         uses: actions/download-artifact@v4
@@ -188,14 +196,12 @@ jobs:
             - Sigstore/Cosign keyless signature: enabled
 
       - name: Write release summary
-        shell: bash
+        shell: pwsh
         run: |
-          {
-            echo "## Release summary"
-            echo "- Version: \\`${{ needs.prepare.outputs.version }}\\`"
-            echo "- Release manifest attached to GitHub Release"
-            echo "- Container published: **${{ needs.publish-container.result != 'skipped' }}**"
-            if [[ "${{ needs.publish-container.result }}" == "success" ]]; then
-              echo "- Digest: \\`${{ needs.publish-container.outputs.digest }}\\`"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Release summary'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Version: \`${{ needs.prepare.outputs.version }}\`"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Release manifest attached to GitHub Release'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Container published: **${{ needs.publish-container.result != ''skipped'' }}**'
+          if ('${{ needs.publish-container.result }}' -eq 'success') {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Digest: \`${{ needs.publish-container.outputs.digest }}\`"
+          }

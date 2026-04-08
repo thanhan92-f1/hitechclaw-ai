@@ -16,7 +16,11 @@ permissions:
 jobs:
   validate:
     name: Validate pull request body quality
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     steps:
       - name: Validate required PR template sections
         uses: actions/github-script@v7

@@ -18,7 +18,11 @@ permissions:
 jobs:
   publish:
     name: Build and publish @hitechclaw-ai/sdk
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     timeout-minutes: 30
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -28,26 +32,24 @@ jobs:
 
       - name: Resolve SDK version
         id: version
-        shell: bash
+        shell: pwsh
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.sdk_version }}" ]]; then
-            version='${{ inputs.sdk_version }}'
-          else
-            version='${GITHUB_REF_NAME#sdk-v}'
-          fi
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.sdk_version }}') {
+            $version = '${{ inputs.sdk_version }}'
+          } else {
+            $version = $env:GITHUB_REF_NAME -replace '^sdk-v', ''
+          }
 
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "SDK version must match semver. Got: $version" >&2
-            exit 1
-          fi
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$') {
+            throw "SDK version must match semver. Got: $version"
+          }
 
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
@@ -62,13 +64,6 @@ jobs:
       - name: Pack SDK artifact
         run: npm pack ./packages/sdk
 
-      - name: Upload packed SDK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sdk-package-${{ steps.version.outputs.version }}
-          path: hitechclaw-ai-sdk-*.tgz
-          if-no-files-found: error
-
       - name: Publish SDK to npm
         working-directory: ./packages/sdk
         env:
@@ -76,12 +71,12 @@ jobs:
         run: npm publish --provenance --access public
 
       - name: Write npm publish summary
-        shell: bash
+        shell: pwsh
         run: |
-          {
-            echo "## npm publish summary"
-            echo "- Package: \\`@hitechclaw-ai/sdk\\`"
-            echo "- Version: \\`${{ steps.version.outputs.version }}\\`"
-            echo "- Provenance: enabled"
-            echo "- Trigger: \\`${{ github.event_name }}\\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          @(
+            '## npm publish summary',
+            '- Package: `@hitechclaw-ai/sdk`',
+            '- Version: `${{ steps.version.outputs.version }}`',
+            '- Provenance: enabled',
+            '- Trigger: `${{ github.event_name }}`'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY

@@ -36,6 +36,8 @@ The SDK publish workflow is intentionally strict: the Git tag version and `packa
 | Workflow | File | Purpose |
 | --- | --- | --- |
 | Dependency and Repository Maintenance | `.github/workflows/maintenance.yml` | Triage Dependabot PRs, auto-approve low-risk updates, and produce dependency health reports. |
+| Dependabot Auto-Merge | `.github/workflows/dependabot-automerge.yml` | Enable auto-merge for approved low-risk Dependabot PRs after required checks pass. |
+| Workflow Lint | `.github/workflows/workflow-lint.yml` | Validate GitHub workflow syntax and semantics with `actionlint` whenever automation files change. |
 | Repository Label Synchronization | `.github/workflows/labels.yml` | Keep repository labels synchronized from source-controlled YAML. |
 | Issue and Pull Request Triage | `.github/workflows/triage.yml` | Apply labels based on content and changed paths. |
 | Stale Issue and Pull Request Management | `.github/workflows/stale.yml` | Mark inactive items stale and close them after policy-defined windows. |
@@ -77,6 +79,7 @@ The SDK publish workflow is intentionally strict: the Git tag version and `packa
 
 - Patch and minor Dependabot PRs are candidates for auto-approval and auto-merge.
 - Major updates should be reviewed manually and typically retain the `major-update` label.
+- Auto-merge is enabled only for Dependabot-authored patch and minor updates, and completion still depends on branch protection plus required checks.
 - Weekly dependency reports should be reviewed for recurring audit findings and outdated packages.
 
 ### 4. Pull request quality expectations
@@ -117,6 +120,25 @@ Consumers who deploy the published GHCR images should verify signatures and atte
 
 ---
 
+## Trigger and Permission Hardening
+
+The repository intentionally splits workflow triggers by trust boundary:
+
+- `pull_request` should remain the default for jobs that execute contributor code, build the application, or run tests.
+- `pull_request_target` is reserved for metadata-only automation that needs elevated repository permissions, such as triage, Dependabot approval, or enabling auto-merge.
+- scheduled and manual workflows are used for maintenance, reporting, release, and runner onboarding tasks.
+
+For every workflow that uses `pull_request_target`:
+
+- do not check out or execute the pull request head revision,
+- keep permissions minimal and explicit,
+- gate privileged behavior by trusted actors such as `dependabot[bot]`,
+- prefer label/comment/API mutations over shell execution.
+
+The current `triage.yml`, `maintenance.yml`, and `dependabot-automerge.yml` workflows follow this model. Any future privileged automation should preserve the same restrictions.
+
+---
+
 ## Suggested Required Status Checks
 
 At minimum, branch protection on `main` should require:
@@ -132,21 +154,24 @@ For stricter governance, also require:
 - `Full Playwright regression suite` on protected release branches or scheduled validation gates
 - `Cross-browser UI regression` for branches that gate release readiness
 
+For repository rules that specifically protect automation changes, also require:
+
+- `Validate GitHub workflow definitions`
+
 ---
 
 ## Self-Hosted Runner Model
 
-The repository uses a mixed runner model:
+The repository now targets a fully self-hosted runner model for GitHub Actions execution so routine automation does not consume GitHub-hosted runner minutes.
 
-- GitHub-hosted Linux runners execute governance, CodeQL, container publishing, and release packaging
-- a Windows self-hosted runner executes lint, build, smoke, and Playwright-heavy runtime validation
-
-The runtime CI workflows currently expect these labels on the Windows runner:
+All workflows currently expect these labels on the Windows runner:
 
 - `self-hosted`
 - `windows`
 - `x64`
 - `hitechclaw`
+
+The self-hosted host must also provide Docker Buildx, Linux container support, Cosign, Node.js 25, and Playwright browser dependencies because governance, release, and runtime workflows now share the same runner pool.
 
 See `docs/self-hosted-runners.md` for the bootstrap checklist, host baseline, and post-registration validation flow.
 
@@ -161,6 +186,8 @@ When adding new automation:
 3. Keep contributor messaging direct, actionable, and professional.
 4. Update this document whenever a new workflow, label family, or governance rule is introduced.
 5. Validate every new workflow file before merging.
+
+The repository now enforces this through `workflow-lint.yml`, which runs `actionlint` on pull requests and pushes that modify GitHub automation files.
 
 ---
 

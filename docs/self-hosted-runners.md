@@ -1,10 +1,10 @@
 # Self-Hosted GitHub Runners
 
-This repository uses a mixed runner model:
+This repository uses a self-hosted runner model for GitHub Actions execution.
 
-- lightweight governance checks run on GitHub-hosted Linux runners
-- lint, build, and Playwright-heavy validation run on a Windows self-hosted runner
-- container publishing and release packaging run on GitHub-hosted Linux runners
+- governance checks run on the Windows self-hosted runner
+- lint, build, and Playwright-heavy validation run on the same Windows self-hosted runner
+- container publishing and release packaging also run on the self-hosted runner
 
 ---
 
@@ -17,7 +17,7 @@ The CI workflows expect the Windows runner to expose all of these labels:
 - `x64`
 - `hitechclaw`
 
-If any label is missing, the runtime validation jobs in `.github/workflows/ci.yml` will remain queued.
+If any label is missing, repository workflows will remain queued.
 
 ---
 
@@ -30,6 +30,7 @@ If any label is missing, the runtime validation jobs in `.github/workflows/ci.ym
 | Package manager | npm 10+ |
 | Shell | PowerShell 7+ available as `pwsh` |
 | Containers | Docker Desktop or Docker Engine with Compose v2 |
+| Container build support | Docker Buildx with Linux container mode enabled |
 | Browser tooling | Playwright browsers for Chromium, Firefox, WebKit |
 | Service mode | Run the GitHub runner as a persistent Windows service |
 
@@ -58,6 +59,8 @@ The workflows currently assume the runner can execute all of the following succe
 - `npm run test:setup`
 - `npm run test:smoke:managed`
 - `npm run test:clean`
+- `docker buildx build`
+- `cosign version`
 
 The CI pipeline also creates these files from tracked templates before build and test steps:
 
@@ -73,13 +76,16 @@ After the runner is online, validate it with this order:
 1. Run the `Self-Hosted Runner Setup Guide` workflow manually and confirm the summary matches the intended labels.
 2. Run `Continuous Integration` on a branch that changes runtime code.
 3. Verify `Lint and build application` starts on the self-hosted Windows runner.
-4. Verify `Smoke test critical APIs and UI flows` completes and uploads artifacts.
-5. Confirm the runner remains available for queued jobs after completion.
+4. Verify `Smoke test critical APIs and UI flows` completes on the runner.
+5. Run `Workflow Lint` and confirm `actionlint` completes on the runner.
+6. If publishing is enabled, verify `docker buildx version` and `cosign version` work directly on the host.
+7. Confirm the runner remains available for queued jobs after completion.
 
 ---
 
 ## Operational notes
 
-- Use GitHub-hosted runners for release publishing, CodeQL, and governance checks.
-- Keep the self-hosted runner focused on runtime validation to reduce toolchain drift.
+- The runner now handles governance, release, publish, and runtime workloads.
+- Avoid GitHub-hosted cache backends when cost control is a priority.
+- Keep enough disk space available for local Docker layers, Playwright output, and Node.js installs.
 - If labels or host requirements change, update both this document and `docs/github-governance.md` in the same pull request.

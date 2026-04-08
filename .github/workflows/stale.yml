@@ -12,7 +12,11 @@ permissions:
 jobs:
   stale:
     name: Mark and close stale items
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     steps:
       - name: Apply stale policy
         uses: actions/stale@v9

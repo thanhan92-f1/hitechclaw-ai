@@ -30,7 +30,11 @@ permissions:
 jobs:
   changes:
     name: Classify change scope
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     outputs:
       docs: ${{ steps.filter.outputs.docs }}
       automation: ${{ steps.filter.outputs.automation }}
@@ -81,60 +85,63 @@ jobs:
 
       - name: Derive workflow flags
         id: flags
-        shell: bash
+        shell: pwsh
         run: |
-          docs='${{ steps.filter.outputs.docs }}'
-          automation='${{ steps.filter.outputs.automation }}'
-          runtime='${{ steps.filter.outputs.runtime }}'
+          $docs = '${{ steps.filter.outputs.docs }}'
+          $automation = '${{ steps.filter.outputs.automation }}'
+          $runtime = '${{ steps.filter.outputs.runtime }}'
 
-          docs_only=false
-          automation_only=false
+          $docsOnly = 'false'
+          $automationOnly = 'false'
 
-          if [[ "$docs" == 'true' && "$automation" != 'true' && "$runtime" != 'true' ]]; then
-            docs_only=true
-          fi
+          if ($docs -eq 'true' -and $automation -ne 'true' -and $runtime -ne 'true') {
+            $docsOnly = 'true'
+          }
 
-          if [[ "$automation" == 'true' && "$runtime" != 'true' && "$docs" != 'true' ]]; then
-            automation_only=true
-          fi
+          if ($automation -eq 'true' -and $runtime -ne 'true' -and $docs -ne 'true') {
+            $automationOnly = 'true'
+          }
 
-          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
-          echo "automation_only=$automation_only" >> "$GITHUB_OUTPUT"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "docs_only=$docsOnly"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "automation_only=$automationOnly"
 
   docs-governance:
     name: Docs and governance baseline
     needs: changes
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Verify core guidance files exist
-        shell: bash
+        shell: pwsh
         run: |
-          required=(README.md INSTALL.md SECURITY.md SUPPORT.md docs/github-governance.md docs/development.md)
-          for file in "${required[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "Missing required guidance file: $file" >&2
-              exit 1
-            fi
-          done
+          $required = @('README.md', 'INSTALL.md', 'SECURITY.md', 'SUPPORT.md', 'docs/github-governance.md', 'docs/development.md')
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) {
+              throw "Missing required guidance file: $file"
+            }
+          }
 
       - name: Write CI scope summary
-        shell: bash
+        shell: pwsh
         run: |
-          {
-            echo "## CI Scope"
-            echo "- docs changed: **${{ needs.changes.outputs.docs }}**"
-            echo "- automation changed: **${{ needs.changes.outputs.automation }}**"
-            echo "- runtime changed: **${{ needs.changes.outputs.runtime }}**"
-            echo "- docs only: **${{ needs.changes.outputs.docs_only }}**"
-            echo "- automation only: **${{ needs.changes.outputs.automation_only }}**"
-            echo ""
-            echo "## Runner model"
-            echo "- Heavy jobs target the self-hosted Windows runner labels configured in the workflow."
-            echo "- Docs/governance validation stays lightweight and always runs on GitHub-hosted Linux."
-          } >> "$GITHUB_STEP_SUMMARY"
+          @(
+            '## CI Scope',
+            '- docs changed: **${{ needs.changes.outputs.docs }}**',
+            '- automation changed: **${{ needs.changes.outputs.automation }}**',
+            '- runtime changed: **${{ needs.changes.outputs.runtime }}**',
+            '- docs only: **${{ needs.changes.outputs.docs_only }}**',
+            '- automation only: **${{ needs.changes.outputs.automation_only }}**',
+            '',
+            '## Runner model',
+            '- All CI jobs run on the repository self-hosted Windows runner.',
+            '- This avoids GitHub-hosted Actions minutes for both runtime and governance automation.'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY
 
   lint-build:
     name: Lint and build application
@@ -154,7 +161,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
 
       - name: Prepare local environment files
         shell: pwsh
@@ -221,7 +227,7 @@ jobs:
         run: npm run test:smoke:managed
 
       - name: Upload Playwright artifacts
-        if: always()
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: smoke-playwright-report
@@ -229,6 +235,7 @@ jobs:
             playwright-report
             test-results
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Clean test database
         if: always()
@@ -268,7 +275,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
 
       - name: Prepare local environment files
         shell: pwsh
@@ -295,7 +301,7 @@ jobs:
         run: ${{ matrix.command }}
 
       - name: Upload Playwright artifacts
-        if: always()
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: regression-${{ matrix.suite }}-playwright-report
@@ -303,6 +309,7 @@ jobs:
             playwright-report
             test-results
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Clean test database
         if: always()
@@ -337,7 +344,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
 
       - name: Prepare local environment files
         shell: pwsh
@@ -364,7 +370,7 @@ jobs:
         run: node --env-file=.env.test.local ./node_modules/@playwright/test/cli.js test tests/ui --project=${{ matrix.project }}
 
       - name: Upload Playwright artifacts
-        if: always()
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: cross-browser-${{ matrix.project }}-playwright-report
@@ -372,6 +378,7 @@ jobs:
             playwright-report
             test-results
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Clean test database
         if: always()

@@ -16,7 +16,11 @@ permissions:
 jobs:
   sync-labels:
     name: Synchronize repository labels
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     timeout-minutes: 15
     steps:
       - name: Check out repository
@@ -30,11 +34,11 @@ jobs:
           dry-run: false
 
       - name: Write synchronization summary
-        shell: bash
+        shell: pwsh
         run: |
-          {
-            echo "## Label synchronization"
-            echo "- Source: \\.github/labels.yml\`"
-            echo "- Mode: apply missing and updated labels"
-            echo "- Destructive deletes: disabled"
-          } >> "$GITHUB_STEP_SUMMARY"
+          @(
+            '## Label synchronization',
+            '- Source: .github/labels.yml',
+            '- Mode: apply missing and updated labels',
+            '- Destructive deletes: disabled'
+          ) | Add-Content -Path $env:GITHUB_STEP_SUMMARY

@@ -218,6 +218,32 @@ This command will:
 npm run test:e2e:local
 ```
 
+## Validate GitHub Workflows
+
+Repository automation is validated by `.github/workflows/workflow-lint.yml`, which runs `actionlint` whenever GitHub workflow or label metadata files change.
+
+If you want to validate workflow files locally before pushing, use the official container image instead of relying on editor-only YAML checks.
+
+From the repository root:
+
+```powershell
+docker run --rm -v "${PWD}:/repo" -w /repo rhysd/actionlint:latest actionlint -color
+```
+
+What this validates:
+
+- workflow syntax and structure,
+- job and step schema usage,
+- common trigger and expression mistakes,
+- invalid action references or malformed workflow fields.
+
+Recommended workflow for automation changes:
+
+1. Update files under `.github/workflows/` or related metadata.
+2. Run the local `actionlint` container command.
+3. Push the branch and confirm `Validate GitHub workflow definitions` passes.
+4. Merge only after the workflow lint job and required governance checks succeed.
+
 Smoke-only run:
 
 ```powershell

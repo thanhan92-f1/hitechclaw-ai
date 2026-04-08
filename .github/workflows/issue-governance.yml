@@ -14,7 +14,11 @@ permissions:
 jobs:
   govern-issue:
     name: Guide issue intake quality
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
     steps:
       - name: Review issue intake
         uses: actions/github-script@v7
