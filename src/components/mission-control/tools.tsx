@@ -20,6 +20,18 @@ import {
 } from "./dashboard";
 import { getAuthHeaders } from "./api";
 import { SectionDescription } from "./dashboard-clarity";
+import { Badge, BottomSheet, EmptyState } from "./tools/shared";
+import {
+  PackageActionBar,
+  PackageWorkspaceNav,
+  packageMenuSections,
+  packageOverviewGroups,
+  packageWorkspaceItems,
+  toolLinks,
+  toolsControlLanes,
+  toolsHubQuickActions,
+  ToolsControlCenter,
+} from "./tools/hub-sections";
 
 type FetchState<T> = {
   data: T | null;
@@ -528,6 +540,40 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function submitQuickCommand(command: string) {
+  const trimmed = command.trim();
+  if (!trimmed) return;
+
+  await fetchJson("/api/tools/commands", {
+    method: "POST",
+    body: JSON.stringify({
+      agent_id: "default",
+      command: trimmed,
+      status: "sent",
+    }),
+  });
+
+  try {
+    const proxyRes = await fetch("/api/gateway/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path: "/api/system-event",
+        method: "POST",
+        body: { text: trimmed, mode: "now" },
+      }),
+    });
+
+    if (proxyRes.ok) {
+      toast.success("Command sent to agent");
+    } else {
+      toast("Command saved — gateway unreachable", { icon: "⚠️" });
+    }
+  } catch {
+    toast("Command saved — gateway unreachable", { icon: "⚠️" });
+  }
+}
+
 function usePollingData<T>(url: string, intervalMs = 15000): PollingResult<T> {
   const [state, setState] = useState<FetchState<T>>({
     data: null,
@@ -630,17 +676,6 @@ function elapsedLabel(startedAt: string, completedAt: string | null, now: number
   return `${minutes}m ${seconds}s`;
 }
 
-function toneClass(color: "cyan" | "purple" | "amber" | "green" | "red" | "slate") {
-  return {
-    cyan: "border-cyan/30 bg-cyan/10 text-cyan",
-    purple: "border-purple/30 bg-purple/10 text-purple",
-    amber: "border-amber/30 bg-amber/10 text-amber",
-    green: "border-green/30 bg-green/10 text-green",
-    red: "border-red/30 bg-red/10 text-red",
-    slate: "border-border bg-bg-deep/80 text-text-dim",
-  }[color];
-}
-
 function Pill({
   active,
   children,
@@ -665,399 +700,10 @@ function Pill({
   );
 }
 
-function Badge({
-  children,
-  tone = "slate",
-}: {
-  children: ReactNode;
-  tone?: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
-}) {
-  return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneClass(tone)}`}>
-      {children}
-    </span>
-  );
-}
-
-function BottomSheet({
-  open,
-  title,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60">
-      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close" />
-      <div className="relative max-h-[78vh] w-full overflow-y-auto rounded-t-[28px] border border-border bg-bg-card p-5 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
-        <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-border" />
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="text-base font-semibold text-text">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-11 rounded-xl border border-border px-3 text-sm text-text-dim"
-          >
-            Close
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-text-dim">{label}</div>;
-}
-
-const toolLinks = [
-  { href: "/tools/approvals", title: "Approvals Queue", note: "Review drafted content and approve or reject from the phone.", tone: "green" as const },
-  { href: "/tools/builtin-skills", title: "Built-in Skills", note: "Inspect packaged runtime skills, configs, tool handlers, and workflow rollout hints.", tone: "cyan" as const },
-  { href: "/tools/docs", title: "Docs Viewer", note: "Searchable archive of specs, reports, logs, and plans.", tone: "cyan" as const },
-  { href: "/tools/domains", title: "Domain Packs", note: "Additive industry presets for agents, skills, and recommended integrations.", tone: "purple" as const },
-  { href: "/tools/integrations", title: "Integrations Catalog", note: "Connector inventory with auth, actions, triggers, and risk guidance.", tone: "green" as const },
-  { href: "/tools/ml", title: "ML Catalog", note: "Algorithm, task, and AutoML catalog sourced from the local ML engine package.", tone: "amber" as const },
-  { href: "/tools/sandbox", title: "Sandbox Lab", note: "Review package policies, GPU images, and isolation guidance before live execution.", tone: "slate" as const },
-  { href: "/tools/skills", title: "Skill Registry", note: "Browse built-in skill entries derived from domain packs via the local skill hub SDK.", tone: "cyan" as const },
-  { href: "/tools/tasks", title: "Task Board", note: "Kanban board for task and agent priorities.", tone: "amber" as const },
-  { href: "/tools/calendar", title: "Content Calendar", note: "Week-first content schedule with day drill-down.", tone: "purple" as const },
-  { href: "/tools/agents-live", title: "Sub-Agent Live", note: "Real-time status, logs, tokens, and kill controls.", tone: "green" as const },
-  { href: "/tools/command", title: "Quick Command", note: "Chat-like command surface for direct agent requests.", tone: "cyan" as const },
-  { href: "/actions", title: "Actions", note: "Existing action list remains available from the hub.", tone: "slate" as const },
-  { href: "/confessions", title: "Confessions", note: "Mission-aligned declarations and scriptures.", tone: "purple" as const },
-  { href: "/visuals", title: "Visuals", note: "Visual briefing and live diagrams.", tone: "amber" as const },
-];
-
-const packageMenuSections: Array<{
-  title: string;
-  note: string;
-  items: Array<{ href: string; label: string; description: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
-}> = [
-  {
-    title: "Package Functions",
-    note: "Function nào menu đó — each integrated package now has a direct menu destination.",
-    items: [
-      { href: "/client/chat", label: "AI Chat", description: "Open the packaged chat workspace for conversations, summaries, and assistant flows.", tone: "green" },
-      { href: "/tools/builtin-skills", label: "Built-in Skills", description: "Inspect packaged runtime skills from @hitechclaw/skills and their workflow-fit metadata.", tone: "cyan" },
-      { href: "/tools/domains", label: "Domain Packs", description: "Browse domain presets, recommended integrations, and packaged operating patterns.", tone: "purple" },
-      { href: "/tools/integrations", label: "Integrations Catalog", description: "Inspect connectors, auth models, triggers, and supported actions from the integrations package.", tone: "green" },
-      { href: "/tools/skills", label: "Skill Registry", description: "Review packaged skill entries, tools, and domain-linked execution capabilities.", tone: "cyan" },
-      { href: "/tools/ml", label: "ML Catalog", description: "Explore algorithms, supported tasks, and local ML engine references.", tone: "amber" },
-      { href: "/tools/sandbox", label: "Sandbox Lab", description: "Review isolation policies, GPU-ready images, and integration allow-lists from the sandbox package.", tone: "slate" },
-      { href: "/tools/docs", label: "Docs Library", description: "Read indexed docs and package guidance from the documentation module.", tone: "cyan" },
-      { href: "/tools/mcp", label: "MCP Inventory", description: "Manage MCP servers, imports, and execution gateways from the tooling layer.", tone: "slate" },
-    ],
-  },
-];
-
-const packageWorkspaceItems: Array<{
-  id: "chat" | "docs" | "domains" | "integrations" | "skills" | "builtin-skills" | "ml" | "sandbox" | "mcp";
-  href: string;
-  label: string;
-  description: string;
-  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
-}> = [
-  {
-    id: "chat",
-    href: "/client/chat",
-    label: "AI Chat",
-    description: "Chat workspace from the packaged client SDK.",
-    tone: "green",
-  },
-  {
-    id: "docs",
-    href: "/tools/docs",
-    label: "Docs Library",
-    description: "Repository and package knowledge base.",
-    tone: "cyan",
-  },
-  {
-    id: "domains",
-    href: "/tools/domains",
-    label: "Domain Packs",
-    description: "Industry presets, personas, and packaged skills.",
-    tone: "purple",
-  },
-  {
-    id: "integrations",
-    href: "/tools/integrations",
-    label: "Integrations",
-    description: "Connector catalog, auth models, and actions.",
-    tone: "green",
-  },
-  {
-    id: "builtin-skills",
-    href: "/tools/builtin-skills",
-    label: "Built-in Skills",
-    description: "Runtime-ready packaged skills and their handlers.",
-    tone: "cyan",
-  },
-  {
-    id: "skills",
-    href: "/tools/skills",
-    label: "Skill Registry",
-    description: "Marketplace-style view of packaged skills.",
-    tone: "cyan",
-  },
-  {
-    id: "ml",
-    href: "/tools/ml",
-    label: "ML Catalog",
-    description: "Algorithms, tasks, and hyperparameter guidance.",
-    tone: "amber",
-  },
-  {
-    id: "sandbox",
-    href: "/tools/sandbox",
-    label: "Sandbox Lab",
-    description: "Isolation policies, GPU images, and safe execution baselines.",
-    tone: "slate",
-  },
-  {
-    id: "mcp",
-    href: "/tools/mcp",
-    label: "MCP Inventory",
-    description: "Provider registry, imports, and execution gateways.",
-    tone: "slate",
-  },
-];
-
-const packageOverviewGroups: Array<{
-  title: string;
-  note: string;
-  items: Array<{ label: string; href: string; description: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
-}> = [
-  {
-    title: "Discover",
-    note: "Browse package knowledge and reusable building blocks.",
-    items: [
-      {
-        label: "Domain Packs",
-        href: "/tools/domains",
-        description: "Industry presets, personas, and rollout guidance.",
-        tone: "purple",
-      },
-      {
-        label: "Skill Registry",
-        href: "/tools/skills",
-        description: "Marketplace-style view of packaged skills and tools.",
-        tone: "cyan",
-      },
-      {
-        label: "Built-in Skills",
-        href: "/tools/builtin-skills",
-        description: "Runtime-ready skill package manifests, configs, and handlers.",
-        tone: "cyan",
-      },
-      {
-        label: "ML Catalog",
-        href: "/tools/ml",
-        description: "Algorithms, tasks, and hyperparameter references.",
-        tone: "amber",
-      },
-    ],
-  },
-  {
-    title: "Connect",
-    note: "Move from packaged definitions into usable workflows.",
-    items: [
-      {
-        label: "Integrations",
-        href: "/tools/integrations",
-        description: "Connector inventory with auth, triggers, and actions.",
-        tone: "green",
-      },
-      {
-        label: "Docs Library",
-        href: "/tools/docs",
-        description: "Workspace and package-backed documentation search.",
-        tone: "cyan",
-      },
-      {
-        label: "AI Chat",
-        href: "/client/chat",
-        description: "Client-facing conversation workspace backed by the chat SDK.",
-        tone: "green",
-      },
-    ],
-  },
-  {
-    title: "Operate",
-    note: "Keep execution and provider control aligned with current flows.",
-    items: [
-      {
-        label: "MCP Inventory",
-        href: "/tools/mcp",
-        description: "Manage providers, imports, and execution gateways.",
-        tone: "slate",
-      },
-      {
-        label: "Sandbox Lab",
-        href: "/tools/sandbox",
-        description: "Review packaged sandbox policies before connecting live execution.",
-        tone: "slate",
-      },
-      {
-        label: "Approvals Queue",
-        href: "/tools/approvals",
-        description: "Preserve approval gates for risky or moderated actions.",
-        tone: "green",
-      },
-      {
-        label: "Workflows",
-        href: "/workflows",
-        description: "Bridge package capabilities into repeatable operations.",
-        tone: "amber",
-      },
-    ],
-  },
-];
-
-const toolsControlLanes: Array<{
-  title: string;
-  href: string;
-  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
-  summary: string;
-  bullets: string[];
-}> = [
-  {
-    title: "Review and approve",
-    href: "/tools/approvals",
-    tone: "green",
-    summary: "Keep risky actions gated with fast approval handling, reviewer notes, and audit-ready decisions.",
-    bullets: ["Moderated actions", "Mobile-friendly queue", "Explicit approval trail"],
-  },
-  {
-    title: "Coordinate work",
-    href: "/tools/tasks",
-    tone: "amber",
-    summary: "Use the task board and calendar surfaces as the operator layer for package-backed execution.",
-    bullets: ["Task priorities", "Calendar drill-down", "Human + agent coordination"],
-  },
-  {
-    title: "Run live operations",
-    href: "/tools/agents-live",
-    tone: "cyan",
-    summary: "Watch active sub-agents, inspect outputs, and terminate unhealthy runs before they create incidents.",
-    bullets: ["Run status", "Token visibility", "Fast kill controls"],
-  },
-  {
-    title: "Expand capability",
-    href: "/tools/integrations",
-    tone: "purple",
-    summary: "Move from package discovery into safe rollout through integrations, skills, sandbox policy, and MCP inventory.",
-    bullets: ["Connector readiness", "Skill packaging", "Execution guardrails"],
-  },
-];
-
-const toolsOperatingRhythm: Array<{
-  step: string;
-  title: string;
-  description: string;
-  href: string;
-  tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate";
-}> = [
-  {
-    step: "01",
-    title: "Discover the package surface",
-    description: "Start with domains, built-in skills, integrations, and ML references before wiring anything live.",
-    href: "/tools/domains",
-    tone: "purple",
-  },
-  {
-    step: "02",
-    title: "Verify docs and control plane assumptions",
-    description: "Check docs, MCP inventory, and sandbox policy so rollout stays aligned with current governance.",
-    href: "/tools/docs",
-    tone: "cyan",
-  },
-  {
-    step: "03",
-    title: "Execute through managed routes",
-    description: "Use approvals, tasks, quick command, and live sub-agent monitoring as the operational handoff layer.",
-    href: "/tools/command",
-    tone: "green",
-  },
-];
-
-function ToolsControlCenter() {
-  return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-      <Card className="space-y-4 border-border/70 bg-bg-deep/40">
-        <SectionTitle title="Control lanes" note="Turn the tools area into an operator-first control center." />
-        <div className="grid gap-3 md:grid-cols-2">
-          {toolsControlLanes.map((lane) => (
-            <Link
-              key={lane.href}
-              href={lane.href}
-              className="rounded-[22px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <Badge tone={lane.tone}>{lane.title}</Badge>
-                <span className="text-xs text-text-dim">Open</span>
-              </div>
-              <p className="text-sm leading-6 text-text-dim">{lane.summary}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {lane.bullets.map((bullet) => (
-                  <span
-                    key={`${lane.href}-${bullet}`}
-                    className="rounded-full border border-border/80 px-2.5 py-1 text-[11px] font-medium text-text-dim"
-                  >
-                    {bullet}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </Card>
-
-      <div className="space-y-4">
-        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-          <SectionTitle title="Operator rhythm" note="Recommended sequence for package-backed rollout and control." />
-          <div className="space-y-3">
-            {toolsOperatingRhythm.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex gap-3 rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border text-sm font-semibold text-text">
-                  {item.step}
-                </div>
-                <div className="min-w-0">
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge tone={item.tone}>{item.title}</Badge>
-                  </div>
-                  <p className="text-sm leading-6 text-text-dim">{item.description}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-          <SectionTitle title="Mission intent" note="What this landing page should optimize for." />
-          <ul className="space-y-2 text-sm leading-6 text-text-dim">
-            <li>• Route operators to the highest-value control surfaces first, not just a long menu.</li>
-            <li>• Keep package discovery separate from live execution so rollout remains deliberate.</li>
-            <li>• Preserve approvals, sandbox policy, and MCP visibility before enabling deeper automation.</li>
-          </ul>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
 function ToolsLiveSnapshot() {
   const now = useNow(60000);
+  const [quickMessage, setQuickMessage] = useState("");
+  const [sendingCommand, setSendingCommand] = useState(false);
   const approvals = usePollingData<{ items: ApprovalItem[]; pendingCount: number }>("/api/tools/approvals?status=all", 15000);
   const tasks = usePollingData<{ items: TaskItem[] }>("/api/tools/tasks", 15000);
   const agents = usePollingData<{ items: SubagentRun[] }>("/api/tools/agents-live", 5000);
@@ -1112,6 +758,33 @@ function ToolsLiveSnapshot() {
 
   const loading = [approvals, tasks, agents, commands, calendar].some((state) => state.loading && !state.data);
   const errors = [approvals.error, tasks.error, agents.error, commands.error, calendar.error].filter(Boolean) as string[];
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([
+      approvals.refresh(),
+      tasks.refresh(),
+      agents.refresh(),
+      commands.refresh(),
+      calendar.refresh(),
+    ]);
+  }, [agents, approvals, calendar, commands, tasks]);
+
+  const triggerQuickCommand = useCallback(
+    async (command: string) => {
+      if (!command.trim()) return;
+      setSendingCommand(true);
+      try {
+        await submitQuickCommand(command);
+        setQuickMessage("");
+        await commands.refresh();
+      } catch (sendError) {
+        toast.error(sendError instanceof Error ? sendError.message : "Send failed");
+      } finally {
+        setSendingCommand(false);
+      }
+    },
+    [commands]
+  );
 
   if (loading) {
     return <LoadingState label="Loading live tools snapshot" />;
@@ -1222,6 +895,80 @@ function ToolsLiveSnapshot() {
         </div>
         {failedAgents > 0 ? <div className="text-sm text-red">{failedAgents} recent sub-agent run(s) reported a failed status and may require follow-up.</div> : null}
         {errors.length ? <ErrorState error={errors[0]} /> : null}
+      </Card>
+
+      <Card className="space-y-4 border-border/70 bg-bg-deep/40">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <SectionTitle title="Inline actions" note="Take the most common operator actions without leaving the landing page." />
+          <button
+            type="button"
+            onClick={() => void refreshAll()}
+            className="min-h-11 rounded-2xl border border-border px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text"
+          >
+            Refresh snapshot
+          </button>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-4">
+          <Link href="/tools/approvals" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+            <Badge tone="green">Review approvals</Badge>
+            <p className="mt-3 text-sm leading-6 text-text-dim">Open the moderated queue and clear pending decisions.</p>
+          </Link>
+          <Link href="/tools/tasks" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+            <Badge tone="amber">Reprioritize tasks</Badge>
+            <p className="mt-3 text-sm leading-6 text-text-dim">Move active work, assign focus, and reduce overdue drift.</p>
+          </Link>
+          <Link href="/tools/agents-live" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+            <Badge tone="cyan">Inspect live agents</Badge>
+            <p className="mt-3 text-sm leading-6 text-text-dim">Open active runs, inspect logs, and stop unhealthy executions.</p>
+          </Link>
+          <Link href="/tools/calendar" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
+            <Badge tone="purple">Check schedule</Badge>
+            <p className="mt-3 text-sm leading-6 text-text-dim">Review this week window and drill into upcoming operational events.</p>
+          </Link>
+        </div>
+
+        <div className="rounded-[24px] border border-border bg-bg-card/50 p-4">
+          <div className="mb-3 flex gap-2 overflow-x-auto">
+            {toolsHubQuickActions.map((action) => (
+              <button
+                key={action}
+                type="button"
+                disabled={sendingCommand}
+                onClick={() => void triggerQuickCommand(action)}
+                className="min-h-11 rounded-full border border-border bg-bg-deep/80 px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text disabled:opacity-50"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <textarea
+              rows={1}
+              value={quickMessage}
+              onChange={(event) => setQuickMessage(event.target.value)}
+              placeholder="Send a quick operational command"
+              className="min-h-11 flex-1 resize-none rounded-2xl border border-border bg-bg-deep/80 px-4 py-3 text-sm text-text outline-none"
+            />
+            <div className="flex gap-3">
+              <Link
+                href="/tools/command"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-border px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text"
+              >
+                Open full command
+              </Link>
+              <button
+                type="button"
+                disabled={sendingCommand || !quickMessage.trim()}
+                onClick={() => void triggerQuickCommand(quickMessage)}
+                className="min-h-11 rounded-2xl border border-cyan/30 bg-cyan px-5 text-sm font-semibold text-bg-deep disabled:opacity-50"
+              >
+                {sendingCommand ? "Sending..." : "Send now"}
+              </button>
+            </div>
+          </div>
+        </div>
       </Card>
     </div>
   );
@@ -1340,68 +1087,6 @@ function PackageOverviewDashboard() {
   );
 }
 
-function PackageWorkspaceNav({
-  current,
-  title = "Package Workspace",
-  note = "Unified navigation for package-driven functions.",
-}: {
-  current: (typeof packageWorkspaceItems)[number]["id"];
-  title?: string;
-  note?: string;
-}) {
-  return (
-    <Card>
-      <SectionTitle title={title} note={note} />
-      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-        {packageWorkspaceItems.map((item) => {
-          const active = item.id === current;
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={`rounded-[22px] border p-4 transition ${
-                active
-                  ? "border-cyan/40 bg-cyan/5"
-                  : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] hover:border-cyan/30"
-              }`}
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <Badge tone={item.tone}>{item.label}</Badge>
-                <span className="text-xs text-text-dim">{active ? "Active" : "Open"}</span>
-              </div>
-              <p className="text-sm leading-6 text-text-dim">{item.description}</p>
-            </Link>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-function PackageActionBar({
-  title = "Action bar",
-  note = "Move across related package functions.",
-  items,
-}: {
-  title?: string;
-  note?: string;
-  items: Array<{ href: string; label: string; tone: "cyan" | "purple" | "amber" | "green" | "red" | "slate" }>;
-}) {
-  if (!items.length) return null;
-
-  return (
-    <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-      <SectionTitle title={title} note={note} />
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <Link key={`${item.href}-${item.label}`} href={item.href}>
-            <Badge tone={item.tone}>{item.label}</Badge>
-          </Link>
-        ))}
-      </div>
-    </Card>
-  );
-}
 
 export function ToolsHubScreen() {
   return (
@@ -3992,36 +3677,8 @@ export function CommandToolScreen() {
   const sendCommand = async (command: string) => {
     if (!command.trim()) return;
     try {
-      // Save to DB first
-      await fetchJson("/api/tools/commands", {
-        method: "POST",
-        body: JSON.stringify({
-          agent_id: "default",
-          command: command.trim(),
-          status: "sent",
-        }),
-      });
+      await submitQuickCommand(command);
       setMessage("");
-
-      // FUNC-1: Forward command to OpenClaw gateway via server-side proxy
-      try {
-        const proxyRes = await fetch("/api/gateway/proxy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            path: "/api/system-event",
-            method: "POST",
-            body: { text: command.trim(), mode: "now" },
-          }),
-        });
-        if (proxyRes.ok) {
-          toast.success("Command sent to agent");
-        } else {
-          toast("Command saved — gateway unreachable", { icon: "⚠️" });
-        }
-      } catch {
-        toast("Command saved — gateway unreachable", { icon: "⚠️" });
-      }
 
       await refresh();
     } catch (sendError) {
