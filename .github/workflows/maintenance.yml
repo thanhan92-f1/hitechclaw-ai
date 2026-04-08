@@ -1,8 +1,6 @@
 name: Dependency and Repository Maintenance
 
 on:
-  schedule:
-    - cron: "0 4 * * 1"
   workflow_dispatch:
   pull_request_target:
     types:

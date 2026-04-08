@@ -5,6 +5,8 @@ This repository uses a self-hosted runner model for GitHub Actions execution.
 - governance checks run on the Windows self-hosted runner
 - lint, build, and Playwright-heavy validation run on the same Windows self-hosted runner
 - container publishing and release packaging also run on the self-hosted runner
+- expensive scheduled validation is intentionally reduced; operators should use manual dispatch for heavy non-essential checks
+- Playwright failure artifacts are no longer uploaded automatically in the cost-controlled setup
 
 ---
 
@@ -79,7 +81,8 @@ After the runner is online, validate it with this order:
 4. Verify `Smoke test critical APIs and UI flows` completes on the runner.
 5. Run `Workflow Lint` and confirm `actionlint` completes on the runner.
 6. If publishing is enabled, verify `docker buildx version` and `cosign version` work directly on the host.
-7. Confirm the runner remains available for queued jobs after completion.
+7. Use manual dispatch for `CodeQL Security Analysis`, `Dependency and Repository Maintenance`, `Stale Issue and Pull Request Management`, and cross-browser validation when needed.
+8. Confirm the runner remains available for queued jobs after completion.
 
 ---
 

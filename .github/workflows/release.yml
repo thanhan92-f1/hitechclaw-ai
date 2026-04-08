@@ -89,13 +89,6 @@ jobs:
           }
           $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path release-bundle/release-manifest.json
 
-      - name: Upload release bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-bundle-${{ steps.version.outputs.version }}
-          path: release-bundle/release-manifest.json
-          retention-days: 1
-
   publish-container:
     name: Publish release container
     needs: prepare
@@ -173,11 +166,20 @@ jobs:
       - x64
       - hitechclaw
     steps:
-      - name: Download release bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: release-bundle-${{ needs.prepare.outputs.version }}
-          path: release-bundle
+      - name: Rebuild release manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release-bundle -Force | Out-Null
+          $manifest = [ordered]@{
+            version = '${{ needs.prepare.outputs.version }}'
+            commit = $env:GITHUB_SHA
+            repository = $env:GITHUB_REPOSITORY
+            generatedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            artifacts = [ordered]@{
+              container = 'ghcr.io/thanhan92-f1/hitechclaw-ai:${{ needs.prepare.outputs.version }}'
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 4 | Set-Content -Path release-bundle/release-manifest.json
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

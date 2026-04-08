@@ -22,8 +22,8 @@ The `.github` automation in HiTechClaw AI is designed to enforce five outcomes:
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, categorized regression, and scheduled cross-browser validation. |
-| CodeQL Security Analysis | `.github/workflows/codeql.yml` | Perform CodeQL scanning for JavaScript and TypeScript code. |
+| Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, categorized regression, and optional manual cross-browser validation. |
+| CodeQL Security Analysis | `.github/workflows/codeql.yml` | Perform CodeQL scanning for JavaScript and TypeScript code on demand. |
 | Docker Package Publish | `.github/workflows/docker-publish.yml` | Publish signed multi-arch GHCR images for `main`, including provenance and SBOM attestations. |
 | Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, build release bundles, publish signed containers, and create GitHub Releases. |
 | Publish npm SDK | `.github/workflows/npm-publish.yml` | Build and publish `@hitechclaw-ai/sdk` to npmjs on `sdk-v*.*.*` tags or manual dispatch. |
@@ -35,12 +35,12 @@ The SDK publish workflow is intentionally strict: the Git tag version and `packa
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Dependency and Repository Maintenance | `.github/workflows/maintenance.yml` | Triage Dependabot PRs, auto-approve low-risk updates, and produce dependency health reports. |
+| Dependency and Repository Maintenance | `.github/workflows/maintenance.yml` | Triage Dependabot PRs and run dependency health reports on demand. |
 | Dependabot Auto-Merge | `.github/workflows/dependabot-automerge.yml` | Enable auto-merge for approved low-risk Dependabot PRs after required checks pass. |
 | Workflow Lint | `.github/workflows/workflow-lint.yml` | Validate GitHub workflow syntax and semantics with `actionlint` whenever automation files change. |
 | Repository Label Synchronization | `.github/workflows/labels.yml` | Keep repository labels synchronized from source-controlled YAML. |
 | Issue and Pull Request Triage | `.github/workflows/triage.yml` | Apply labels based on content and changed paths. |
-| Stale Issue and Pull Request Management | `.github/workflows/stale.yml` | Mark inactive items stale and close them after policy-defined windows. |
+| Stale Issue and Pull Request Management | `.github/workflows/stale.yml` | Run stale cleanup manually when maintainers explicitly choose to do so. |
 | Pull Request Quality Gate | `.github/workflows/pr-quality.yml` | Enforce PR description completeness and governance checklist coverage. |
 | Issue Governance and Intake Quality | `.github/workflows/issue-governance.yml` | Guide reporters toward actionable, reproducible, well-scoped issues. |
 | Community Health and First Interaction | `.github/workflows/community-health.yml` | Welcome first-time contributors and steer support traffic toward Discussions. |
@@ -80,7 +80,8 @@ The SDK publish workflow is intentionally strict: the Git tag version and `packa
 - Patch and minor Dependabot PRs are candidates for auto-approval and auto-merge.
 - Major updates should be reviewed manually and typically retain the `major-update` label.
 - Auto-merge is enabled only for Dependabot-authored patch and minor updates, and completion still depends on branch protection plus required checks.
-- Weekly dependency reports should be reviewed for recurring audit findings and outdated packages.
+- Dependency reports should be run on demand and reviewed for recurring audit findings and outdated packages.
+- Stale cleanup is manual-only in the cost-controlled setup so unattended repository churn is avoided.
 
 ### 4. Pull request quality expectations
 
@@ -126,7 +127,7 @@ The repository intentionally splits workflow triggers by trust boundary:
 
 - `pull_request` should remain the default for jobs that execute contributor code, build the application, or run tests.
 - `pull_request_target` is reserved for metadata-only automation that needs elevated repository permissions, such as triage, Dependabot approval, or enabling auto-merge.
-- scheduled and manual workflows are used for maintenance, reporting, release, and runner onboarding tasks.
+- manual workflows are used for maintenance, reporting, release, runner onboarding, and optional deep validation when cost control is the priority.
 
 For every workflow that uses `pull_request_target`:
 
@@ -151,7 +152,7 @@ At minimum, branch protection on `main` should require:
 
 For stricter governance, also require:
 
-- `Full Playwright regression suite` on protected release branches or scheduled validation gates
+- `Full Playwright regression suite` on protected release branches or manual validation gates
 - `Cross-browser UI regression` for branches that gate release readiness
 
 For repository rules that specifically protect automation changes, also require:
@@ -162,7 +163,7 @@ For repository rules that specifically protect automation changes, also require:
 
 ## Self-Hosted Runner Model
 
-The repository now targets a fully self-hosted runner model for GitHub Actions execution so routine automation does not consume GitHub-hosted runner minutes.
+The repository now targets a fully self-hosted runner model for GitHub Actions execution so routine automation does not consume GitHub-hosted runner minutes, and scheduled automation plus artifact transfer is intentionally minimized to reduce unnecessary cost.
 
 All workflows currently expect these labels on the Windows runner:
 

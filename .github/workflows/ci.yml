@@ -5,8 +5,6 @@ on:
     branches:
       - main
   pull_request:
-  schedule:
-    - cron: "0 3 * * 1"
   workflow_dispatch:
     inputs:
       force-full-regression:
@@ -200,7 +198,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 25
-          cache: npm
 
       - name: Prepare local environment files
         shell: pwsh
@@ -225,17 +222,6 @@ jobs:
       - name: Run smoke coverage
         shell: pwsh
         run: npm run test:smoke:managed
-
-      - name: Upload Playwright artifacts
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-playwright-report
-          path: |
-            playwright-report
-            test-results
-          if-no-files-found: ignore
-          retention-days: 1
 
       - name: Clean test database
         if: always()
@@ -300,17 +286,6 @@ jobs:
         shell: pwsh
         run: ${{ matrix.command }}
 
-      - name: Upload Playwright artifacts
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-${{ matrix.suite }}-playwright-report
-          path: |
-            playwright-report
-            test-results
-          if-no-files-found: ignore
-          retention-days: 1
-
       - name: Clean test database
         if: always()
         shell: pwsh
@@ -321,7 +296,7 @@ jobs:
     needs:
       - changes
       - smoke
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force-cross-browser) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.force-cross-browser }}
     runs-on:
       - self-hosted
       - windows
@@ -368,17 +343,6 @@ jobs:
       - name: Run UI tests on ${{ matrix.project }}
         shell: pwsh
         run: node --env-file=.env.test.local ./node_modules/@playwright/test/cli.js test tests/ui --project=${{ matrix.project }}
-
-      - name: Upload Playwright artifacts
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: cross-browser-${{ matrix.project }}-playwright-report
-          path: |
-            playwright-report
-            test-results
-          if-no-files-found: ignore
-          retention-days: 1
 
       - name: Clean test database
         if: always()
