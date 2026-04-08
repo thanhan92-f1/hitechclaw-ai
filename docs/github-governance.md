@@ -22,10 +22,12 @@ The `.github` automation in HiTechClaw AI is designed to enforce five outcomes:
 
 | Workflow | File | Purpose |
 | --- | --- | --- |
-| Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, full regression, and Docker image validation. |
+| Continuous Integration | `.github/workflows/ci.yml` | Lint, build, smoke test, categorized regression, and scheduled cross-browser validation. |
 | CodeQL Security Analysis | `.github/workflows/codeql.yml` | Perform CodeQL scanning for JavaScript and TypeScript code. |
+| Docker Package Publish | `.github/workflows/docker-publish.yml` | Publish signed multi-arch GHCR images for `main`, including provenance and SBOM attestations. |
 | Release and Delivery | `.github/workflows/release.yml` | Verify release candidates, build release bundles, publish signed containers, and create GitHub Releases. |
 | Publish npm SDK | `.github/workflows/npm-publish.yml` | Build and publish `@hitechclaw-ai/sdk` to npmjs on `sdk-v*.*.*` tags or manual dispatch. |
+| Self-Hosted Runner Setup Guide | `.github/workflows/runner-setup.yml` | Publish the expected Windows runner labels, prerequisites, and validation checklist into the workflow summary. |
 
 The SDK publish workflow is intentionally strict: the Git tag version and `packages/sdk/package.json` version must already match before publication begins.
 
@@ -123,11 +125,30 @@ At minimum, branch protection on `main` should require:
 - `Smoke test critical APIs and UI flows`
 - `Validate pull request body quality`
 - `Analyze JavaScript / TypeScript attack surface`
+- `Apply pull request labels`
 
 For stricter governance, also require:
 
-- `Validate Docker production image`
 - `Full Playwright regression suite` on protected release branches or scheduled validation gates
+- `Cross-browser UI regression` for branches that gate release readiness
+
+---
+
+## Self-Hosted Runner Model
+
+The repository uses a mixed runner model:
+
+- GitHub-hosted Linux runners execute governance, CodeQL, container publishing, and release packaging
+- a Windows self-hosted runner executes lint, build, smoke, and Playwright-heavy runtime validation
+
+The runtime CI workflows currently expect these labels on the Windows runner:
+
+- `self-hosted`
+- `windows`
+- `x64`
+- `hitechclaw`
+
+See `docs/self-hosted-runners.md` for the bootstrap checklist, host baseline, and post-registration validation flow.
 
 ---
 

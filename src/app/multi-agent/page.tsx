@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { MultiAgentScreen } from "@/components/mission-control/multi-agent-screen";
 
 export default function MultiAgentPage() {
-  redirect("/tools/agents-live");
+  return <MultiAgentScreen />;
 }

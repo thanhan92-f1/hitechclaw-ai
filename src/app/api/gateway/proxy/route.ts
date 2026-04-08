@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Only allow known gateway paths
-  const allowedPaths = ["/api/system-event", "/hooks/agent", "/api/eval"];
+  const allowedPaths = ["/api/system-event", "/hooks/agent", "/api/eval", "/api/multi-agent"];
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   if (!allowedPaths.some((p) => normalizedPath.startsWith(p))) {
     return NextResponse.json({ error: "Path not allowed" }, { status: 403 });

@@ -1,0 +1,379 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      force-full-regression:
+        description: Force the categorized regression matrix even when path filters would skip it.
+        required: false
+        default: false
+        type: boolean
+      force-cross-browser:
+        description: Force the UI cross-browser matrix on manual runs.
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Classify change scope
+    runs-on: ubuntu-latest
+    outputs:
+      docs: ${{ steps.filter.outputs.docs }}
+      automation: ${{ steps.filter.outputs.automation }}
+      runtime: ${{ steps.filter.outputs.runtime }}
+      docs_only: ${{ steps.flags.outputs.docs_only }}
+      automation_only: ${{ steps.flags.outputs.automation_only }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Classify paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs:
+              - 'README.md'
+              - 'INSTALL.md'
+              - 'QUICKSTART.md'
+              - 'API.md'
+              - 'FEATURES.md'
+              - 'CHANGELOG.md'
+              - 'SECURITY.md'
+              - 'SUPPORT.md'
+              - 'docs/**'
+            automation:
+              - '.github/**'
+              - '.githooks/**'
+              - 'scripts/**'
+            runtime:
+              - 'src/**'
+              - 'tests/**'
+              - 'public/**'
+              - 'migrations/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'next.config.ts'
+              - 'playwright.config.ts'
+              - 'tsconfig.json'
+              - 'eslint.config.mjs'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'docker-compose.dev.yml'
+              - 'docker-compose.test.yml'
+
+      - name: Derive workflow flags
+        id: flags
+        shell: bash
+        run: |
+          docs='${{ steps.filter.outputs.docs }}'
+          automation='${{ steps.filter.outputs.automation }}'
+          runtime='${{ steps.filter.outputs.runtime }}'
+
+          docs_only=false
+          automation_only=false
+
+          if [[ "$docs" == 'true' && "$automation" != 'true' && "$runtime" != 'true' ]]; then
+            docs_only=true
+          fi
+
+          if [[ "$automation" == 'true' && "$runtime" != 'true' && "$docs" != 'true' ]]; then
+            automation_only=true
+          fi
+
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "automation_only=$automation_only" >> "$GITHUB_OUTPUT"
+
+  docs-governance:
+    name: Docs and governance baseline
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify core guidance files exist
+        shell: bash
+        run: |
+          required=(README.md INSTALL.md SECURITY.md SUPPORT.md docs/github-governance.md docs/development.md)
+          for file in "${required[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing required guidance file: $file" >&2
+              exit 1
+            fi
+          done
+
+      - name: Write CI scope summary
+        shell: bash
+        run: |
+          {
+            echo "## CI Scope"
+            echo "- docs changed: **${{ needs.changes.outputs.docs }}**"
+            echo "- automation changed: **${{ needs.changes.outputs.automation }}**"
+            echo "- runtime changed: **${{ needs.changes.outputs.runtime }}**"
+            echo "- docs only: **${{ needs.changes.outputs.docs_only }}**"
+            echo "- automation only: **${{ needs.changes.outputs.automation_only }}**"
+            echo ""
+            echo "## Runner model"
+            echo "- Heavy jobs target the self-hosted Windows runner labels configured in the workflow."
+            echo "- Docs/governance validation stays lightweight and always runs on GitHub-hosted Linux."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  lint-build:
+    name: Lint and build application
+    needs: changes
+    if: ${{ needs.changes.outputs.runtime == 'true' || needs.changes.outputs.automation == 'true' }}
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Prepare local environment files
+        shell: pwsh
+        run: |
+          Copy-Item .env.development.example .env.local -Force
+          Copy-Item .env.test.example .env.test.local -Force
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Run lint
+        shell: pwsh
+        run: npm run lint
+
+      - name: Run production build
+        shell: pwsh
+        run: npm run build
+
+  smoke:
+    name: Smoke test critical APIs and UI flows
+    needs:
+      - changes
+      - lint-build
+    if: ${{ needs.changes.outputs.runtime == 'true' || needs.changes.outputs.automation == 'true' }}
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Prepare local environment files
+        shell: pwsh
+        run: |
+          Copy-Item .env.development.example .env.local -Force
+          Copy-Item .env.test.example .env.test.local -Force
+          if (Test-Path playwright-report) { Remove-Item playwright-report -Recurse -Force }
+          if (Test-Path test-results) { Remove-Item test-results -Recurse -Force }
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Install Playwright browsers
+        shell: pwsh
+        run: npx playwright install chromium firefox webkit
+
+      - name: Prepare test database
+        shell: pwsh
+        run: npm run test:setup
+
+      - name: Run smoke coverage
+        shell: pwsh
+        run: npm run test:smoke:managed
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Clean test database
+        if: always()
+        shell: pwsh
+        run: npm run test:clean
+
+  regression:
+    name: Full Playwright regression suite
+    needs:
+      - changes
+      - smoke
+    if: ${{ needs.changes.outputs.runtime == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force-full-regression) }}
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - suite: api
+            command: npm run test:e2e:api
+          - suite: ui
+            command: npm run test:e2e:ui
+          - suite: mobile
+            command: npm run test:e2e:mobile
+          - suite: edge
+            command: npm run test:e2e:edge
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Prepare local environment files
+        shell: pwsh
+        run: |
+          Copy-Item .env.development.example .env.local -Force
+          Copy-Item .env.test.example .env.test.local -Force
+          if (Test-Path playwright-report) { Remove-Item playwright-report -Recurse -Force }
+          if (Test-Path test-results) { Remove-Item test-results -Recurse -Force }
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Install Playwright browsers
+        shell: pwsh
+        run: npx playwright install chromium firefox webkit
+
+      - name: Prepare test database
+        shell: pwsh
+        run: npm run test:setup
+
+      - name: Run ${{ matrix.suite }} regression slice
+        shell: pwsh
+        run: ${{ matrix.command }}
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-${{ matrix.suite }}-playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Clean test database
+        if: always()
+        shell: pwsh
+        run: npm run test:clean
+
+  cross-browser:
+    name: Cross-browser UI regression
+    needs:
+      - changes
+      - smoke
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.force-cross-browser) }}
+    runs-on:
+      - self-hosted
+      - windows
+      - x64
+      - hitechclaw
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        project:
+          - chromium-desktop
+          - firefox-desktop
+          - webkit-desktop
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Prepare local environment files
+        shell: pwsh
+        run: |
+          Copy-Item .env.development.example .env.local -Force
+          Copy-Item .env.test.example .env.test.local -Force
+          if (Test-Path playwright-report) { Remove-Item playwright-report -Recurse -Force }
+          if (Test-Path test-results) { Remove-Item test-results -Recurse -Force }
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Install Playwright browsers
+        shell: pwsh
+        run: npx playwright install chromium firefox webkit
+
+      - name: Prepare test database
+        shell: pwsh
+        run: npm run test:setup
+
+      - name: Run UI tests on ${{ matrix.project }}
+        shell: pwsh
+        run: node --env-file=.env.test.local ./node_modules/@playwright/test/cli.js test tests/ui --project=${{ matrix.project }}
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-browser-${{ matrix.project }}-playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+      - name: Clean test database
+        if: always()
+        shell: pwsh
+        run: npm run test:clean

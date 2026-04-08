@@ -1,4 +1,4 @@
-import { HealthScreen } from "@/components/mission-control/dashboard";
+import { HealthScreen } from "@/components/mission-control/health-screen";
 
 export default function HealthPage() {
   return <HealthScreen />;

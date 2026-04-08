@@ -1,0 +1,40 @@
+name: Repository Label Synchronization
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/labels.yml
+      - .github/workflows/labels.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync-labels:
+    name: Synchronize repository labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Sync labels from source control
+        uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: false
+          dry-run: false
+
+      - name: Write synchronization summary
+        shell: bash
+        run: |
+          {
+            echo "## Label synchronization"
+            echo "- Source: \\.github/labels.yml\`"
+            echo "- Mode: apply missing and updated labels"
+            echo "- Destructive deletes: disabled"
+          } >> "$GITHUB_STEP_SUMMARY"

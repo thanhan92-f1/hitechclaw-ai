@@ -1,0 +1,75 @@
+name: Community Health and First Interaction
+
+on:
+  issues:
+    types:
+      - opened
+  pull_request_target:
+    types:
+      - opened
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome-issue-author:
+    name: Welcome first-time issue authors
+    if: ${{ github.event_name == 'issues' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome new community members
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const association = issue.author_association || 'NONE';
+            const titleAndBody = `${issue.title || ''}\n${issue.body || ''}`;
+            const questionLike = /\b(how do i|how to|question|help me|support|usage)\b/i.test(titleAndBody);
+
+            if (!['FIRST_TIMER', 'FIRST_TIME_CONTRIBUTOR', 'NONE'].includes(association) && !questionLike) {
+              return;
+            }
+
+            const lines = ['Thanks for contributing to HiTechClaw AI.'];
+            if (questionLike) {
+              lines.push('For setup questions, usage help, and architecture discussion, GitHub Discussions is usually the fastest path: https://github.com/thanhan92-f1/hitechclaw-ai/discussions');
+            }
+            if (['FIRST_TIMER', 'FIRST_TIME_CONTRIBUTOR', 'NONE'].includes(association)) {
+              lines.push('If this is your first interaction here, welcome. Maintainers may ask for reproduction details, validation notes, or operational context to help triage efficiently.');
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: lines.join('\n\n'),
+            });
+
+  welcome-pr-author:
+    name: Welcome first-time pull request authors
+    if: ${{ github.event_name == 'pull_request_target' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome first-time contributors
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const association = pr.author_association || 'NONE';
+
+            if (!['FIRST_TIMER', 'FIRST_TIME_CONTRIBUTOR', 'NONE'].includes(association)) {
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: [
+                'Thanks for the contribution and welcome to HiTechClaw AI.',
+                'Please make sure the PR body stays aligned with the template, including validation notes and rollback guidance.',
+                'If this change touches `@hitechclaw-ai/sdk`, confirm the intended version and tagging flow before merge.'
+              ].join('\n\n'),
+            });

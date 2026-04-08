@@ -1,0 +1,88 @@
+name: Pull Request Quality Gate
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate pull request body quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required PR template sections
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const requiredSections = [
+              '## Summary',
+              '## Why This Change Exists',
+              '## Scope',
+              '## Type of Change',
+              '## Validation',
+              '## Risk Assessment',
+              '## Notes for Reviewers',
+            ];
+
+            const missing = requiredSections.filter((section) => !body.includes(section));
+            const typeChecked = /## Type of Change[\s\S]*?- \[x\]/i.test(body);
+            const validationChecked = /## Validation[\s\S]*?- \[x\]/i.test(body);
+            const marker = '<!-- hitechclaw-pr-quality -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+            });
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+
+            if (missing.length === 0 && typeChecked && validationChecked) {
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                });
+              }
+              return;
+            }
+
+            const problems = [];
+            if (missing.length > 0) {
+              problems.push(`Missing sections: ${missing.join(', ')}`);
+            }
+            if (!typeChecked) {
+              problems.push('At least one `Type of Change` checkbox must be selected.');
+            }
+            if (!validationChecked) {
+              problems.push('At least one `Validation` checkbox must be selected.');
+            }
+
+            const commentBody = `${marker}\nPR quality gate needs an update before merge:\n\n- ${problems.join('\n- ')}\n\nPlease update the PR body instead of bypassing the workflow.`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: commentBody,
+              });
+            }
+
+            core.setFailed(problems.join(' '));

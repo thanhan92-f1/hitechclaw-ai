@@ -1,0 +1,57 @@
+name: Self-Hosted Runner Setup Guide
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_label:
+        description: Primary custom label expected on the runner.
+        required: false
+        default: hitechclaw
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  instructions:
+    name: Self-hosted runner prerequisites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish runner setup instructions
+        shell: bash
+        run: |
+          {
+            echo "# Self-hosted runner setup"
+            echo ""
+            echo "Expected labels for heavy workflows: **self-hosted**, **windows**, **x64**, **${{ inputs.runner_label }}**"
+            echo ""
+            echo "## Recommended runner host baseline"
+            echo "- Windows Server 2022 or Windows 11"
+            echo "- Node.js 25.x"
+            echo "- npm 10+"
+            echo "- Docker Desktop or Docker Engine with Compose v2"
+            echo "- PowerShell 7+ available as \\`pwsh\\`"
+            echo "- Playwright browser dependencies installed for Chromium, Firefox, and WebKit"
+            echo ""
+            echo "## Suggested bootstrap sequence"
+            echo "1. Create a dedicated service account for GitHub Actions runs."
+            echo "2. Install the GitHub self-hosted runner from the repository or organization settings."
+            echo "3. Register labels: \\`self-hosted\\`, \\`windows\\`, \\`x64\\`, and \\`${{ inputs.runner_label }}\\`."
+            echo "4. Install Node.js 25 and confirm \\`node -v\\` and \\`npm -v\\`."
+            echo "5. Install Docker and verify \\`docker version\\` and \\`docker compose version\\`."
+            echo "6. Pre-install Playwright browsers with \\`npx playwright install chromium firefox webkit\\`."
+            echo "7. Grant the runner account access to Docker and the workspace directory."
+            echo "8. Keep the runner persistent as a Windows service, not an interactive shell."
+            echo ""
+            echo "## Repository expectations"
+            echo "- CI creates \\`.env.local\\` from \\`.env.development.example\\`."
+            echo "- CI creates \\`.env.test.local\\` from \\`.env.test.example\\`."
+            echo "- Heavy jobs run lint, build, and Playwright against the self-hosted runner."
+            echo "- Docs/governance validation stays on GitHub-hosted Linux."
+            echo ""
+            echo "## Validation checklist"
+            echo "- The runner appears online in GitHub settings."
+            echo "- Labels exactly match the CI workflow."
+            echo "- \\`npm ci\\`, \\`npm run build\\`, and \\`npm run test:smoke:managed\\` succeed on the host."
+            echo "- Docker-based dev/test database scripts run without elevation prompts."
+          } >> "$GITHUB_STEP_SUMMARY"

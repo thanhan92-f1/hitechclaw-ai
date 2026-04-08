@@ -1,0 +1,102 @@
+name: Issue Governance and Intake Quality
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  govern-issue:
+    name: Guide issue intake quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Review issue intake
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const title = (issue.title || '').trim();
+            const body = (issue.body || '').trim();
+            const labels = new Set((issue.labels || []).map((label) => label.name));
+            const marker = '<!-- hitechclaw-issue-governance -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+            });
+            const existing = comments.find((comment) => comment.body && comment.body.includes(marker));
+            const notes = [];
+            const labelsToAdd = [];
+
+            if (body.length < 120) {
+              notes.push('Please add more detail so maintainers can reproduce or scope the request quickly.');
+            }
+
+            if (labels.has('bug') && !/steps to reproduce|what happened|expected/i.test(body)) {
+              notes.push('Bug reports should include what happened, what should have happened, and clear steps to reproduce.');
+            }
+
+            if (labels.has('feature-request') && !/success|acceptance|problem/i.test(body)) {
+              notes.push('Feature requests should explain the problem, the expected outcome, and what success looks like.');
+            }
+
+            if (/\b(how do i|how to|question|help me|can someone help)\b/i.test(`${title}\n${body}`)) {
+              notes.push('Usage questions and implementation help are usually better handled in GitHub Discussions: https://github.com/thanhan92-f1/hitechclaw-ai/discussions');
+            }
+
+            if (/\b(vulnerability|security issue|exploit|secret leak|token leak)\b/i.test(`${title}\n${body}`) && !labels.has('security')) {
+              labelsToAdd.push('security');
+              notes.push('If this is an exploitable security problem, please use the private disclosure route in SECURITY.md instead of a public issue.');
+            }
+
+            if (/\binstall|docker compose|deployment|setup wizard\b/i.test(`${title}\n${body}`) && !labels.has('installation')) {
+              labelsToAdd.push('installation');
+            }
+
+            if (/\bapi|sdk|webhook|integration\b/i.test(`${title}\n${body}`) && !labels.has('area:api')) {
+              labelsToAdd.push('area:api');
+            }
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: [...new Set(labelsToAdd)],
+              });
+            }
+
+            if (notes.length === 0) {
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                });
+              }
+              return;
+            }
+
+            const commentBody = `${marker}\nThanks for opening this issue. To speed up triage, please review the following:\n\n- ${notes.join('\n- ')}\n\nReferences:\n- SUPPORT.md: https://github.com/thanhan92-f1/hitechclaw-ai/blob/main/SUPPORT.md\n- SECURITY.md: https://github.com/thanhan92-f1/hitechclaw-ai/blob/main/SECURITY.md`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: commentBody,
+              });
+            }

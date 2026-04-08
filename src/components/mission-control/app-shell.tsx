@@ -34,13 +34,16 @@ import {
   Globe,
   Archive,
   Brain,
+  Play,
   FlaskConical,
   MessageSquare,
   Puzzle,
   RefreshCcw,
   Smartphone,
   TerminalSquare,
+  Users,
   Wrench,
+  HeartPulse,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CommandPalette } from "./command-palette";
@@ -166,6 +169,8 @@ const mobileTabs: Array<{ href: string; label: string; icon: LucideIcon }> = [
 ];
 
 const moreSheetItems: NavItem[] = [
+  { href: "/actions", label: "Actions", icon: Play },
+  { href: "/health", label: "Health", icon: HeartPulse },
   { href: "/incidents", label: "Incidents", icon: AlertTriangle },
   { href: "/infrastructure", label: "Infrastructure", icon: Network },
   { href: "/traces", label: "Traces", icon: GitBranch },
@@ -173,6 +178,7 @@ const moreSheetItems: NavItem[] = [
   { href: "/models", label: "Models", icon: Database },
   { href: "/search", label: "Search", icon: Search },
   { href: "/eval", label: "Evaluation", icon: FlaskConical },
+  { href: "/multi-agent", label: "Multi-Agent", icon: Users },
   { href: "/client/chat", label: "AI Chat", icon: MessageSquare },
   { href: "/tools/domains", label: "Domains", icon: Globe },
   { href: "/tools/integrations", label: "Integrations", icon: Plug },
@@ -239,6 +245,8 @@ const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
     label: "Respond",
     key: "respond",
     items: [
+      { href: "/actions", label: "Actions", subtitle: "Unified operational action queue", icon: Play },
+      { href: "/health", label: "Health", subtitle: "Backend readiness and runtime health", icon: HeartPulse },
       { href: "/incidents", label: "Incidents", subtitle: "Track operational incidents", icon: AlertTriangle },
       { href: "/tools/approvals", label: "Approvals", subtitle: "Review pending requests", icon: CheckCircle },
       { href: "/workflows", label: "Workflows", subtitle: "Automate operations", icon: Workflow },
@@ -252,6 +260,7 @@ const navGroups: Array<{ label: string; key: string; items: NavItem[] }> = [
       { href: "/models", label: "Models", subtitle: "OpenClaw model aliases, defaults, and fallbacks", icon: Database },
       { href: "/search", label: "Search", subtitle: "Unified docs, library, and OpenClaw memory retrieval", icon: Search },
       { href: "/eval", label: "Evaluation", subtitle: "Run quick checks and suites against gateway-backed eval flows", icon: FlaskConical },
+      { href: "/multi-agent", label: "Multi-Agent", subtitle: "Coordinate runtime agents in sequential, parallel, debate, and supervisor modes", icon: Users },
       { href: "/tools/domains", label: "Domain Packs", subtitle: "Industry packs, playbooks, and presets", icon: Globe },
       { href: "/tools/integrations", label: "Integrations", subtitle: "Connector catalog, actions, and triggers", icon: Plug },
       { href: "/tools/builtin-skills", label: "Built-in Skills", subtitle: "Packaged runtime skill handlers and config", icon: Puzzle },
