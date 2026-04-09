@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { marked } from "marked";
 import { toast } from "sonner";
-import { type ReactNode, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Card,
   ErrorState,
@@ -18,11 +18,11 @@ import {
   ShellHeader,
   StatCard,
 } from "./dashboard";
-import { getAuthHeaders } from "./api";
 import { SectionDescription } from "./dashboard-clarity";
-import { Badge, BottomSheet, EmptyState } from "./tools/shared";
+import { Badge, BottomSheet, EmptyState, Pill } from "./tools/shared";
 import {
   PackageActionBar,
+  PackageScrollableMenuGroups,
   PackageWorkspaceNav,
   packageMenuSections,
   packageOverviewGroups,
@@ -31,17 +31,27 @@ import {
   toolsControlLanes,
   toolsHubQuickActions,
   ToolsControlCenter,
+  ToolsScrollableMenuGroups,
 } from "./tools/hub-sections";
-
-type FetchState<T> = {
-  data: T | null;
-  error: string | null;
-  loading: boolean;
-};
-
-type PollingResult<T> = FetchState<T> & {
-  refresh: () => Promise<void>;
-};
+import {
+  CommandPulsePanel,
+  ExecutionMonitorPanel,
+  InlineActionsPanel,
+  PackageCoveragePanel,
+  PackageOverviewGroupsPanel,
+  PackageRecommendedFlowPanel,
+  PriorityQueuePanel,
+} from "./tools/hub-panels";
+import {
+  elapsedLabel,
+  fetchJson,
+  formatDate,
+  formatShortDate,
+  submitQuickCommand,
+  timeAgo,
+  useNow,
+  usePollingData,
+} from "./tools/runtime";
 
 type ApprovalItem = {
   id: number;
@@ -521,185 +531,6 @@ function renderMarkdown(content: string): string {
   return raw;
 }
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error || `${response.status} ${response.statusText}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-async function submitQuickCommand(command: string) {
-  const trimmed = command.trim();
-  if (!trimmed) return;
-
-  await fetchJson("/api/tools/commands", {
-    method: "POST",
-    body: JSON.stringify({
-      agent_id: "default",
-      command: trimmed,
-      status: "sent",
-    }),
-  });
-
-  try {
-    const proxyRes = await fetch("/api/gateway/proxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path: "/api/system-event",
-        method: "POST",
-        body: { text: trimmed, mode: "now" },
-      }),
-    });
-
-    if (proxyRes.ok) {
-      toast.success("Command sent to agent");
-    } else {
-      toast("Command saved — gateway unreachable", { icon: "⚠️" });
-    }
-  } catch {
-    toast("Command saved — gateway unreachable", { icon: "⚠️" });
-  }
-}
-
-function usePollingData<T>(url: string, intervalMs = 15000): PollingResult<T> {
-  const [state, setState] = useState<FetchState<T>>({
-    data: null,
-    error: null,
-    loading: true,
-  });
-  const urlRef = useRef(url);
-  urlRef.current = url;
-
-  const refresh = useCallback(async () => {
-    try {
-      const data = await fetchJson<T>(urlRef.current);
-      setState({ data, error: null, loading: false });
-    } catch (error) {
-      setState((current) => ({
-        data: current.data,
-        error: error instanceof Error ? error.message : "Request failed",
-        loading: false,
-      }));
-    }
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const run = async () => {
-      try {
-        const data = await fetchJson<T>(urlRef.current);
-        if (!mounted) return;
-        setState({ data, error: null, loading: false });
-      } catch (error) {
-        if (!mounted) return;
-        setState((current) => ({
-          data: current.data,
-          error: error instanceof Error ? error.message : "Request failed",
-          loading: false,
-        }));
-      }
-    };
-
-    run();
-    const timer = window.setInterval(run, intervalMs);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(timer);
-    };
-  }, [intervalMs, url]);
-
-  return { ...state, refresh };
-}
-
-function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(timer);
-  }, [intervalMs]);
-
-  return now;
-}
-
-function formatDate(value: string | null | undefined, options?: Intl.DateTimeFormatOptions) {
-  if (!value) return "No date";
-  return new Date(value).toLocaleString("en-ZA", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    ...options,
-  });
-}
-
-function formatShortDate(value: string | null | undefined) {
-  if (!value) return "No date";
-  return new Date(value).toLocaleDateString("en-ZA", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function timeAgo(value: string | null | undefined) {
-  if (!value) return "Now";
-  const diffMinutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
-  if (diffMinutes < 1) return "Just now";
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const hours = Math.floor(diffMinutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function elapsedLabel(startedAt: string, completedAt: string | null, now: number) {
-  const end = completedAt ? new Date(completedAt).getTime() : now;
-  const totalSeconds = Math.max(0, Math.floor((end - new Date(startedAt).getTime()) / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m ${seconds}s`;
-}
-
-function Pill({
-  active,
-  children,
-  onClick,
-}: {
-  active?: boolean;
-  children: ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition ${
-        active
-          ? "border-cyan/40 bg-cyan/15 text-cyan"
-          : "border-border bg-bg-deep/80 text-text-dim"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function ToolsLiveSnapshot() {
   const now = useNow(60000);
   const [quickMessage, setQuickMessage] = useState("");
@@ -805,171 +636,41 @@ function ToolsLiveSnapshot() {
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-          <SectionTitle title="Priority queue" note="What operators should look at first." />
-          <div className="space-y-3">
-            {spotlightApprovals.map((item) => (
-              <Link key={`approval-${item.id}`} href="/tools/approvals" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="green">Approval</Badge>
-                    <Badge tone={item.priority === "urgent" ? "red" : item.priority === "low" ? "slate" : "cyan"}>{item.priority}</Badge>
-                  </div>
-                  <span className="text-xs text-text-dim">{timeAgo(item.created_at)}</span>
-                </div>
-                <div className="text-sm font-semibold text-text">{item.title}</div>
-                <p className="mt-1 text-sm leading-6 text-text-dim line-clamp-2">{item.content}</p>
-              </Link>
-            ))}
+        <PriorityQueuePanel
+          approvals={spotlightApprovals}
+          tasks={spotlightTasks}
+          now={now}
+          timeAgo={timeAgo}
+          formatShortDate={formatShortDate}
+          priorityTone={priorityTone}
+        />
 
-            {spotlightTasks.map((item) => (
-              <Link key={`task-${item.id}`} href="/tools/tasks" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="amber">Task</Badge>
-                    <Badge tone={priorityTone(item.priority)}>{item.priority}</Badge>
-                  </div>
-                  <span className={`text-xs ${item.due_date && new Date(item.due_date).getTime() < now ? "text-red" : "text-text-dim"}`}>
-                    {item.due_date ? formatShortDate(item.due_date) : "No due"}
-                  </span>
-                </div>
-                <div className="text-sm font-semibold text-text">{item.title}</div>
-                <p className="mt-1 text-sm leading-6 text-text-dim">{item.description ?? "No description supplied."}</p>
-              </Link>
-            ))}
-
-            {!spotlightApprovals.length && !spotlightTasks.length ? <EmptyState label="No approval or task pressure detected right now." /> : null}
-          </div>
-        </Card>
-
-        <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-          <SectionTitle title="Execution monitor" note="Live agent activity and immediate schedule context." />
-          <div className="space-y-3">
-            {spotlightRuns.map((run) => (
-              <Link key={`run-${run.id}`} href="/tools/agents-live" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone={runTone(run.status)}>{run.status}</Badge>
-                    <Badge tone="purple">{run.model}</Badge>
-                  </div>
-                  <span className="text-xs text-text-dim">{elapsedLabel(run.started_at, run.completed_at, now)}</span>
-                </div>
-                <div className="text-sm font-semibold text-text">{run.run_label}</div>
-                <p className="mt-1 text-sm leading-6 text-text-dim">{run.task_summary ?? run.error_message ?? "No summary supplied."}</p>
-              </Link>
-            ))}
-
-            {spotlightSchedule.map((item) => (
-              <Link key={`calendar-${item.id}`} href="/tools/calendar" className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone="purple">{item.item_type}</Badge>
-                    <Badge tone={item.status === "published" ? "green" : item.status === "cancelled" ? "red" : "amber"}>{item.status}</Badge>
-                  </div>
-                  <span className="text-xs text-text-dim">{formatDate(item.scheduled_at)}</span>
-                </div>
-                <div className="text-sm font-semibold text-text">{item.title}</div>
-                <p className="mt-1 text-sm leading-6 text-text-dim">{item.description ?? "No schedule notes supplied."}</p>
-              </Link>
-            ))}
-
-            {!spotlightRuns.length && !spotlightSchedule.length ? <EmptyState label="No active runs or scheduled events in the current window." /> : null}
-          </div>
-        </Card>
+        <ExecutionMonitorPanel
+          runs={spotlightRuns}
+          schedule={spotlightSchedule}
+          now={now}
+          runTone={runTone}
+          elapsedLabel={elapsedLabel}
+          formatDate={formatDate}
+        />
       </div>
 
-      <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-        <SectionTitle title="Command pulse" note="Recent operator-to-agent requests and execution backlog." />
-        <div className="grid gap-3 lg:grid-cols-3">
-          {(commands.data?.items ?? []).slice(0, 3).map((entry) => (
-            <Link key={`command-${entry.id}`} href="/tools/command" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Badge tone={entry.status === "completed" ? "green" : entry.status === "processing" ? "amber" : "slate"}>{entry.status}</Badge>
-                <span className="text-xs text-text-dim">{timeAgo(entry.created_at)}</span>
-              </div>
-              <div className="text-sm font-semibold text-text line-clamp-2">{entry.command}</div>
-              <p className="mt-1 text-sm leading-6 text-text-dim line-clamp-3">{entry.response ?? "Awaiting response from agent."}</p>
-            </Link>
-          ))}
-          {!commands.data?.items?.length ? <EmptyState label="No recent command traffic." /> : null}
-        </div>
-        {failedAgents > 0 ? <div className="text-sm text-red">{failedAgents} recent sub-agent run(s) reported a failed status and may require follow-up.</div> : null}
-        {errors.length ? <ErrorState error={errors[0]} /> : null}
-      </Card>
+      <CommandPulsePanel
+        items={commands.data?.items ?? []}
+        failedAgents={failedAgents}
+        error={errors[0] ?? null}
+        timeAgo={timeAgo}
+      />
 
-      <Card className="space-y-4 border-border/70 bg-bg-deep/40">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <SectionTitle title="Inline actions" note="Take the most common operator actions without leaving the landing page." />
-          <button
-            type="button"
-            onClick={() => void refreshAll()}
-            className="min-h-11 rounded-2xl border border-border px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text"
-          >
-            Refresh snapshot
-          </button>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-4">
-          <Link href="/tools/approvals" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-            <Badge tone="green">Review approvals</Badge>
-            <p className="mt-3 text-sm leading-6 text-text-dim">Open the moderated queue and clear pending decisions.</p>
-          </Link>
-          <Link href="/tools/tasks" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-            <Badge tone="amber">Reprioritize tasks</Badge>
-            <p className="mt-3 text-sm leading-6 text-text-dim">Move active work, assign focus, and reduce overdue drift.</p>
-          </Link>
-          <Link href="/tools/agents-live" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-            <Badge tone="cyan">Inspect live agents</Badge>
-            <p className="mt-3 text-sm leading-6 text-text-dim">Open active runs, inspect logs, and stop unhealthy executions.</p>
-          </Link>
-          <Link href="/tools/calendar" className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30">
-            <Badge tone="purple">Check schedule</Badge>
-            <p className="mt-3 text-sm leading-6 text-text-dim">Review this week window and drill into upcoming operational events.</p>
-          </Link>
-        </div>
-
-        <div className="rounded-[24px] border border-border bg-bg-card/50 p-4">
-          <div className="mb-3 flex gap-2 overflow-x-auto">
-            {toolsHubQuickActions.map((action) => (
-              <button
-                key={action}
-                type="button"
-                disabled={sendingCommand}
-                onClick={() => void triggerQuickCommand(action)}
-                className="min-h-11 rounded-full border border-border bg-bg-deep/80 px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text disabled:opacity-50"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-            <textarea
-              rows={1}
-              value={quickMessage}
-              onChange={(event) => setQuickMessage(event.target.value)}
-              placeholder="Send a quick operational command"
-              className="min-h-11 flex-1 resize-none rounded-2xl border border-border bg-bg-deep/80 px-4 py-3 text-sm text-text outline-none"
-            />
-            <div className="flex gap-3">
-              <Link
-                href="/tools/command"
-                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-border px-4 text-sm text-text-dim transition hover:border-cyan/30 hover:text-text"
-              >
-                Open full command
-              </Link>
-              <button
-                type="button"
-                disabled={sendingCommand || !quickMessage.trim()}
-                onClick={() => void triggerQuickCommand(quickMessage)}
-                className="min-h-11 rounded-2xl border border-cyan/30 bg-cyan px-5 text-sm font-semibold text-bg-deep disabled:opacity-50"
-              >
-                {sendingCommand ? "Sending..." : "Send now"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <InlineActionsPanel
+        quickActions={toolsHubQuickActions}
+        sendingCommand={sendingCommand}
+        quickMessage={quickMessage}
+        onQuickMessageChange={setQuickMessage}
+        onRefresh={() => void refreshAll()}
+        onTriggerQuickAction={(command) => void triggerQuickCommand(command)}
+        onSubmitQuickMessage={() => void triggerQuickCommand(quickMessage)}
+      />
     </div>
   );
 }
@@ -1037,50 +738,21 @@ function PackageOverviewDashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-        <div className="space-y-4">
-          {packageOverviewGroups.map((group) => (
-            <Card key={group.title} className="space-y-3 border-border/70 bg-bg-deep/40">
-              <SectionTitle title={group.title} note={group.note} />
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {group.items.map((item) => (
-                  <Link
-                    key={`${group.title}-${item.href}`}
-                    href={item.href}
-                    className="rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <Badge tone={item.tone}>{item.label}</Badge>
-                      <span className="text-xs text-text-dim">Open</span>
-                    </div>
-                    <p className="text-sm leading-6 text-text-dim">{item.description}</p>
-                  </Link>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <PackageOverviewGroupsPanel groups={packageOverviewGroups} />
 
         <div className="space-y-4">
-          <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-            <SectionTitle title="Coverage" note="Current package surface area" />
-            <ul className="space-y-2 text-sm leading-6 text-text-dim">
-              <li>• {allDomainPacks.length} domain packs with {totalDomainTools} packaged helper tools.</li>
-              <li>• {allIntegrations.length} integration definitions with additive rollout guidance.</li>
-              <li>• {skillEntries.length} skill registry entries linked back to domains and integrations.</li>
-              <li>• {algorithms.length} ML algorithms exposed as a browse-only catalog.</li>
-              <li>• {builtinSkillCount} packaged runtime skills exposed without wiring risky live execution.</li>
-              <li>• {sandboxPolicyCount} sandbox policies and {GPU_SANDBOX_IMAGES.length} GPU image presets documented for safe rollout.</li>
-            </ul>
-          </Card>
+          <PackageCoveragePanel
+            domainPackCount={allDomainPacks.length}
+            totalDomainTools={totalDomainTools}
+            integrationCount={allIntegrations.length}
+            skillEntryCount={skillEntries.length}
+            algorithmCount={algorithms.length}
+            builtinSkillCount={builtinSkillCount}
+            sandboxPolicyCount={sandboxPolicyCount}
+            gpuImageCount={GPU_SANDBOX_IMAGES.length}
+          />
 
-          <Card className="space-y-3 border-border/70 bg-bg-deep/40">
-            <SectionTitle title="Recommended flow" note="Use packages without replacing existing features" />
-            <ul className="space-y-2 text-sm leading-6 text-text-dim">
-              <li>• Discover reusable patterns in `Domains`, `Skills`, and `ML` first.</li>
-              <li>• Validate connector assumptions in `Integrations` and `Docs` before rollout.</li>
-              <li>• Execute through `AI Chat`, `MCP`, approvals, and existing workflows.</li>
-            </ul>
-          </Card>
+          <PackageRecommendedFlowPanel />
         </div>
       </div>
     </Card>
@@ -1114,42 +786,14 @@ export function ToolsHubScreen() {
       </div>
 
       <Card>
-        <SectionTitle title="Tool Grid" note="HiTechClaw AI phase 5" />
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {toolLinks.map((tool) => (
-            <Link
-              key={tool.href}
-              href={tool.href}
-              className="min-h-28 rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 transition hover:border-cyan/40"
-            >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <Badge tone={tool.tone}>{tool.title}</Badge>
-                <span className="text-xs text-text-dim">Open</span>
-              </div>
-              <p className="text-sm leading-6 text-text-dim">{tool.note}</p>
-            </Link>
-          ))}
-        </div>
+        <SectionTitle title="Full function menu" note="All tools remain visible, with jump navigation, sticky group headers, and independent scroll inside each menu lane." />
+        <ToolsScrollableMenuGroups />
       </Card>
 
       {packageMenuSections.map((section) => (
         <Card key={section.title}>
-          <SectionTitle title={section.title} note={section.note} />
-          <div className="grid gap-3 lg:grid-cols-2">
-            {section.items.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-[22px] border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0))] p-4 transition hover:border-cyan/40"
-              >
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <Badge tone={item.tone}>{item.label}</Badge>
-                  <span className="text-xs text-text-dim">Menu</span>
-                </div>
-                <p className="text-sm leading-6 text-text-dim">{item.description}</p>
-              </Link>
-            ))}
-          </div>
+          <SectionTitle title={section.title} note="Grouped package menu lanes with independent scroll to match the main control menu UX." />
+          <PackageScrollableMenuGroups />
         </Card>
       ))}
     </div>

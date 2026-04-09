@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { Card, SectionTitle } from "../dashboard";
 import { Badge, type ToolTone } from "./shared";
 
@@ -22,6 +25,33 @@ export const toolLinks = [
 
 export const toolsHubQuickActions = ["Status", "Briefing", "Priority list", "Escalate blockers"];
 
+export const toolMenuGroups: Array<{
+  title: string;
+  note: string;
+  items: typeof toolLinks;
+}> = [
+  {
+    title: "Governed execution",
+    note: "Review, approve, and coordinate work before automation moves deeper.",
+    items: toolLinks.filter((item) => ["/tools/approvals", "/tools/tasks", "/tools/calendar", "/tools/command"].includes(item.href)),
+  },
+  {
+    title: "Live operations",
+    note: "Monitor active runs and keep operator-facing execution surfaces close together.",
+    items: toolLinks.filter((item) => ["/tools/agents-live", "/actions", "/visuals", "/confessions"].includes(item.href)),
+  },
+  {
+    title: "Package capability",
+    note: "Browse the packaged system surface without leaving the tools landing page.",
+    items: toolLinks.filter((item) => ["/tools/builtin-skills", "/tools/domains", "/tools/integrations", "/tools/skills", "/tools/ml", "/tools/sandbox", "/tools/docs"].includes(item.href)),
+  },
+  {
+    title: "Platform control",
+    note: "Keep provider and execution gateways visible from the same menu layer.",
+    items: toolLinks.filter((item) => ["/tools/mcp"].includes(item.href)),
+  },
+];
+
 export const packageMenuSections: Array<{
   title: string;
   note: string;
@@ -41,6 +71,28 @@ export const packageMenuSections: Array<{
       { href: "/tools/docs", label: "Docs Library", description: "Read indexed docs and package guidance from the documentation module.", tone: "cyan" },
       { href: "/tools/mcp", label: "MCP Inventory", description: "Manage MCP servers, imports, and execution gateways from the tooling layer.", tone: "slate" },
     ],
+  },
+];
+
+const packageFunctionGroups: Array<{
+  title: string;
+  note: string;
+  items: (typeof packageMenuSections)[number]["items"];
+}> = [
+  {
+    title: "Client workspace",
+    note: "Operator-facing entry points for direct usage and package-backed interaction.",
+    items: packageMenuSections[0].items.filter((item) => ["/client/chat", "/tools/docs"].includes(item.href)),
+  },
+  {
+    title: "Capability catalogs",
+    note: "Browse packaged domains, skills, and ML references in one grouped lane.",
+    items: packageMenuSections[0].items.filter((item) => ["/tools/builtin-skills", "/tools/domains", "/tools/skills", "/tools/ml"].includes(item.href)),
+  },
+  {
+    title: "Execution fabric",
+    note: "Keep rollout, provider, and safety layers together before enabling live workflows.",
+    items: packageMenuSections[0].items.filter((item) => ["/tools/integrations", "/tools/sandbox", "/tools/mcp"].includes(item.href)),
   },
 ];
 
@@ -335,6 +387,168 @@ export function ToolsControlCenter() {
           </ul>
         </Card>
       </div>
+    </div>
+  );
+}
+
+export function ToolsScrollableMenuGroups() {
+  const groupAnchors = useMemo(
+    () =>
+      toolMenuGroups.map((group) => ({
+        ...group,
+        anchor: `tools-menu-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`,
+      })),
+    []
+  );
+  const [activeAnchor, setActiveAnchor] = useState(groupAnchors[0]?.anchor ?? "");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const syncHash = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash && groupAnchors.some((group) => group.anchor === hash)) {
+        setActiveAnchor(hash);
+        return;
+      }
+
+      if (groupAnchors[0]?.anchor) {
+        setActiveAnchor(groupAnchors[0].anchor);
+      }
+    };
+
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
+  }, [groupAnchors]);
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-x-auto pb-2">
+        <div className="flex min-w-max gap-2">
+          {groupAnchors.map((group) => (
+            <Link
+              key={group.anchor}
+              href={`#${group.anchor}`}
+              onClick={() => {
+                setActiveAnchor(group.anchor);
+                setCollapsedGroups((current) => ({ ...current, [group.anchor]: false }));
+              }}
+              className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm transition ${
+                activeAnchor === group.anchor
+                  ? "border-cyan/40 bg-cyan/10 text-cyan"
+                  : "border-border bg-bg-card/60 text-text-dim hover:border-cyan/30 hover:text-text"
+              }`}
+            >
+              {group.title}
+              <span className="ml-2 text-xs text-text-dim">{group.items.length}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {groupAnchors.map((group) => (
+          <div key={group.title} id={group.anchor} className="scroll-mt-28">
+            <Card className="flex min-h-[360px] flex-col border-border/70 bg-bg-deep/40">
+              <div className="sticky top-0 z-10 -mx-1 mb-3 border-b border-border/60 bg-bg-deep/95 px-1 pb-3 pt-1 backdrop-blur">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <SectionTitle title={group.title} note={group.note} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone="slate">{group.items.length}</Badge>
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedGroups((current) => ({ ...current, [group.anchor]: !current[group.anchor] }))}
+                      className="min-h-10 rounded-full border border-border px-3 text-xs text-text-dim transition hover:border-cyan/30 hover:text-text"
+                    >
+                      {collapsedGroups[group.anchor] ? "Expand" : "Collapse"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {collapsedGroups[group.anchor] ? (
+                <div className="rounded-[18px] border border-dashed border-border/70 px-3 py-3 text-xs text-text-dim">
+                  Group collapsed. Expand to view the full menu lane.
+                </div>
+              ) : (
+                <div className="flex-1 space-y-3 overflow-y-auto pr-1 max-h-[420px]">
+                  {group.items.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      href={tool.href}
+                      className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <Badge tone={tool.tone}>{tool.title}</Badge>
+                        <span className="text-xs text-text-dim">Open</span>
+                      </div>
+                      <p className="text-sm leading-6 text-text-dim">{tool.note}</p>
+                    </Link>
+                  ))}
+
+                  <div className="rounded-[18px] border border-dashed border-border/70 px-3 py-2 text-xs text-text-dim">
+                    Scroll inside this group to browse the full menu without losing the surrounding control center context.
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function PackageScrollableMenuGroups() {
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {packageFunctionGroups.map((group) => (
+        <Card key={group.title} className="flex min-h-[320px] flex-col border-border/70 bg-bg-deep/40">
+          <div className="sticky top-0 z-10 -mx-1 mb-3 border-b border-border/60 bg-bg-deep/95 px-1 pb-3 pt-1 backdrop-blur">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <SectionTitle title={group.title} note={group.note} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge tone="slate">{group.items.length}</Badge>
+                <button
+                  type="button"
+                  onClick={() => setCollapsedGroups((current) => ({ ...current, [group.title]: !current[group.title] }))}
+                  className="min-h-10 rounded-full border border-border px-3 text-xs text-text-dim transition hover:border-cyan/30 hover:text-text"
+                >
+                  {collapsedGroups[group.title] ? "Expand" : "Collapse"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {collapsedGroups[group.title] ? (
+            <div className="rounded-[18px] border border-dashed border-border/70 px-3 py-3 text-xs text-text-dim">
+              Group collapsed. Expand to view package functions in this lane.
+            </div>
+          ) : (
+            <div className="flex-1 space-y-3 overflow-y-auto pr-1 max-h-[360px]">
+              {group.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-[20px] border border-border bg-bg-card/60 p-4 transition hover:border-cyan/30"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <Badge tone={item.tone}>{item.label}</Badge>
+                    <span className="text-xs text-text-dim">Menu</span>
+                  </div>
+                  <p className="text-sm leading-6 text-text-dim">{item.description}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
     </div>
   );
 }

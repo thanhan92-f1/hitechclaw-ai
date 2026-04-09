@@ -66,3 +66,27 @@ export function BottomSheet({
 export function EmptyState({ label }: { label: string }) {
   return <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-text-dim">{label}</div>;
 }
+
+export function Pill({
+  active,
+  children,
+  onClick,
+}: {
+  active?: boolean;
+  children: ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-h-11 rounded-full border px-4 text-sm font-semibold transition ${
+        active
+          ? "border-cyan/40 bg-cyan/15 text-cyan"
+          : "border-border bg-bg-deep/80 text-text-dim"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
