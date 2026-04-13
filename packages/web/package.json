@@ -10,9 +10,9 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@hitechclaw/chat-sdk": "*",
         "@tailwindcss/typography": "^0.5.19",
         "@tailwindcss/vite": "^4.2.1",
-        "@hitechclaw/chat-sdk": "*",
         "@xyflow/react": "^12.10.1",
         "lucide-react": "^0.577.0",
         "react": "^19.0.0",
