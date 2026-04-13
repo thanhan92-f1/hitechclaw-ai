@@ -16,7 +16,7 @@
         "dev": "tsc -b --watch"
     },
     "dependencies": {
-        "@hono/node-server": "^1.14.0",
+        "@hono/node-server": "^1.19.14",
         "@hono/node-ws": "^1.1.0",
         "@modelcontextprotocol/sdk": "^1.27.1",
         "@hitechclaw/core": "*",
