@@ -28,6 +28,6 @@
         "@hitechclaw/channel-discord": "*",
         "@hitechclaw/channel-msteams": "*",
         "@hono/node-server": "^1.14.0",
-        "dotenv": "^16.4.0"
+        "dotenv": "^17.4.2"
     }
 }
