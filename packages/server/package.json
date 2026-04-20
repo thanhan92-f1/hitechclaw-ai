@@ -27,7 +27,7 @@
         "@hitechclaw/channel-zalo": "*",
         "@hitechclaw/channel-discord": "*",
         "@hitechclaw/channel-msteams": "*",
-        "@hono/node-server": "^1.14.0",
+        "@hono/node-server": "^1.19.14",
         "dotenv": "^16.4.0"
     }
 }
